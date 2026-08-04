@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "ai-scrum",
+  "description": "Spec-driven AI Scrum workflow: roadmap -> concept -> story -> refine -> build -> sprint, with all state living in the repository.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Hantsch"
+  },
+  "homepage": "https://github.com/Hantsch/claude/tree/main/plugins/ai-scrum",
+  "repository": "https://github.com/Hantsch/claude",
+  "license": "MIT",
+  "keywords": [
+    "scrum",
+    "workflow",
+    "requirements",
+    "sprint",
+    "spec-driven"
+  ]
+}

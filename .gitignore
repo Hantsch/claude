@@ -1,0 +1,14 @@
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vs/
+*.swp
+
+# Local Claude Code state (settings.local.json is machine-specific)
+.claude/settings.local.json
+
+# Scratch
+tmp/
+*.log

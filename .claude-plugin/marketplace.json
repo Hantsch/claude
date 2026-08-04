@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "hantsch",
+  "owner": {
+    "name": "Hantsch",
+    "url": "https://github.com/Hantsch"
+  },
+  "metadata": {
+    "description": "Claude Code plugins maintained by Hantsch.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ai-scrum",
+      "source": "./plugins/ai-scrum",
+      "description": "Spec-driven AI Scrum workflow: roadmap -> concept -> story -> refine -> build -> sprint, with all state living in the repository.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Hantsch"
+      },
+      "keywords": [
+        "scrum",
+        "workflow",
+        "requirements",
+        "sprint",
+        "spec-driven"
+      ],
+      "category": "workflow"
+    }
+  ]
+}
