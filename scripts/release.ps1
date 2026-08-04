@@ -3,7 +3,7 @@
 .SYNOPSIS
     Bumps a plugin's version in plugin.json + marketplace.json and opens a CHANGELOG section.
 .DESCRIPTION
-    Never commits and never pushes — it edits files and (with -Tag) creates a local git tag.
+    Never commits and never pushes - it edits files and (with -Tag) creates a local git tag.
     Review the diff, then commit yourself.
 .PARAMETER Plugin
     Plugin name as listed in .claude-plugin/marketplace.json, e.g. ai-scrum.
@@ -53,7 +53,11 @@ if ($Version) {
     $next = "$major.$minor.$patch"
 }
 
-if ($next -eq $current) { throw "version is already $next — nothing to do" }
+if ($next -eq $current) { throw "version is already $next - nothing to do" }
+
+# Em dash as a char code on purpose: this file must stay pure ASCII, because PowerShell 5.1
+# reads a BOM-less script as ANSI and would parse the 0x94 byte of an em dash as a quote.
+$emDash = [char]0x2014
 Write-Host "$Plugin`: $current -> $next" -ForegroundColor Cyan
 
 # --- plugin.json: replace only the version value, keep formatting ---------------------
@@ -70,7 +74,7 @@ Write-Host "  updated plugins/$Plugin/.claude-plugin/plugin.json"
 $marketText = Get-Content -Path $marketplacePath -Raw -Encoding UTF8
 $entryPattern = '("name"\s*:\s*"' + [regex]::Escape($Plugin) + '"[\s\S]{0,600}?"version"\s*:\s*")' + [regex]::Escape($current) + '(")'
 if ($marketText -notmatch $entryPattern) {
-    throw "could not find the version '$current' inside the '$Plugin' entry of marketplace.json — fix it by hand"
+    throw "could not find the version '$current' inside the '$Plugin' entry of marketplace.json - fix it by hand"
 }
 $marketText = [regex]::Replace($marketText, $entryPattern, "`${1}$next`${2}")
 Set-Content -Path $marketplacePath -Value $marketText -Encoding UTF8 -NoNewline
@@ -79,7 +83,7 @@ Write-Host '  updated .claude-plugin/marketplace.json'
 # --- CHANGELOG: open a new section ---------------------------------------------------
 $today = (Get-Date).ToString('yyyy-MM-dd')
 $section = @"
-## $next — $today
+## $next $emDash $today
 
 ### Added
 
@@ -88,6 +92,7 @@ $section = @"
 ### Changed
 
 - <what changed>
+
 
 "@
 
@@ -102,7 +107,7 @@ if (Test-Path $changelogPath) {
     Set-Content -Path $changelogPath -Value $changelog -Encoding UTF8 -NoNewline
     Write-Host "  opened a $next section in plugins/$Plugin/CHANGELOG.md"
 } else {
-    Set-Content -Path $changelogPath -Value ("# Changelog — $Plugin`r`n`r`n" + $section) -Encoding UTF8 -NoNewline
+    Set-Content -Path $changelogPath -Value ("# Changelog $emDash $Plugin`r`n`r`n" + $section) -Encoding UTF8 -NoNewline
     Write-Host "  created plugins/$Plugin/CHANGELOG.md"
 }
 
@@ -111,7 +116,7 @@ $validate = Join-Path $PSScriptRoot 'validate.ps1'
 if (Test-Path $validate) {
     Write-Host ''
     & $validate
-    if ($LASTEXITCODE -ne 0) { throw 'validation failed — fix the problems above before releasing' }
+    if ($LASTEXITCODE -ne 0) { throw 'validation failed - fix the problems above before releasing' }
 }
 
 # --- optional tag --------------------------------------------------------------------
