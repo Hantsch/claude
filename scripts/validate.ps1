@@ -30,6 +30,12 @@ function Test-Check {
 
 function Read-JsonFile {
     param([string]$Path)
+    # A UTF-8 BOM in front of a manifest breaks strict JSON parsers, so treat it as an error
+    # rather than silently stripping it.
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        Add-Failure -Where $Path -Message 'starts with a UTF-8 BOM - write it as UTF-8 without BOM'
+    }
     try {
         return (Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
     } catch {
@@ -108,6 +114,8 @@ foreach ($entry in $marketplace.plugins) {
     if (Test-Path $changelogPath) {
         $changelog = Get-Content -Path $changelogPath -Raw -Encoding UTF8
         Test-Check -Where $where -Message "CHANGELOG.md has no section for version $($manifest.version)" -Condition ($changelog -match [regex]::Escape($manifest.version))
+        # The release workflow promotes this section to the new version number.
+        Test-Check -Where $where -Message "CHANGELOG.md has no '## Unreleased' section (the release workflow needs it)" -Condition ($changelog -match '(?m)^##[ \t]+\[?Unreleased\]?[ \t\r]*$')
     }
 
     # --- commands ---------------------------------------------------------------------

@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: 'Only release this plugin (empty = all)'
+        required: false
+        type: string
+      bump:
+        description: 'Force this bump level instead of reading commit messages'
+        required: false
+        type: choice
+        options: ['', 'patch', 'minor', 'major']
+        default: ''
+
+# Needed to push the release commit + tag and to create the GitHub release.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release changed plugins
+    runs-on: ubuntu-latest
+    # The release commit itself is chore(release) and would be skipped anyway; the marker
+    # makes it explicit and saves a run.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # plan-release.ps1 needs tags and history
+          # Check out the branch, not the bare SHA: on a push event the default is a detached
+          # HEAD, and the release commit could not be pushed from there.
+          ref: ${{ github.ref_name }}
+
+      - name: Validate plugins
+        shell: pwsh
+        run: ./scripts/validate.ps1
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $params = @{}
+          if ('${{ inputs.plugin }}') { $params['Plugin'] = '${{ inputs.plugin }}' }
+          if ('${{ inputs.bump }}') { $params['ForceBump'] = '${{ inputs.bump }}' }
+          ./scripts/ci-release.ps1 @params

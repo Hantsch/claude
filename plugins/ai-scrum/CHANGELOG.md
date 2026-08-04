@@ -4,6 +4,14 @@ All notable changes to this plugin. Versions follow [semver](https://semver.org/
 **major** = a project has to change something after updating, **minor** = new capability,
 **patch** = wording/fix only.
 
+Write every change under `## Unreleased` while you work. On merge to `main` the release
+workflow promotes that section to the new version number — and refuses to release while it
+is empty, so no version ever ships without notes.
+
+## Unreleased
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 ## 1.0.0 — 2026-08-04
 
 First release. Extracted from the Hantsch-MMO project's `.claude/` setup and generalised so it
