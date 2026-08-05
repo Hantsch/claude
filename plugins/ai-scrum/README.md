@@ -18,8 +18,11 @@ repository — no plan mode, no external plan files, no reliance on memory. The 
 
 ```
 /plugin marketplace add Hantsch/claude
-/plugin install ai-scrum@hantsch
+claude plugin install ai-scrum@hantsch --scope user
 ```
+
+Install user-scoped on purpose: project scope is what triggers the
+`Unknown command` failure described below.
 
 Then, in every project that should use the workflow:
 
@@ -31,6 +34,11 @@ Setup surveys the project, suggests build/test commands from what it finds, asks
 things it cannot know, writes `.claude/ai-scrum.md` plus the missing `docs/` scaffolding, and
 offers to remove pre-plugin file copies of these commands. `/ai-scrum:setup check` reports
 without changing anything.
+
+If `/ai-scrum:…` comes back as `Unknown command` — especially in the VS Code extension while the
+same commands work in a terminal — see
+[Troubleshooting](../../README.md#troubleshooting) in the marketplace README. The usual fix is
+`claude plugin install ai-scrum@hantsch --scope user`.
 
 ## Two sources of truth per project
 
