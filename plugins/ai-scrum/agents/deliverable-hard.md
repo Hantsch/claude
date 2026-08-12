@@ -16,6 +16,12 @@ Binding:
   `## Context to read before coding` in `.claude/ai-scrum.md` (the project profile) — and
   honour them. Read the profile itself too: it names this project's verify commands and
   conventions.
+- **Start from the files you were given.** The caller hands you the affected paths, and the
+  file to mirror where there is one. Read those first and search only for what is genuinely
+  missing — the plan already did the exploring. A wide survey is the most expensive thing you
+  can do here: your whole context is re-read on every turn, so whatever you pull in early you
+  keep paying for until the end. Thinking hard about the risk is what this tier is for;
+  re-deriving the file layout is not.
 - **Actually think the named risk through** before you write: which path can break, which
   existing tests cover it, what the effect on the seam/contract is. That is precisely why you
   run on this tier.

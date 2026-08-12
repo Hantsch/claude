@@ -10,7 +10,33 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+Cost and correctness pass, derived from measuring a real 15-deliverable build session
+(21 agents, 139M tokens). Two thirds of that bill were cache reads — context re-read on every
+agent turn — and the most expensive agent of the run existed only to repair an acceptance
+criterion that had never become a deliverable.
+
+### Added
+
+- **Coverage gate in `/ai-scrum:refine`** (new step 5): every acceptance criterion must be
+  covered by at least one deliverable before `status: ready`. An uncovered criterion is
+  invisible during the build — all Ds tick green — and only surfaces in the final code review,
+  where the repair cycle costs more than the implementation agents together.
+- `/ai-scrum:build` re-checks the same coverage as a precondition and sends the story back to
+  refine instead of building around the gap.
+
+### Changed
+
+- `/ai-scrum:refine`: deliverables now name the files they touch, plus the file to mirror
+  where they follow an existing pattern. Added a size cap — a D over ~8 files, or spanning
+  more than one layer, gets split (two agents at 30 turns cost less than one at 65).
+- `/ai-scrum:build`: the implementing agent is told to start from those files instead of
+  surveying the repo, and now records which files each D changed.
+- `/ai-scrum:build`: the code reviewer receives that deliverable → changed-files mapping, so
+  it goes straight to the relevant code instead of rediscovering it from the diff.
+- `deliverable-hard`: same start-from-the-named-files binding — thinking the named risk
+  through is what the tier is for, re-deriving the file layout is not.
+- Story template: deliverables carry their files, and the coverage rule is stated where the
+  deliverables are written.
 
 ## 1.0.0 — 2026-08-04
 

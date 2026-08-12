@@ -53,7 +53,14 @@ into memory. Everything has to be reviewable in the repository.
      The user should grasp it in one or two minutes. No essay.
    - **`## Deliverables`** — cut into small, individually acceptable pieces (scrum-like,
      not everything specified from A to Z). Each `D1/D2/...` is the smallest useful result
-     with its own acceptance.
+     with its own acceptance, and **names the files it touches** — plus the file to mirror,
+     where it follows an existing pattern. `/ai-scrum:build` hands that list to the
+     implementing agent, which starts there instead of surveying the repo.
+
+     **Size cap (cost lever #2):** a D that touches more than ~8 files, or spans more than
+     one layer (core + IPC + renderer), is cut too coarsely — split it. Agent cost grows with
+     turn count and turn count grows with the size of the D: two agents at 30 turns cost less
+     than one at 65, and each returns a separately reviewable result.
    - **`## Model Hints`** — here you fix the **agent tier** per deliverable that
      `/ai-scrum:build` will use. There are exactly two tiers:
      - **Default (leave unmarked):** the session/Sonnet tier with `/ai-scrum:build`'s effort (`medium`).
@@ -82,15 +89,28 @@ into memory. Everything has to be reviewable in the repository.
      yet, that is a story gap → plan it as a deliverable (the UI trigger) instead of
      papering over it with a console workaround. Pure engine/backend stories without a
      surface are exempt (accepted via tests).
-   - Set `status: ready`.
 
-5. **Hand off:** summarise in **a few lines** what was refined and whether open questions
+5. **Coverage gate — every AC needs a D:** walk `## Acceptance Criteria` top to bottom and
+   name, for each entry, the deliverable that delivers it. Only then set `status: ready`.
+
+   An uncovered criterion is the most expensive failure this workflow has. It is invisible on
+   the way through: every D ticks green, the build reports success, and only the code review
+   at the very end finds that the story is incomplete. The fix cycle that follows is then
+   routinely the single most expensive agent of the whole story — more than the implementation
+   agents together, because it re-establishes context the build already had.
+
+   If a criterion has no deliverable: cut one for it, or take the criterion back to the user.
+   Do not set `ready` with a gap, and do not silently drop the criterion.
+
+6. **Hand off:** summarise in **a few lines** what was refined and whether open questions
    remain. Say: the plan is in the file, corrections welcome, then `/ai-scrum:build $1` —
    ideally in a **separate session**, while you keep refining here.
 
 ## Rules
 
 - All `## Open Questions` must be resolved before `status: ready`.
+- **No `status: ready` while an acceptance criterion has no deliverable covering it** (step 5).
+  `/ai-scrum:build` re-checks this and sends the story back here.
 - **Acceptance = UI (P1)**, if enabled in the profile: every user-facing capability needs a
   real path through the actual UI. An acceptance or test-plan step for a *user action* that
   requires a console command or a direct internal call is a story gap, not a valid test. If

@@ -21,6 +21,12 @@ Open `<requirements>/$1-*.md`. Status must be **`ready`**.
 - `done` → stop, say "already done".
 - Not found → look in `<requirements>/done/$1-*.md`; if it is there, also "already done".
 
+Then check coverage: every entry in `## Acceptance Criteria` must be covered by at least one
+deliverable. If one is not, **stop** and name the uncovered criterion — that is a refine gap,
+and building around it is the most expensive mistake available here: the Ds all go green, the
+code review finds the hole at the very end, and the fix cycle costs more than the
+implementation agents together. Back to `/ai-scrum:refine $1`.
+
 ## Flow (scrum-like: small deliverables, acceptance at the end)
 
 1. Set `status: in-progress`.
@@ -44,7 +50,12 @@ Open `<requirements>/$1-*.md`. Status must be **`ready`**.
      before moving to the next D) with a self-contained prompt. The agent cannot see this
      conversation, so give it:
      - the full text of exactly this one deliverable (not the other Ds),
-     - the affected files/paths from `## Plan`,
+     - the affected files/paths — from the D itself and from `## Plan` — and the file to
+       mirror if the D names one, with the instruction to **start from those files instead of
+       surveying the repo**: read what is listed, search only for what is genuinely missing.
+       Exploration is the biggest cost driver in a build, because an agent's whole context is
+       re-read on every turn: a wide search early makes every later turn more expensive. The
+       plan already did that search — the agent should not repeat it.
      - for `deliverable-hard`, the risk justification from `## Model Hints`,
      - the instruction to read and honour `CLAUDE.md` plus every file listed under
        `## Context to read before coding` in `.claude/ai-scrum.md` **before writing code**,
@@ -53,8 +64,9 @@ Open `<requirements>/$1-*.md`. Status must be **`ready`**.
      - that it returns a short summary of changed files + anything notable.
    - **Check and continue:** review the agent's result briefly (file diff, build relevance),
      tick `- [ ] D…` to `- [x]` in the file and start the next D immediately — no stop at the
-     user. Interrupt only on a real blocker (plan has gaps, agent fails, ambiguity only the
-     user can resolve).
+     user. **Keep a note of which files each D actually changed** — the code review in step 6
+     gets that mapping, so it does not have to reconstruct it from the diff. Interrupt only on
+     a real blocker (plan has gaps, agent fails, ambiguity only the user can resolve).
 4. Honour the project rules in `CLAUDE.md` and the profile's context files yourself as well.
 
 ## Closing
@@ -82,6 +94,8 @@ Open `<requirements>/$1-*.md`. Status must be **`ready`**.
      - path to the story file; `## Acceptance Criteria` + `## Plan` are its spec,
      - the story's diff: `git diff HEAD` plus new untracked files (`git status`) — nothing
        has been committed,
+     - the deliverable → changed-files mapping you kept in step 3, so the reviewer goes
+       straight to the relevant code instead of rediscovering which D produced what,
      - the review assignment:
        (a) each acceptance criterion individually: PASS / FAIL / UNCLEAR with evidence
            (`file:line`),

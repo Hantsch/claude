@@ -29,9 +29,11 @@ Concrete steps, affected files, order. No essay.>
 ## Deliverables
 
 <Leave empty. Filled by `/ai-scrum:refine <id>`: small pieces, each with its own acceptance
-(scrum-like). `/ai-scrum:build` implements them in order, in one go.>
+(scrum-like) and the files it touches. `/ai-scrum:build` implements them in order, in one go.
+Every acceptance criterion above must be covered by at least one deliverable — refine checks
+this before `status: ready`, build refuses to start without it.>
 
-- [ ] D1 — <smallest useful, individually acceptable result>
+- [ ] D1 — <smallest useful, individually acceptable result; names the files it touches>
 - [ ] D2 — ...
 
 ## Model Hints
