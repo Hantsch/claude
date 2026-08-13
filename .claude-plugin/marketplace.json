@@ -13,7 +13,7 @@
     {
       "name": "ai-scrum",
       "source": "./plugins/ai-scrum",
-      "description": "Spec-driven AI Scrum workflow: roadmap -> concept -> story -> refine -> build -> sprint, with all state living in the repository.",
+      "description": "Installs a spec-driven AI Scrum workflow into your repository: roadmap -> concept -> story -> refine -> build -> sprint. Commands, agents and state all live in the project, so the plugin is only needed to install and update them.",
       "version": "1.0.1",
       "author": {
         "name": "Hantsch"

@@ -7,7 +7,7 @@ purpose: no token, no auth, no clone needed to install from it.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [ai-scrum](plugins/ai-scrum/) | 1.0.0 | Spec-driven Scrum workflow — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. All state lives in the repository. |
+| [ai-scrum](plugins/ai-scrum/) | 1.0.0 | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. |
 | [common](plugins/common/) | 1.0.0 | Building blocks for every project. Output styles **Briefing** (short overview first, details on request) and **KIS** (keep it simple), selectable in `/config`. |
 
 ## Install
@@ -41,6 +41,10 @@ needs on disk is created by that plugin's own setup command — for ai-scrum:
 ```
 /ai-scrum:setup
 ```
+
+ai-scrum goes one step further: setup writes the whole workflow into the project
+(`.claude/commands/`, `.claude/agents/`). Once that is committed, everyone who clones the repo
+can use it without installing the plugin — it is only needed to install and update those files.
 
 ## Troubleshooting
 
@@ -104,6 +108,8 @@ plugins/<name>/
   skills/<skill>/SKILL.md         skills (optional)
   output-styles/*.md              output styles, selectable in /config (optional)
   templates/*                     files a plugin writes into a project
+  templates/workflow/             payload a plugin installs as the project's own
+    commands/*.md  agents/*.md    commands and agents (validated like the real thing)
   README.md  CHANGELOG.md
 scripts/validate.ps1              manifests, versions, frontmatter, shipped references
 scripts/plan-release.ps1          derives the semver bump from commit messages

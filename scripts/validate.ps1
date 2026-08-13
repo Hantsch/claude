@@ -58,6 +58,42 @@ function Get-Frontmatter {
     return $null   # unterminated frontmatter
 }
 
+# Command and agent frontmatter is checked in two places: for files the plugin itself
+# registers (commands/, agents/) and for the payload a plugin installs into a project
+# (templates/workflow/), which becomes exactly such a file over there.
+function Test-CommandFile {
+    param([string]$Where, [string]$Path)
+    $fm = Get-Frontmatter -Path $Path
+    if ($null -eq $fm) {
+        Add-Failure -Where $Where -Message 'missing or unterminated YAML frontmatter'
+        return
+    }
+    Test-Check -Where $Where -Message 'frontmatter has no "description"' -Condition ([bool]$fm['description'])
+    if ($fm['model']) {
+        Test-Check -Where $Where -Message "model '$($fm['model'])' is not one of: $($script:validModels -join ', ')" -Condition ($script:validModels -contains $fm['model'])
+    }
+    if ($fm['effort']) {
+        Test-Check -Where $Where -Message "effort '$($fm['effort'])' is not one of: $($script:validEfforts -join ', ')" -Condition ($script:validEfforts -contains $fm['effort'])
+    }
+}
+
+function Test-AgentFile {
+    param([string]$Where, [string]$Path, [string]$BaseName)
+    $fm = Get-Frontmatter -Path $Path
+    if ($null -eq $fm) {
+        Add-Failure -Where $Where -Message 'missing or unterminated YAML frontmatter'
+        return
+    }
+    Test-Check -Where $Where -Message 'frontmatter has no "description"' -Condition ([bool]$fm['description'])
+    Test-Check -Where $Where -Message 'frontmatter has no "name"' -Condition ([bool]$fm['name'])
+    if ($fm['name']) {
+        Test-Check -Where $Where -Message "frontmatter name '$($fm['name'])' differs from file name '$BaseName'" -Condition ($fm['name'] -eq $BaseName)
+    }
+    if ($fm['model']) {
+        Test-Check -Where $Where -Message "model '$($fm['model'])' is not one of: $($script:validModels -join ', ')" -Condition ($script:validModels -contains $fm['model'])
+    }
+}
+
 Write-Host "Validating marketplace in $repoRoot" -ForegroundColor Cyan
 
 # --- marketplace manifest -------------------------------------------------------------
@@ -75,8 +111,8 @@ Test-Check -Where 'marketplace' -Message 'field "name" is missing' -Condition ([
 Test-Check -Where 'marketplace' -Message 'field "owner" is missing' -Condition ([bool]$marketplace.owner)
 Test-Check -Where 'marketplace' -Message 'field "plugins" is empty' -Condition ($marketplace.plugins -and $marketplace.plugins.Count -gt 0)
 
-$validModels = @('opus', 'sonnet', 'haiku', 'fable', 'inherit')
-$validEfforts = @('low', 'medium', 'high', 'xhigh', 'max')
+$script:validModels = @('opus', 'sonnet', 'haiku', 'fable', 'inherit')
+$script:validEfforts = @('low', 'medium', 'high', 'xhigh', 'max')
 
 foreach ($entry in $marketplace.plugins) {
     $name = $entry.name
@@ -131,39 +167,52 @@ foreach ($entry in $marketplace.plugins) {
         -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
 
     foreach ($cmd in $commands) {
-        $cwhere = "$where / commands/$($cmd.Name)"
-        $fm = Get-Frontmatter -Path $cmd.FullName
-        if ($null -eq $fm) {
-            Add-Failure -Where $cwhere -Message 'missing or unterminated YAML frontmatter'
-            continue
-        }
-        Test-Check -Where $cwhere -Message 'frontmatter has no "description"' -Condition ([bool]$fm['description'])
-        if ($fm['model']) {
-            Test-Check -Where $cwhere -Message "model '$($fm['model'])' is not one of: $($validModels -join ', ')" -Condition ($validModels -contains $fm['model'])
-        }
-        if ($fm['effort']) {
-            Test-Check -Where $cwhere -Message "effort '$($fm['effort'])' is not one of: $($validEfforts -join ', ')" -Condition ($validEfforts -contains $fm['effort'])
-        }
+        Test-CommandFile -Where "$where / commands/$($cmd.Name)" -Path $cmd.FullName
     }
 
     # --- agents -----------------------------------------------------------------------
     $agentDir = Join-Path $pluginDir 'agents'
     if (Test-Path $agentDir) {
         foreach ($agent in Get-ChildItem -Path $agentDir -Filter '*.md' -File) {
-            $awhere = "$where / agents/$($agent.Name)"
-            $fm = Get-Frontmatter -Path $agent.FullName
-            if ($null -eq $fm) {
-                Add-Failure -Where $awhere -Message 'missing or unterminated YAML frontmatter'
-                continue
+            Test-AgentFile -Where "$where / agents/$($agent.Name)" -Path $agent.FullName -BaseName $agent.BaseName
+        }
+    }
+
+    # --- workflow payload -------------------------------------------------------------
+    # templates/workflow/ is what a plugin copies into a consuming project, where the files
+    # become that project's own commands and agents. Same frontmatter rules apply, plus:
+    # they must be self-contained (no ${CLAUDE_PLUGIN_ROOT}, which only resolves inside a
+    # plugin) and carry the managed marker the installer substitutes a version into.
+    $workflowDir = Join-Path $pluginDir 'templates/workflow'
+    if (Test-Path $workflowDir) {
+        $marker = "<!--\s*$([regex]::Escape($name)):managed <$([regex]::Escape($name))-version>"
+
+        $wfCommandDir = Join-Path $workflowDir 'commands'
+        $wfAgentDir = Join-Path $workflowDir 'agents'
+        Test-Check -Where "$where / templates/workflow" -Message 'holds neither commands/ nor agents/' `
+            -Condition ((Test-Path $wfCommandDir) -or (Test-Path $wfAgentDir))
+
+        $payload = @()
+        if (Test-Path $wfCommandDir) {
+            foreach ($cmd in Get-ChildItem -Path $wfCommandDir -Filter '*.md' -File) {
+                Test-CommandFile -Where "$where / templates/workflow/commands/$($cmd.Name)" -Path $cmd.FullName
+                $payload += $cmd
             }
-            Test-Check -Where $awhere -Message 'frontmatter has no "description"' -Condition ([bool]$fm['description'])
-            Test-Check -Where $awhere -Message 'frontmatter has no "name"' -Condition ([bool]$fm['name'])
-            if ($fm['name']) {
-                Test-Check -Where $awhere -Message "frontmatter name '$($fm['name'])' differs from file name '$($agent.BaseName)'" -Condition ($fm['name'] -eq $agent.BaseName)
+        }
+        if (Test-Path $wfAgentDir) {
+            foreach ($agent in Get-ChildItem -Path $wfAgentDir -Filter '*.md' -File) {
+                Test-AgentFile -Where "$where / templates/workflow/agents/$($agent.Name)" -Path $agent.FullName -BaseName $agent.BaseName
+                $payload += $agent
             }
-            if ($fm['model']) {
-                Test-Check -Where $awhere -Message "model '$($fm['model'])' is not one of: $($validModels -join ', ')" -Condition ($validModels -contains $fm['model'])
-            }
+        }
+
+        foreach ($file in $payload) {
+            $pwhere = "$where / " + $file.FullName.Substring($pluginDir.Length).TrimStart('\', '/').Replace('\', '/')
+            $text = Get-Content -Path $file.FullName -Raw -Encoding UTF8
+            Test-Check -Where $pwhere -Message 'uses ${CLAUDE_PLUGIN_ROOT}, which does not resolve once the file lives in a project' `
+                -Condition ($text -notmatch '\$\{CLAUDE_PLUGIN_ROOT\}')
+            Test-Check -Where $pwhere -Message "has no '<!-- $name`:managed <$name-version> ... -->' marker" `
+                -Condition ($text -match $marker)
         }
     }
 
@@ -201,8 +250,8 @@ foreach ($entry in $marketplace.plugins) {
             Test-Check -Where "$where / $rel" -Message "references '`${CLAUDE_PLUGIN_ROOT}/$target', which does not ship" -Condition (Test-Path (Join-Path $pluginDir $target))
         }
 
-        # templates/<file> mentioned in prose
-        foreach ($m in [regex]::Matches($text, '(?<![A-Za-z0-9._/\-])templates/([A-Za-z0-9._\-]+\.[A-Za-z0-9]+)')) {
+        # templates/<file> mentioned in prose, subdirectories included
+        foreach ($m in [regex]::Matches($text, '(?<![A-Za-z0-9._/\-])templates/((?:[A-Za-z0-9._\-]+/)*[A-Za-z0-9._\-]+\.[A-Za-z0-9]+)')) {
             $target = "templates/$($m.Groups[1].Value)"
             Test-Check -Where "$where / $rel" -Message "references '$target', which does not ship" -Condition (Test-Path (Join-Path $pluginDir $target))
         }

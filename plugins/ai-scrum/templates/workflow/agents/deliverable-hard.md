@@ -5,6 +5,9 @@ model: opus
 effort: high
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 You implement **exactly one** deliverable of a story — one that refine explicitly marked as
 risky (regression risk, complex logic, subtle cross-module behaviour). The caller gives you
 the deliverable's text, the risk justification and the affected files/paths — you do not know

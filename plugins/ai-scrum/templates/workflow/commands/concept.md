@@ -5,12 +5,15 @@ model: opus
 effort: high
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 Work out a concept for **$1** — together with the user, by interview.
 
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — `concepts-path`, `systems-path`, `roadmap-path` and
-`doc-language` come from there. If it is missing, stop and say: run `/ai-scrum:setup` first.
+`doc-language` come from there. If it is missing, stop and say: run `/ai-scrum:setup` (ai-scrum plugin) first.
 
 ## Core principle: NO assumptions
 
@@ -104,7 +107,7 @@ rules from `CLAUDE.md`, content of concepts already decided.
 
 5. **Close out:** add the new concept with one line to the roadmap (table "Open /
    unprioritised": topic, state, next step). Point out that prioritisation and story cutting
-   happen later via `/ai-scrum:roadmap plan` — **not** part of this command.
+   happen later via `/roadmap plan` — **not** part of this command.
 
 ## Rules
 

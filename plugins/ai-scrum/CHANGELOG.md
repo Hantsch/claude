@@ -10,7 +10,39 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+The workflow now lives in the consuming repository instead of the plugin. A project that has
+run setup works for everyone who clones it — no marketplace, no plugin, no install step. The
+plugin is only needed to put those files there and to update them.
+
+### Changed (breaking)
+
+- **The plugin ships one command: `/ai-scrum:setup`.** `refine`, `build`, `sprint`, `roadmap`
+  and `concept` are no longer plugin commands; they are payload under
+  `templates/workflow/` that setup copies into `.claude/commands/`. In a project they are
+  called **without the namespace**: `/refine 042`, `/build 042`, `/sprint S03`.
+- The two agents `deliverable-hard` and `story-review-hard` move the same way, into
+  `.claude/agents/`. Their names are unchanged, so `subagent_type` markings in existing
+  stories keep working.
+- **After updating, run `/ai-scrum:setup` once per project** — otherwise the workflow commands
+  are gone with the old plugin version.
+
+### Added
+
+- Setup installs and updates the workflow files, and records version plus a `git hash-object`
+  hash per file in `.claude/ai-scrum.lock`. On the next update an untouched copy is replaced
+  silently, an edited one is diffed and you are asked before it is replaced.
+- Every installed file carries an `<!-- ai-scrum:managed <version> -->` marker, so its origin
+  is obvious in the project.
+- Setup warns when `.claude/` is git-ignored, which would keep the workflow from reaching the
+  rest of the team, and reminds you to commit what it wrote.
+- `scripts/validate.ps1` validates the workflow payload like real commands and agents
+  (frontmatter, agent name = file name) and rejects a payload file that uses
+  `${CLAUDE_PLUGIN_ROOT}` or lacks the managed marker.
+
+### Removed
+
+- The migration step that deleted pre-plugin file copies of the workflow. Those files now sit
+  at the same paths setup writes to, so they are handled by the diff-and-ask path instead.
 
 ## 1.0.1 — 2026-08-12
 

@@ -9,8 +9,8 @@ Rules (so this document does not drift):
   finished = `done/INDEX.md`); sprint detail in the sprints folder. This file links, it does not
   duplicate.
 - **Concepts are timeless** (what/why) — when/status lives **only** here.
-- **Defined write moments:** end of `/ai-scrum:sprint` (phase 3), end of `/ai-scrum:concept`,
-  and the `/ai-scrum:roadmap` ritual (sync check + sprint cut). "Accepted" is marked by the
+- **Defined write moments:** end of `/sprint` (phase 3), end of `/concept`,
+  and the `/roadmap` ritual (sync check + sprint cut). "Accepted" is marked by the
   user only.
 
 ---
@@ -44,4 +44,4 @@ Gaps/notes:
 
 | Topic | State | Next step |
 | --- | --- | --- |
-| <concept or idea> | <e.g. concept drafted (link)> | <e.g. cut into stories via /ai-scrum:roadmap plan> |
+| <concept or idea> | <e.g. concept drafted (link)> | <e.g. cut into stories via /roadmap plan> |

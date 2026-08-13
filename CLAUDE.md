@@ -17,15 +17,27 @@ plugins/<name>/
   agents/*.md                     subagent definitions
   output-styles/*.md              output styles, offered in the user's /config picker
   templates/*                     files the plugin writes into a consuming project
+  templates/workflow/             payload installed as the project's OWN commands/agents
+    commands/*.md  agents/*.md
   README.md  CHANGELOG.md
 scripts/*.ps1                     validate, plan-release, release, ci-release
 .github/workflows/                validate (push + PR), release (push to main)
 inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
-Two plugins: [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state lives
-entirely in the consuming repository — and [common](plugins/common/), building blocks that are
-not tied to a workflow (currently output styles).
+Two plugins: [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
+whose commands* live in the consuming repository — and [common](plugins/common/), building
+blocks that are not tied to a workflow (currently output styles).
+
+**ai-scrum is an installer, not a command set.** It registers exactly one command,
+`/ai-scrum:setup`. The workflow lives in `templates/workflow/{commands,agents}/` and is copied
+into the consuming project as `.claude/commands/*.md` and `.claude/agents/*.md`, where it is
+invoked without a namespace (`/refine 042`). Consequences when editing it: the files must be
+self-contained (no `${CLAUDE_PLUGIN_ROOT}` — it does not resolve outside a plugin), they refer
+to each other by project path (`.claude/commands/build.md`), and only `/ai-scrum:setup` keeps
+its namespace. Setup owns them in the project: each carries an
+`<!-- ai-scrum:managed <ai-scrum-version> -->` marker and a hash in `.claude/ai-scrum.lock`, so
+an update replaces an untouched copy silently and asks about an edited one.
 
 ## The one command to run
 
@@ -51,9 +63,14 @@ frontmatter on every command and agent, and that every referenced file actually 
   `force-for-plugin` must be `true`/`false` if present; a misspelled flag is silently ignored by
   Claude Code, so the validator is strict about them.
 - **A plugin needs at least one of** `commands/`, `agents/`, `output-styles/`.
+- **`templates/workflow/` is validated like the real thing.** Its `commands/*.md` and
+  `agents/*.md` go through the same frontmatter checks (including agent `name` = file name),
+  must carry the `<!-- <plugin>:managed <<plugin>-version> ... -->` marker the installer
+  substitutes into, and must not contain `${CLAUDE_PLUGIN_ROOT}`.
 - **Every file a plugin references must ship.** Two patterns are scanned in all `*.md` outside
-  `templates/`: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare `templates/<file>.<ext>` in prose. So
-  mentioning `templates/whatever.md` in a README is a build failure unless that file exists.
+  `templates/`: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare `templates/<path>.<ext>` in prose,
+  subdirectories included. So mentioning `templates/whatever.md` in a README is a build failure
+  unless that file exists.
 - **Never use absolute paths** to plugin-shipped files. `${CLAUDE_PLUGIN_ROOT}` resolves to the
   installed plugin directory on the user's machine.
 - **JSON manifests must be UTF-8 without BOM.** A BOM is a hard validation error, not something

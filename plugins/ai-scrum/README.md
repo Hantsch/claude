@@ -1,28 +1,35 @@
 # AI Scrum
 
 A spec-driven, agent-orchestrated Scrum workflow for Claude Code. Every artifact lives in the
-repository — no plan mode, no external plan files, no reliance on memory. The plugin carries the
-*process*; each project carries only its own facts.
+repository — no plan mode, no external plan files, no reliance on memory. **The workflow itself
+lives there too:** the plugin installs it into the project, so anyone who clones the repo can
+run it without installing anything.
 
 ```
-/ai-scrum:concept <topic>   requirements interview  -> docs/concepts/<topic>.md
-/ai-scrum:roadmap check     drift check             -> docs/ROADMAP.md kept honest
-/ai-scrum:roadmap plan      cut the next sprint     -> story drafts + sprints/SNN/sprint.md
-/ai-scrum:refine <id>       plan a story  (Opus)    -> Plan + Deliverables in the story file
-/ai-scrum:build <id>        implement it  (cheap)   -> code + verify + clean review + Done
-/ai-scrum:sprint <id>       run a whole sprint      -> branch, all stories, review + testplan
-/ai-scrum:setup [check]     install / update        -> .claude/ai-scrum.md + docs scaffolding
+/concept <topic>       requirements interview  -> docs/concepts/<topic>.md
+/roadmap check         drift check             -> docs/ROADMAP.md kept honest
+/roadmap plan          cut the next sprint     -> story drafts + sprints/SNN/sprint.md
+/refine <id>           plan a story  (Opus)    -> Plan + Deliverables in the story file
+/build <id>            implement it  (cheap)   -> code + verify + clean review + Done
+/sprint <id>           run a whole sprint      -> branch, all stories, review + testplan
+
+/ai-scrum:setup        install / update        -> the six commands above + scaffolding
 ```
+
+The plugin ships exactly one command — `setup`. Everything else is payload it copies into your
+project.
 
 ## Install
+
+Once per machine, for whoever installs or updates the workflow:
 
 ```
 /plugin marketplace add Hantsch/claude
 claude plugin install ai-scrum@hantsch --scope user
 ```
 
-Install user-scoped on purpose: project scope is what triggers the
-`Unknown command` failure described below.
+Install user-scoped on purpose: project scope is what triggers the `Unknown command` failure
+described below.
 
 Then, in every project that should use the workflow:
 
@@ -31,25 +38,38 @@ Then, in every project that should use the workflow:
 ```
 
 Setup surveys the project, suggests build/test commands from what it finds, asks about the few
-things it cannot know, writes `.claude/ai-scrum.md` plus the missing `docs/` scaffolding, and
-offers to remove pre-plugin file copies of these commands. `/ai-scrum:setup check` reports
-without changing anything.
+things it cannot know, and writes `.claude/commands/`, `.claude/agents/`, `.claude/ai-scrum.md`
+and the missing `docs/` scaffolding. **Commit those files** — from then on every collaborator
+has `/refine`, `/build`, `/sprint` and friends by cloning, with no plugin, no marketplace and
+no install step. `/ai-scrum:setup check` reports without changing anything.
 
-If `/ai-scrum:…` comes back as `Unknown command` — especially in the VS Code extension while the
-same commands work in a terminal — see
+Later, to pull a newer version of the workflow into the project:
+
+```
+/plugin update ai-scrum
+/ai-scrum:setup
+```
+
+If `/ai-scrum:setup` comes back as `Unknown command` — especially in the VS Code extension while
+the same command works in a terminal — see
 [Troubleshooting](../../README.md#troubleshooting) in the marketplace README. The usual fix is
 `claude plugin install ai-scrum@hantsch --scope user`.
 
-## Two sources of truth per project
+## What lives where
 
 | | lives in | owned by |
 | --- | --- | --- |
-| The process (commands, agents, templates) | the plugin | this repository, updated via `/plugin update` |
+| The process (commands, agents) | `.claude/commands/`, `.claude/agents/` **in your repo** | the plugin, refreshed by `/ai-scrum:setup` |
 | Project **facts** (build/test commands, paths, branch base, acceptance policy) | `.claude/ai-scrum.md` | `/ai-scrum:setup`, editable by hand |
 | Project **rules** (architecture, guardrails, conventions) | `CLAUDE.md` + skills | the project; the commands read them, never write them |
 
-That split is the reason the plugin is portable: nothing project-specific is baked into a
-command, and an update never has to merge your edits.
+Nothing project-specific is baked into a command — that is what makes the same six files work
+in every repository, and what lets an update replace them wholesale.
+
+Each installed file carries a marker (`<!-- ai-scrum:managed 2.0.0 ... -->`) and a hash in
+`.claude/ai-scrum.lock`. On the next `/ai-scrum:setup`, an untouched copy is replaced silently;
+one you edited is diffed and you are asked first. Local adaptations belong in
+`.claude/ai-scrum.md` or `CLAUDE.md`, not in the workflow files.
 
 ## The loop
 
@@ -72,13 +92,19 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
 - **Open questions belong to the user.** Anything a story deliberately left open is never
   decided by an agent. In a sprint the orchestrator bundles those questions, records the
   answers as binding `(User)` decisions, and only then lets the agents run.
-- **Resumable.** All state is in files, so `/ai-scrum:sprint SNN` continues at the first open
-  spot after a context reset.
+- **Resumable.** All state is in files, so `/sprint SNN` continues at the first open spot after
+  a context reset.
 
 ## What setup creates in a project
 
 ```
-.claude/ai-scrum.md            project profile (facts, versioned)
+.claude/
+  commands/                    the workflow, plugin-owned
+    refine.md  build.md  sprint.md  roadmap.md  concept.md
+  agents/
+    deliverable-hard.md  story-review-hard.md
+  ai-scrum.md                  project profile (facts, versioned)
+  ai-scrum.lock                version + hash per managed file
 docs/
   README.md                    docs index (only if absent or plugin-generated)
   ROADMAP.md                   the one status/planning source (only if absent)
@@ -95,6 +121,9 @@ Project-owned folders (`wiki/`, `adr/`, `features/`, `design/`, …) are never t
 update, plugin-generated templates and READMEs are refreshed; stories, sprints, roadmap content
 and your `## Notes` never are.
 
+Make sure `.claude/` is not git-ignored — setup warns if it is, because the workflow then never
+reaches anyone else.
+
 ## Acceptance policy (P1/P2)
 
 Two rules that only make sense for projects with a user-facing surface, so they are switches in
@@ -109,12 +138,18 @@ the profile:
 
 For a library, CLI or mod both stay `false` and the workflow accepts via tests.
 
-## Migrating a project that used the file-based version
+## Migrating
 
-`/ai-scrum:setup` detects `.claude/commands/{refine,build,sprint,roadmap,concept}.md` and the
-two agent files, names any local adaptation it finds (that belongs in the profile or
-`CLAUDE.md` now), and deletes them only after you confirm. Afterwards the commands are called
-with their namespace: `/ai-scrum:refine 042` instead of `/refine 042`.
+**From plugin 1.x** (`/ai-scrum:refine` and friends came from the plugin): update the plugin and
+run `/ai-scrum:setup`. It installs the same commands into `.claude/commands/` — where they are
+called `/refine`, `/build`, `/sprint`, `/roadmap`, `/concept`, without the namespace. Commit
+them. The plugin no longer registers those commands, so there is nothing to collide with once
+every scope is on 2.x.
+
+**From the original file-based version**, where the commands were hand-copied into
+`.claude/commands/`: same paths, so setup treats your copies as modified, shows the diff and
+asks per file whether to replace them. A deliberate local adaptation it finds is named
+explicitly — that belongs in `.claude/ai-scrum.md` or `CLAUDE.md` now.
 
 Existing story files keep their language and their headings — the commands treat the older
 German section names (`## Anforderung`, `## Akzeptanzkriterien`, `## Offene Fragen`,

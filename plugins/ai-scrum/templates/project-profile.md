@@ -1,12 +1,17 @@
 # AI Scrum — Project Profile
 
 <!--
-  Managed by the ai-scrum plugin. Safe to edit by hand — `/ai-scrum:setup` only
+  Written by `/ai-scrum:setup` (ai-scrum plugin). Safe to edit by hand — setup only
   rewrites values you confirm, and never touches your `## Notes`.
 
   This file holds FACTS the workflow commands need verbatim (verify commands, paths,
   branch strategy). Project RULES and architecture guardrails stay in CLAUDE.md —
   the commands read both.
+
+  The workflow itself lives in this repository: `.claude/commands/{refine,build,sprint,
+  roadmap,concept}.md` plus `.claude/agents/{deliverable-hard,story-review-hard}.md`.
+  Everyone who clones the repo can use it; the plugin is only needed to install or
+  update those files (`/ai-scrum:setup`). Hashes of the managed copies: .claude/ai-scrum.lock
 -->
 
 ai-scrum-version: 1.0.0
@@ -37,7 +42,7 @@ sprint-id-format: SNN <!-- e.g. S07 -->
 
 branch-base: main <!-- branch a sprint is cut from -->
 sprint-branch-pattern: sprint/{id}
-auto-commit-per-story: true <!-- /ai-scrum:sprint commits once per story ON THE SPRINT BRANCH only -->
+auto-commit-per-story: true <!-- /sprint commits once per story ON THE SPRINT BRANCH only -->
 protected-branches: main <!-- never commit here, never push, never merge -->
 
 ## Acceptance

@@ -5,13 +5,16 @@ model: opus
 effort: high
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 Refine the story with ID **$1**.
 
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — it holds this project's paths, verify commands,
 acceptance policy, doc language and the files every agent must read before coding.
-If it is missing, stop and say: run `/ai-scrum:setup` first.
+If it is missing, stop and say: run `/ai-scrum:setup` (ai-scrum plugin) first.
 
 Below, `<requirements>` means `requirements-path` from the profile.
 
@@ -32,7 +35,7 @@ into memory. Everything has to be reviewable in the repository.
 2. **Triage — pick exactly ONE of three paths and tell the user which:**
    - **Trivial / mechanical / low risk** (a text or config fix, a clearly bounded
      one-liner): **no ceremony plan.** Say plainly: "this is small enough — I'll just do it
-     here in this session, say GO." On GO, implement it like a normal task (then `/ai-scrum:build`
+     here in this session, say GO." On GO, implement it like a normal task (then `/build`
      is not needed). This pushback is wanted, not optional.
    - **Unclear / gaps / ambiguous requirement:** fill `## Open Questions` with concrete
      questions and ask the user (`AskUserQuestion` for real decisions). **Status stays
@@ -54,7 +57,7 @@ into memory. Everything has to be reviewable in the repository.
    - **`## Deliverables`** — cut into small, individually acceptable pieces (scrum-like,
      not everything specified from A to Z). Each `D1/D2/...` is the smallest useful result
      with its own acceptance, and **names the files it touches** — plus the file to mirror,
-     where it follows an existing pattern. `/ai-scrum:build` hands that list to the
+     where it follows an existing pattern. `/build` hands that list to the
      implementing agent, which starts there instead of surveying the repo.
 
      **Size cap (cost lever #2):** a D that touches more than ~8 files, or spans more than
@@ -62,12 +65,12 @@ into memory. Everything has to be reviewable in the repository.
      turn count and turn count grows with the size of the D: two agents at 30 turns cost less
      than one at 65, and each returns a separately reviewable result.
    - **`## Model Hints`** — here you fix the **agent tier** per deliverable that
-     `/ai-scrum:build` will use. There are exactly two tiers:
-     - **Default (leave unmarked):** the session/Sonnet tier with `/ai-scrum:build`'s effort (`medium`).
-     - **`deliverable-hard`** (agent definition shipped with this plugin, carries Opus +
+     `/build` will use. There are exactly two tiers:
+     - **Default (leave unmarked):** the session/Sonnet tier with `/build`'s effort (`medium`).
+     - **`deliverable-hard`** (agent definition in `.claude/agents/`, carries Opus +
        effort `high`) — for tricky Ds (regression risk, complex logic, subtle cross-module
        behaviour): a line `D3 → deliverable-hard` **plus a concrete risk justification**
-       (which regression, which new path, which cross-file subtlety). `/ai-scrum:build`
+       (which regression, which new path, which cross-file subtlety). `/build`
        passes that justification to the agent.
 
      **Tier discipline (cost lever #1):** `deliverable-hard` is ~5x more expensive and also
@@ -78,7 +81,7 @@ into memory. Everything has to be reviewable in the repository.
      - Hard only when you can write the justification in one sentence.
      - Also fix the **review tier** — its own line, `Review: → default` or
        `Review: → story-review-hard` with a one-sentence justification.
-       `/ai-scrum:build` delegates the code review to a fresh agent that sees only spec +
+       `/build` delegates the code review to a fresh agent that sees only spec +
        diff; this line decides its tier. Default is the cheap tier;
        `story-review-hard` (Opus + effort `high`) only for real risk.
    - **`## Test Plan (manual acceptance)`** — fill only if a human check is needed: exact
@@ -103,14 +106,14 @@ into memory. Everything has to be reviewable in the repository.
    Do not set `ready` with a gap, and do not silently drop the criterion.
 
 6. **Hand off:** summarise in **a few lines** what was refined and whether open questions
-   remain. Say: the plan is in the file, corrections welcome, then `/ai-scrum:build $1` —
+   remain. Say: the plan is in the file, corrections welcome, then `/build $1` —
    ideally in a **separate session**, while you keep refining here.
 
 ## Rules
 
 - All `## Open Questions` must be resolved before `status: ready`.
 - **No `status: ready` while an acceptance criterion has no deliverable covering it** (step 5).
-  `/ai-scrum:build` re-checks this and sends the story back here.
+  `/build` re-checks this and sends the story back here.
 - **Acceptance = UI (P1)**, if enabled in the profile: every user-facing capability needs a
   real path through the actual UI. An acceptance or test-plan step for a *user action* that
   requires a console command or a direct internal call is a story gap, not a valid test. If

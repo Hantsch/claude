@@ -5,6 +5,9 @@ model: sonnet
 effort: medium
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 Run sprint **$1**.
 
 ## Project profile
@@ -33,7 +36,7 @@ phase, stops the **affected story** (not the sprint) — it is marked as blocked
 continues.
 
 All state lives in files (`sprint.md`, story files, commits) — after a context reset
-`/ai-scrum:sprint $1` is **resumable** and continues at the first open spot.
+`/sprint $1` is **resumable** and continues at the first open spot.
 
 ## Precondition
 
@@ -71,8 +74,8 @@ For every story in the sprint list whose requirement is still `draft`, ONE fresh
 (`subagent_type: "general-purpose"`, **`model: "opus"`**) — all calls in ONE message so they
 run in parallel. Prompt (self-contained, the agent does not know this session):
 
-- Read the refine procedure of the `ai-scrum` plugin — the file is
-  `${CLAUDE_PLUGIN_ROOT}/commands/refine.md` — and refine story **<id>** exactly along those
+- Read the refine procedure — the file is
+  `.claude/commands/refine.md` — and refine story **<id>** exactly along those
   steps, with the following **sprint deviations**:
   - **No questions to the user** (you cannot reach them). The deliberately open decisions
     are already answered under `## Decisions (Sprint)`, marked `(User)` — they are
@@ -103,8 +106,8 @@ inherited session/Sonnet tier — do **not** escalate on your own) — in the **
 strictly one after another** (later stories build on earlier ones). Prompt
 (self-contained):
 
-- Read the build procedure of the `ai-scrum` plugin — the file is
-  `${CLAUDE_PLUGIN_ROOT}/commands/build.md` — and implement story **<id>** exactly along it:
+- Read the build procedure — the file is
+  `.claude/commands/build.md` — and implement story **<id>** exactly along it:
   delegate deliverables one by one to fresh agents, honour `## Model Hints` (hard tier only
   where marked), verification with the commands from `.claude/ai-scrum.md`, clean-agent
   review over the diff, fill the Done section. **Sprint deviations:**
@@ -176,7 +179,7 @@ review. A `protected-branches` entry is never the target of a sprint branch merg
   User-facing stories whose end-to-end path only ran on fake/unit level are listed in
   `review.md` explicitly as "built, live acceptance pending" — not presented as fully
   accepted. The user does the live acceptance after the sprint.
-- Auto-commits apply only to `/ai-scrum:sprint` on the sprint branch; elsewhere "never
+- Auto-commits apply only to `/sprint` on the sprint branch; elsewhere "never
   commit without being asked" still holds.
 - Context discipline: keep agent returns short; read story files only where needed — the
   state lives in `sprint.md` + story status, not in your memory.

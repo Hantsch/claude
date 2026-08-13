@@ -5,19 +5,22 @@ model: sonnet
 effort: medium
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 Implement the story with ID **$1**.
 
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — paths, verify commands, acceptance policy, doc language
 and the files every agent must read before coding all come from there. If it is missing,
-stop and say: run `/ai-scrum:setup` first. Below, `<requirements>` means
+stop and say: run `/ai-scrum:setup` (ai-scrum plugin) first. Below, `<requirements>` means
 `requirements-path` from the profile.
 
 ## Precondition
 
 Open `<requirements>/$1-*.md`. Status must be **`ready`**.
-- `draft` → stop, say "run `/ai-scrum:refine $1` first".
+- `draft` → stop, say "run `/refine $1` first".
 - `done` → stop, say "already done".
 - Not found → look in `<requirements>/done/$1-*.md`; if it is there, also "already done".
 
@@ -25,7 +28,7 @@ Then check coverage: every entry in `## Acceptance Criteria` must be covered by 
 deliverable. If one is not, **stop** and name the uncovered criterion — that is a refine gap,
 and building around it is the most expensive mistake available here: the Ds all go green, the
 code review finds the hole at the very end, and the fix cycle costs more than the
-implementation agents together. Back to `/ai-scrum:refine $1`.
+implementation agents together. Back to `/refine $1`.
 
 ## Flow (scrum-like: small deliverables, acceptance at the end)
 
@@ -36,9 +39,10 @@ implementation agents together. Back to `/ai-scrum:refine $1`.
    - **Pick the tier:** default is a plain `Agent` call without `subagent_type`/`model` — it
      inherits this command's model and effort. If the D is marked `→ deliverable-hard` in
      `## Model Hints` (legacy marking: `→ Opus`), use `subagent_type: "deliverable-hard"`;
-     that agent definition (shipped with this plugin) carries Opus **and** high thinking
-     effort — do not additionally set `model` by hand. If the plugin agent cannot be
-     resolved, fall back to a plain `Agent` call with `model: "opus"` and `effort: "high"`.
+     that agent definition (`.claude/agents/deliverable-hard.md` in this project) carries
+     Opus **and** high thinking effort — do not additionally set `model` by hand. If the
+     agent cannot be resolved, fall back to a plain `Agent` call with `model: "opus"` and
+     `effort: "high"`.
 
      **Do not escalate on your own:** the hard tier is ~5x more expensive and thinks longer;
      subagents are >90% of the session bill. A D gets `deliverable-hard` **only** when
@@ -127,14 +131,14 @@ implementation agents together. Back to `/ai-scrum:refine $1`.
 
 ## Rules
 
-- **Do not commit, do not push**, unless the user explicitly asks. `/ai-scrum:build` writes
+- **Do not commit, do not push**, unless the user explicitly asks. `/build` writes
   code + the Done section; the commit is the user's deliberate act, using the prepared
-  commit message. (Inside `/ai-scrum:sprint` the orchestrator commits — see that command.)
+  commit message. (Inside `/sprint` the orchestrator commits — see that command.)
 - **No stop after individual deliverables.** The whole story is pulled through in one go;
   the user accepts once at the end based on `## Done`, not after every `D`.
 - Never weaken tests to go green. A red test is reported, not silenced.
 - If you notice while implementing that the plan has gaps: stop, say so, back to
-  `/ai-scrum:refine`.
+  `/refine`.
 - **Older story files** may use the previous German headings (`## Akzeptanzkriterien`,
   `## Modell-Hinweise`, `## Testplan (manuelle Abnahme)`, `## Done`) — treat them as
   equivalent and keep the file's existing language.

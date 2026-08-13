@@ -5,13 +5,16 @@ model: sonnet
 effort: medium
 ---
 
+<!-- ai-scrum:managed <ai-scrum-version> - plugin-owned, written by /ai-scrum:setup. Do not edit:
+     setup diffs this file on update and asks before replacing it. Project facts go in .claude/ai-scrum.md. -->
+
 Run the roadmap ritual: **$1** (no argument: run `check` first, then offer `plan`).
 
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — `roadmap-path`, `requirements-path`, `sprints-path`,
 `concepts-path`, `systems-path`, id formats and `doc-language` come from there. If it is
-missing, stop and say: run `/ai-scrum:setup` first.
+missing, stop and say: run `/ai-scrum:setup` (ai-scrum plugin) first.
 
 ## Role
 
@@ -49,14 +52,14 @@ keeps it honest and turns it into the next sprints. Story truth stays in `requir
      the profile's `story-id-format`, determined from `done/INDEX.md` + the open stories):
      requirement + acceptance criteria from the user's perspective; deliberately open
      decisions as concrete questions in `## Open Questions` (resolved by
-     `/ai-scrum:sprint` in its clarification round). **No** plan/deliverables — that is
+     `/sprint` in its clarification round). **No** plan/deliverables — that is
      refine's job.
 4. Create `<sprints>/<next free sprint id>/sprint.md` from the template: goal, stories in
    build order, `status: planned`, `milestone:` line.
 5. Record the sprint under its milestone in the roadmap (status stays open until built and
    accepted).
 6. Show the user the cut (sprint goal + one sentence per story) for correction. Then the user
-   starts `/ai-scrum:sprint <id>` themselves.
+   starts `/sprint <id>` themselves.
 
 ## Rules
 
