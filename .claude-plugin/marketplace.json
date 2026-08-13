@@ -26,6 +26,22 @@
         "spec-driven"
       ],
       "category": "workflow"
+    },
+    {
+      "name": "common",
+      "source": "./plugins/common",
+      "description": "Shared building blocks for every project. Currently output styles that change how Claude answers: Briefing (short overview first) and KIS (keep it simple).",
+      "version": "1.0.0",
+      "author": {
+        "name": "Hantsch"
+      },
+      "keywords": [
+        "output-styles",
+        "communication",
+        "briefing",
+        "concise"
+      ],
+      "category": "productivity"
     }
   ]
 }

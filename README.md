@@ -8,6 +8,7 @@ purpose: no token, no auth, no clone needed to install from it.
 | Plugin | Version | What it does |
 | --- | --- | --- |
 | [ai-scrum](plugins/ai-scrum/) | 1.0.0 | Spec-driven Scrum workflow — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. All state lives in the repository. |
+| [common](plugins/common/) | 1.0.0 | Building blocks for every project. Output styles **Briefing** (short overview first, details on request) and **KIS** (keep it simple), selectable in `/config`. |
 
 ## Install
 
@@ -101,6 +102,7 @@ plugins/<name>/
   commands/*.md                   slash commands, invoked as /<name>:<command>
   agents/*.md                     subagent definitions
   skills/<skill>/SKILL.md         skills (optional)
+  output-styles/*.md              output styles, selectable in /config (optional)
   templates/*                     files a plugin writes into a project
   README.md  CHANGELOG.md
 scripts/validate.ps1              manifests, versions, frontmatter, shipped references
@@ -115,7 +117,9 @@ scripts/ci-release.ps1            release orchestration (commit, tag, push, GitH
 
 1. `plugins/<name>/.claude-plugin/plugin.json` with `name`, `description`, `version`.
 2. Commands as markdown files with YAML frontmatter (`description`, optional
-   `argument-hint`, `model`, `effort`); agents likewise with `name`, `description`, `model`.
+   `argument-hint`, `model`, `effort`); agents likewise with `name`, `description`, `model`;
+   output styles in `output-styles/` with `name`, `description` and usually
+   `keep-coding-instructions: true`. At least one of the three has to exist.
 3. Add an entry to `.claude-plugin/marketplace.json` — `name`, `source: "./plugins/<name>"`,
    `description`, `version`. The version has to match `plugin.json`; CI enforces that.
 4. Reference files shipped with the plugin as `${CLAUDE_PLUGIN_ROOT}/<path>` — that variable

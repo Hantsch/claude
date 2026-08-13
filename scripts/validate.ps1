@@ -4,8 +4,8 @@
     Validates every plugin in this marketplace. Same checks CI runs.
 .DESCRIPTION
     Checks that the marketplace manifest and all plugin manifests are valid and in sync,
-    that commands and agents carry usable frontmatter, and that every file a command
-    references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
+    that commands, agents and output styles carry usable frontmatter, and that every file a
+    command references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
 .EXAMPLE
     pwsh -File scripts/validate.ps1
 #>
@@ -122,7 +122,13 @@ foreach ($entry in $marketplace.plugins) {
     $commandDir = Join-Path $pluginDir 'commands'
     $commands = @()
     if (Test-Path $commandDir) { $commands = @(Get-ChildItem -Path $commandDir -Filter '*.md' -File) }
-    Test-Check -Where $where -Message 'no commands and no agents found' -Condition ($commands.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
+
+    $styleDir = Join-Path $pluginDir 'output-styles'
+    $styles = @()
+    if (Test-Path $styleDir) { $styles = @(Get-ChildItem -Path $styleDir -Filter '*.md' -File) }
+
+    Test-Check -Where $where -Message 'no commands, agents or output styles found' `
+        -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
 
     foreach ($cmd in $commands) {
         $cwhere = "$where / commands/$($cmd.Name)"
@@ -157,6 +163,26 @@ foreach ($entry in $marketplace.plugins) {
             }
             if ($fm['model']) {
                 Test-Check -Where $awhere -Message "model '$($fm['model'])' is not one of: $($validModels -join ', ')" -Condition ($validModels -contains $fm['model'])
+            }
+        }
+    }
+
+    # --- output styles ----------------------------------------------------------------
+    # 'name' may differ from the file name here (it is the label in the /config picker),
+    # so only its presence in the picker matters. The two boolean fields are typo-prone
+    # and silently ignored when misspelled, hence the strict check.
+    $validBooleans = @('true', 'false')
+    foreach ($style in $styles) {
+        $swhere = "$where / output-styles/$($style.Name)"
+        $fm = Get-Frontmatter -Path $style.FullName
+        if ($null -eq $fm) {
+            Add-Failure -Where $swhere -Message 'missing or unterminated YAML frontmatter'
+            continue
+        }
+        Test-Check -Where $swhere -Message 'frontmatter has no "description" (shown in the /config picker)' -Condition ([bool]$fm['description'])
+        foreach ($flag in @('keep-coding-instructions', 'force-for-plugin')) {
+            if ($fm[$flag]) {
+                Test-Check -Where $swhere -Message "$flag '$($fm[$flag])' must be true or false" -Condition ($validBooleans -contains $fm[$flag].ToLower())
             }
         }
     }

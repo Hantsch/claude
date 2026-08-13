@@ -15,14 +15,17 @@ plugins/<name>/
   .claude-plugin/plugin.json      plugin manifest (name, description, version)
   commands/*.md                   slash commands, invoked as /<name>:<command>
   agents/*.md                     subagent definitions
+  output-styles/*.md              output styles, offered in the user's /config picker
   templates/*                     files the plugin writes into a consuming project
   README.md  CHANGELOG.md
 scripts/*.ps1                     validate, plan-release, release, ci-release
 .github/workflows/                validate (push + PR), release (push to main)
+inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
-Currently one plugin: [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state
-lives entirely in the consuming repository.
+Two plugins: [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state lives
+entirely in the consuming repository — and [common](plugins/common/), building blocks that are
+not tied to a workflow (currently output styles).
 
 ## The one command to run
 
@@ -42,6 +45,12 @@ frontmatter on every command and agent, and that every referenced file actually 
   `argument-hint` is free-form.
 - **Agent frontmatter** needs `name` *and* `description`, and `name` must equal the file's base
   name (`agents/foo.md` → `name: foo`).
+- **Output-style frontmatter** needs `description` (it is the line in the `/config` picker).
+  `name` is optional and, unlike agents, *may* differ from the file name — it is the label users
+  select and the value of the `outputStyle` setting. `keep-coding-instructions` and
+  `force-for-plugin` must be `true`/`false` if present; a misspelled flag is silently ignored by
+  Claude Code, so the validator is strict about them.
+- **A plugin needs at least one of** `commands/`, `agents/`, `output-styles/`.
 - **Every file a plugin references must ship.** Two patterns are scanned in all `*.md` outside
   `templates/`: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare `templates/<file>.<ext>` in prose. So
   mentioning `templates/whatever.md` in a README is a build failure unless that file exists.
@@ -110,8 +119,9 @@ commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Han
 ## Conventions
 
 - **English everywhere** — docs, commands, templates, commit messages, changelogs. Consuming
-  projects may generate artifacts in another language (ai-scrum's `doc-language`), but nothing in
-  this repository is written in one.
+  projects may generate artifacts in another language (ai-scrum's `doc-language`), and an output
+  style may *instruct* Claude to answer in one (common's `Briefing`), but nothing in this
+  repository is written in one.
 - Semver per plugin: major = users must change something after updating, minor = new capability,
   patch = wording/fix.
 - A plugin **never writes to a project's `CLAUDE.md` or `.claude/settings.json`** — it proposes,
@@ -126,8 +136,8 @@ commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Han
 1. `plugins/<name>/.claude-plugin/plugin.json` with `name`, `description`, `version` (start at
    `1.0.0`), plus `README.md` and a `CHANGELOG.md` containing `## Unreleased` and a section for
    the current version.
-2. Commands and/or agents as markdown with the frontmatter above (at least one of the two must
-   exist).
+2. Commands, agents and/or output styles as markdown with the frontmatter above (at least one of
+   the three must exist).
 3. An entry in `.claude-plugin/marketplace.json` with `name`, `source: "./plugins/<name>"`,
    `description` and a `version` identical to `plugin.json`.
 4. A row in the README's plugin table.
