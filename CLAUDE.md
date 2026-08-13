@@ -157,5 +157,6 @@ commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Han
    the three must exist).
 3. An entry in `.claude-plugin/marketplace.json` with `name`, `source: "./plugins/<name>"`,
    `description` and a `version` identical to `plugin.json`.
-4. A row in the README's plugin table.
+4. A row in the README's plugin table — no version number there. The release workflow rewrites
+   only the manifests and the changelog, so any version repeated in the root README goes stale.
 5. `pwsh -File scripts/validate.ps1`.

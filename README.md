@@ -5,10 +5,14 @@ purpose: no token, no auth, no clone needed to install from it.
 
 ## Plugins
 
-| Plugin | Version | What it does |
+| Plugin | What it does | Changes |
 | --- | --- | --- |
-| [ai-scrum](plugins/ai-scrum/) | 1.0.0 | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. |
-| [common](plugins/common/) | 1.0.0 | Building blocks for every project. Output styles **Briefing** (short overview first, details on request) and **KIS** (keep it simple), selectable in `/config`. |
+| [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
+| [common](plugins/common/) | Building blocks for every project. Output styles **Briefing** (short overview first, details on request) and **KIS** (keep it simple), selectable in `/config`. | [CHANGELOG](plugins/common/CHANGELOG.md) |
+
+Versions are not repeated here — they are owned by the release workflow and live in
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), in each plugin's
+`plugin.json`, in the [releases](../../releases) and in `claude plugin list`.
 
 ## Install
 
@@ -130,7 +134,8 @@ scripts/ci-release.ps1            release orchestration (commit, tag, push, GitH
    `description`, `version`. The version has to match `plugin.json`; CI enforces that.
 4. Reference files shipped with the plugin as `${CLAUDE_PLUGIN_ROOT}/<path>` — that variable
    points at the installed plugin directory, so absolute paths never leak into a command.
-5. Add a row to the table above.
+5. Add a row to the table above — name, what it does, changelog link. No version: the release
+   workflow only touches the manifests and the changelog, never this README.
 
 ## Testing locally before pushing
 
