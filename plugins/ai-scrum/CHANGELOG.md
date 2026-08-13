@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 1.0.1 — 2026-08-12
+
 Cost and correctness pass, derived from measuring a real 15-deliverable build session
 (21 agents, 139M tokens). Two thirds of that bill were cache reads — context re-read on every
 agent turn — and the most expensive agent of the run existed only to repair an acceptance
