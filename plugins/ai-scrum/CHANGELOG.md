@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.0.0 — 2026-08-13
+
 The workflow now lives in the consuming repository instead of the plugin. A project that has
 run setup works for everyone who clones it — no marketplace, no plugin, no install step. The
 plugin is only needed to put those files there and to update them.
