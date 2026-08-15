@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "react",
+  "description": "House rules for React/TypeScript frontends: Atomic Design layering with a hard dependency direction, mandatory primitives and duplicate scan, plus a semantic design-token method and the mobile accessibility floor.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Hantsch"
+  },
+  "homepage": "https://github.com/Hantsch/claude/tree/main/plugins/react",
+  "repository": "https://github.com/Hantsch/claude",
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "typescript",
+    "atomic-design",
+    "design-tokens",
+    "accessibility"
+  ]
+}

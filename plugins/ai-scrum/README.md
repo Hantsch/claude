@@ -121,8 +121,23 @@ Project-owned folders (`wiki/`, `adr/`, `features/`, `design/`, …) are never t
 update, plugin-generated templates and READMEs are refreshed; stories, sprints, roadmap content
 and your `## Notes` never are.
 
-Make sure `.claude/` is not git-ignored — setup warns if it is, because the workflow then never
-reaches anyone else.
+Setup checks `.gitignore` in both directions and reports what it finds, without ever editing the
+file: `.claude/` and the docs paths **must not** be ignored, or the workflow and the stories never
+reach anyone else; generated data — build output, dependency folders, test and screenshot
+artefacts, seeded fixture or demo-data folders, `.env*` — **must** be, or it turns into merge
+conflicts nobody can resolve and can carry real content into a public repository.
+
+## Changelog DoD (optional)
+
+`changelog-path` in the profile points at a **user-facing** changelog (`version.md`,
+`CHANGELOG.md`) — not the git history. When it is set, `/build` requires an entry for every
+user-facing feature or fix under `# Features` / `# Fixes` of the current version section, and
+`/sprint` sweeps the sprint's stories for missing ones. House style: appended to the current
+section only, short, punchy, a little funny, in `doc-language`, about what the user can now do
+rather than how it was built. Tests, refactors and internal changes get no entry, and a story with
+no user-facing change adds nothing.
+
+Default is `none`, and then the rule is dormant — nothing asks for a changelog that does not exist.
 
 ## Acceptance policy (P1/P2)
 

@@ -61,13 +61,25 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    detect the language actually used — that is the default for `doc-language`, so an
    existing German project stays German.
 7. **Git:** default branch and whether a `dev` branch exists → default for `branch-base`.
-   Also run `git check-ignore -q .claude/commands` — if `.claude/` is ignored, the workflow
-   files will not reach anyone who clones the repo. Say so loudly in the report; it defeats
-   the purpose of this setup.
+8. **Gitignore safety** — two checks, opposite directions, both cheap and both worth it:
+   - **Must not be ignored.** Run `git check-ignore -q .claude/commands` and the same for
+     `.claude/agents`, the profile and the docs paths from step 4. If `.claude/` or a docs
+     folder is ignored, the workflow and the stories never reach anyone who clones the repo.
+     Say so loudly in the report; it defeats the purpose of this setup.
+   - **Must be ignored.** Run `git status --porcelain --untracked-files=all` and look for
+     tracked or untracked generated data: build output (`out/`, `dist/`, `bin/`, `obj/`),
+     dependency folders, test and screenshot artefacts, local databases, seeded fixture or
+     demo-data folders, `*.local.*` and `.env*` files, per-user editor state. Name every hit
+     with the `.gitignore` line that would cover it — do **not** write the file. Generated
+     content committed by accident is not a formatting problem: it turns into merge conflicts
+     nobody can resolve, and a seeded fixture folder can carry real content into a public
+     repository.
+
+   Report both lists even in `check` mode. This is advisory: setup never edits `.gitignore`.
 
 If `$1` is `check`: report the findings as a short list (profile version vs plugin version,
-managed files per class from step 3, missing scaffolding, detected verify commands,
-`.claude/` ignored yes/no) and **stop**. Nothing is written.
+managed files per class from step 3, missing scaffolding, detected verify commands, both
+gitignore lists from step 8) and **stop**. Nothing is written.
 
 ## Phase 2 — Confirm the profile (interview)
 
@@ -87,6 +99,9 @@ Cover, in this order of importance:
 3. **Branching** — `branch-base` (detected default branch or `dev`), and whether
    `/sprint` may auto-commit once per story on the sprint branch.
 4. **doc-language** — detected default; `en` for a new project.
+5. **`changelog-path`** — only ask if the survey found a user-facing changelog at the repo
+   root (`version.md`, `VERSION.md`, `CHANGELOG.md`): should `/build` and `/sprint` require an
+   entry per user-facing change? Default `none`; leaving it unset keeps the DoD bullet dormant.
 
 On an update, ask only about entries that are missing, placeholders, or contradicted by
 the survey. If a profile is complete and matches the survey, skip the interview entirely
@@ -181,6 +196,8 @@ Short and complete:
 - Workflow files: installed / updated / kept as three short lists, plus the lock file.
 - Docs: created / overwritten / left alone.
 - Placeholders still in the profile that the user has to fill in.
+- **Gitignore findings** from Phase 1 step 8: what is ignored but must not be, and what should
+  be ignored but is not, each with the line that would fix it. You do not write `.gitignore`.
 - **Commit reminder:** `.claude/commands/`, `.claude/agents/`, `.claude/ai-scrum.md` and
   `.claude/ai-scrum.lock` only reach the team once they are committed — name the paths, do
   not commit them yourself. If `.claude/` is git-ignored, say that this must be fixed first.

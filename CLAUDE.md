@@ -15,6 +15,7 @@ plugins/<name>/
   .claude-plugin/plugin.json      plugin manifest (name, description, version)
   commands/*.md                   slash commands, invoked as /<name>:<command>
   agents/*.md                     subagent definitions
+  skills/<name>/SKILL.md          skills, matched against a task by their description
   output-styles/*.md              output styles, offered in the user's /config picker
   templates/*                     files the plugin writes into a consuming project
   templates/workflow/             payload installed as the project's OWN commands/agents
@@ -25,9 +26,22 @@ scripts/*.ps1                     validate, plan-release, release, ci-release
 inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
-Two plugins: [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
-whose commands* live in the consuming repository — and [common](plugins/common/), building
-blocks that are not tied to a workflow (currently output styles).
+Five plugins, in two shapes:
+
+- **Installer:** [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
+  whose commands* live in the consuming repository.
+- **Direct-ship:** [common](plugins/common/) (stack-agnostic building blocks — output styles, the
+  `karpathy` skill, `premortem` and `secrets-scan`), [dotnet](plugins/dotnet/),
+  [react](plugins/react/) and [electron](plugins/electron/) (per-stack house rules as skills).
+  Their content stays in the plugin; nothing plugin-owned lands in a consuming repository, so
+  `/plugin update` is the whole update story. This is deliberate: the same rule text had been
+  committed into up to nine repositories and had drifted. When editing them, the rule is that
+  there is exactly **one** copy of a rule — a project deviates by recording the deviation in its
+  own `CLAUDE.md`, never by re-pasting the rule.
+
+`electron` additionally ships two **one-time templates** (`templates/launch.js`,
+`templates/json-store.ts`): code copied into a project once and user-owned forever. They carry no
+managed marker and no lock entry — that is what separates them from `templates/workflow/`.
 
 **ai-scrum is an installer, not a command set.** It registers exactly one command,
 `/ai-scrum:setup`. The workflow lives in `templates/workflow/{commands,agents}/` and is copied
@@ -62,15 +76,25 @@ frontmatter on every command and agent, and that every referenced file actually 
   select and the value of the `outputStyle` setting. `keep-coding-instructions` and
   `force-for-plugin` must be `true`/`false` if present; a misspelled flag is silently ignored by
   Claude Code, so the validator is strict about them.
-- **A plugin needs at least one of** `commands/`, `agents/`, `output-styles/`.
+- **Skill frontmatter** needs `description` — it is the only thing Claude matches a task
+  against, so write it as trigger conditions, not as a title. A skill is a *folder*:
+  `skills/<name>/SKILL.md`; a loose `skills/foo.md` is never discovered and is a validation
+  error, as is a skill folder without `SKILL.md`. `name` is optional but must equal the folder
+  name if present. `user-invocable` and `disable-model-invocation` must be `true`/`false` —
+  same reason as the output-style flags: a misspelling is silently ignored.
+- **A plugin needs at least one of** `commands/`, `agents/`, `skills/`, `output-styles/`.
 - **`templates/workflow/` is validated like the real thing.** Its `commands/*.md` and
-  `agents/*.md` go through the same frontmatter checks (including agent `name` = file name),
-  must carry the `<!-- <plugin>:managed <<plugin>-version> ... -->` marker the installer
-  substitutes into, and must not contain `${CLAUDE_PLUGIN_ROOT}`.
+  `agents/*.md` go through the same frontmatter checks (including agent `name` = file name).
+  *Every* file under `templates/workflow/` must carry the
+  `<plugin>:managed <<plugin>-version>` marker the installer substitutes into — as
+  `<!-- ... -->` or, for shell and YAML payload, as `# ...` — and must not contain
+  `${CLAUDE_PLUGIN_ROOT}`. The directory is what separates the two template classes:
+  `templates/workflow/` is managed payload, anything else under `templates/` is a one-time
+  scaffold that becomes user-owned on copy and therefore carries no marker.
 - **Every file a plugin references must ship.** Two patterns are scanned in all `*.md` outside
-  `templates/`: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare `templates/<path>.<ext>` in prose,
-  subdirectories included. So mentioning `templates/whatever.md` in a README is a build failure
-  unless that file exists.
+  `templates/` — `SKILL.md` included: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare
+  `templates/<path>.<ext>` in prose, subdirectories included. So mentioning
+  `templates/whatever.md` in a README is a build failure unless that file exists.
 - **Never use absolute paths** to plugin-shipped files. `${CLAUDE_PLUGIN_ROOT}` resolves to the
   installed plugin directory on the user's machine.
 - **JSON manifests must be UTF-8 without BOM.** A BOM is a hard validation error, not something
@@ -153,8 +177,8 @@ commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Han
 1. `plugins/<name>/.claude-plugin/plugin.json` with `name`, `description`, `version` (start at
    `1.0.0`), plus `README.md` and a `CHANGELOG.md` containing `## Unreleased` and a section for
    the current version.
-2. Commands, agents and/or output styles as markdown with the frontmatter above (at least one of
-   the three must exist).
+2. Commands, agents, skills and/or output styles as markdown with the frontmatter above (at
+   least one of the four must exist).
 3. An entry in `.claude-plugin/marketplace.json` with `name`, `source: "./plugins/<name>"`,
    `description` and a `version` identical to `plugin.json`.
 4. A row in the README's plugin table — no version number there. The release workflow rewrites

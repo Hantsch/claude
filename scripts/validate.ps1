@@ -4,8 +4,8 @@
     Validates every plugin in this marketplace. Same checks CI runs.
 .DESCRIPTION
     Checks that the marketplace manifest and all plugin manifests are valid and in sync,
-    that commands, agents and output styles carry usable frontmatter, and that every file a
-    command references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
+    that commands, agents, output styles and skills carry usable frontmatter, and that every
+    file a command references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
 .EXAMPLE
     pwsh -File scripts/validate.ps1
 #>
@@ -94,6 +94,33 @@ function Test-AgentFile {
     }
 }
 
+# Skills are folders, not files: skills/<name>/SKILL.md. An empty folder is a hard error --
+# Claude Code just ignores it, so nothing else would ever tell us the skill is broken.
+# 'description' is load-bearing: it is the text a task is matched against. The two boolean
+# fields are silently ignored when misspelled, same rationale as the output-style strictness.
+function Test-SkillFolder {
+    param([string]$Where, [string]$Path, [string]$FolderName)
+    $skillFile = Join-Path $Path 'SKILL.md'
+    if (-not (Test-Path $skillFile)) {
+        Add-Failure -Where $Where -Message 'has no SKILL.md'
+        return
+    }
+    $fm = Get-Frontmatter -Path $skillFile
+    if ($null -eq $fm) {
+        Add-Failure -Where $Where -Message 'SKILL.md has missing or unterminated YAML frontmatter'
+        return
+    }
+    Test-Check -Where $Where -Message 'frontmatter has no "description" (the text a task is matched against)' -Condition ([bool]$fm['description'])
+    if ($fm['name']) {
+        Test-Check -Where $Where -Message "frontmatter name '$($fm['name'])' differs from folder name '$FolderName'" -Condition ($fm['name'] -eq $FolderName)
+    }
+    foreach ($flag in @('user-invocable', 'disable-model-invocation')) {
+        if ($fm[$flag]) {
+            Test-Check -Where $Where -Message "$flag '$($fm[$flag])' must be true or false" -Condition ($script:validBooleans -contains $fm[$flag].ToLower())
+        }
+    }
+}
+
 Write-Host "Validating marketplace in $repoRoot" -ForegroundColor Cyan
 
 # --- marketplace manifest -------------------------------------------------------------
@@ -113,6 +140,7 @@ Test-Check -Where 'marketplace' -Message 'field "plugins" is empty' -Condition (
 
 $script:validModels = @('opus', 'sonnet', 'haiku', 'fable', 'inherit')
 $script:validEfforts = @('low', 'medium', 'high', 'xhigh', 'max')
+$script:validBooleans = @('true', 'false')
 
 foreach ($entry in $marketplace.plugins) {
     $name = $entry.name
@@ -163,11 +191,27 @@ foreach ($entry in $marketplace.plugins) {
     $styles = @()
     if (Test-Path $styleDir) { $styles = @(Get-ChildItem -Path $styleDir -Filter '*.md' -File) }
 
-    Test-Check -Where $where -Message 'no commands, agents or output styles found' `
-        -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
+    $skillDir = Join-Path $pluginDir 'skills'
+    $skills = @()
+    if (Test-Path $skillDir) { $skills = @(Get-ChildItem -Path $skillDir -Directory) }
+
+    Test-Check -Where $where -Message 'no commands, agents, output styles or skills found' `
+        -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or $skills.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
 
     foreach ($cmd in $commands) {
         Test-CommandFile -Where "$where / commands/$($cmd.Name)" -Path $cmd.FullName
+    }
+
+    # --- skills -----------------------------------------------------------------------
+    foreach ($skill in $skills) {
+        Test-SkillFolder -Where "$where / skills/$($skill.Name)" -Path $skill.FullName -FolderName $skill.Name
+    }
+    # A markdown file loose in skills/ is a skill nobody will ever see: discovery is
+    # per-folder, so skills/foo.md is silently ignored.
+    if (Test-Path $skillDir) {
+        foreach ($loose in Get-ChildItem -Path $skillDir -Filter '*.md' -File) {
+            Add-Failure -Where "$where / skills/$($loose.Name)" -Message 'lies loose in skills/ - a skill must be skills/<name>/SKILL.md'
+        }
     }
 
     # --- agents -----------------------------------------------------------------------
@@ -179,39 +223,40 @@ foreach ($entry in $marketplace.plugins) {
     }
 
     # --- workflow payload -------------------------------------------------------------
-    # templates/workflow/ is what a plugin copies into a consuming project, where the files
-    # become that project's own commands and agents. Same frontmatter rules apply, plus:
-    # they must be self-contained (no ${CLAUDE_PLUGIN_ROOT}, which only resolves inside a
-    # plugin) and carry the managed marker the installer substitutes a version into.
+    # templates/workflow/ is the managed payload an installer plugin copies into a consuming
+    # project, where the files become that project's own commands and agents. Everything in
+    # there must be self-contained (no ${CLAUDE_PLUGIN_ROOT}, which only resolves inside a
+    # plugin) and carry the managed marker the installer substitutes a version into, in the
+    # markdown or the shell form. Anything under templates/ but OUTSIDE workflow/ is a
+    # one-time scaffold that becomes user-owned on copy, so it carries no marker - the
+    # directory is what tells the two classes apart.
     $workflowDir = Join-Path $pluginDir 'templates/workflow'
     if (Test-Path $workflowDir) {
-        $marker = "<!--\s*$([regex]::Escape($name)):managed <$([regex]::Escape($name))-version>"
+        $esc = [regex]::Escape($name)
+        $marker = "(?:<!--|#)\s*$esc`:managed <$esc-version>"
 
         $wfCommandDir = Join-Path $workflowDir 'commands'
         $wfAgentDir = Join-Path $workflowDir 'agents'
         Test-Check -Where "$where / templates/workflow" -Message 'holds neither commands/ nor agents/' `
             -Condition ((Test-Path $wfCommandDir) -or (Test-Path $wfAgentDir))
 
-        $payload = @()
         if (Test-Path $wfCommandDir) {
             foreach ($cmd in Get-ChildItem -Path $wfCommandDir -Filter '*.md' -File) {
                 Test-CommandFile -Where "$where / templates/workflow/commands/$($cmd.Name)" -Path $cmd.FullName
-                $payload += $cmd
             }
         }
         if (Test-Path $wfAgentDir) {
             foreach ($agent in Get-ChildItem -Path $wfAgentDir -Filter '*.md' -File) {
                 Test-AgentFile -Where "$where / templates/workflow/agents/$($agent.Name)" -Path $agent.FullName -BaseName $agent.BaseName
-                $payload += $agent
             }
         }
 
-        foreach ($file in $payload) {
+        foreach ($file in Get-ChildItem -Path $workflowDir -File -Recurse) {
             $pwhere = "$where / " + $file.FullName.Substring($pluginDir.Length).TrimStart('\', '/').Replace('\', '/')
             $text = Get-Content -Path $file.FullName -Raw -Encoding UTF8
             Test-Check -Where $pwhere -Message 'uses ${CLAUDE_PLUGIN_ROOT}, which does not resolve once the file lives in a project' `
                 -Condition ($text -notmatch '\$\{CLAUDE_PLUGIN_ROOT\}')
-            Test-Check -Where $pwhere -Message "has no '<!-- $name`:managed <$name-version> ... -->' marker" `
+            Test-Check -Where $pwhere -Message "has no '$name`:managed <$name-version>' marker (as '<!-- ... -->' or '# ...')" `
                 -Condition ($text -match $marker)
         }
     }
@@ -220,7 +265,6 @@ foreach ($entry in $marketplace.plugins) {
     # 'name' may differ from the file name here (it is the label in the /config picker),
     # so only its presence in the picker matters. The two boolean fields are typo-prone
     # and silently ignored when misspelled, hence the strict check.
-    $validBooleans = @('true', 'false')
     foreach ($style in $styles) {
         $swhere = "$where / output-styles/$($style.Name)"
         $fm = Get-Frontmatter -Path $style.FullName
@@ -231,12 +275,15 @@ foreach ($entry in $marketplace.plugins) {
         Test-Check -Where $swhere -Message 'frontmatter has no "description" (shown in the /config picker)' -Condition ([bool]$fm['description'])
         foreach ($flag in @('keep-coding-instructions', 'force-for-plugin')) {
             if ($fm[$flag]) {
-                Test-Check -Where $swhere -Message "$flag '$($fm[$flag])' must be true or false" -Condition ($validBooleans -contains $fm[$flag].ToLower())
+                Test-Check -Where $swhere -Message "$flag '$($fm[$flag])' must be true or false" -Condition ($script:validBooleans -contains $fm[$flag].ToLower())
             }
         }
     }
 
     # --- referenced files ship --------------------------------------------------------
+    # Recursive and outside templates/, so this covers READMEs, commands, agents and every
+    # skills/<name>/SKILL.md alike: mentioning a file that does not ship is a build failure
+    # wherever the mention is.
     $mdFiles = @(Get-ChildItem -Path $pluginDir -Filter '*.md' -File -Recurse |
         Where-Object { $_.FullName -notlike "*$([IO.Path]::DirectorySeparatorChar)templates$([IO.Path]::DirectorySeparatorChar)*" })
 

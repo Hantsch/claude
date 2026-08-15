@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "dotnet",
+  "description": "House rules for modular ASP.NET Core backends: layering and naming, a discoverable composition root without extension methods, hand-written-fake unit tests, and a review command for diffs.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Hantsch"
+  },
+  "homepage": "https://github.com/Hantsch/claude/tree/main/plugins/dotnet",
+  "repository": "https://github.com/Hantsch/claude",
+  "license": "MIT",
+  "keywords": [
+    "dotnet",
+    "csharp",
+    "aspnetcore",
+    "architecture",
+    "testing"
+  ]
+}

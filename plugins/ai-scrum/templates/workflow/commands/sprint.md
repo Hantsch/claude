@@ -13,9 +13,9 @@ Run sprint **$1**.
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — paths, verify commands, branching, auto-commit,
-acceptance policy and doc language come from there. If it is missing, stop and say: run
-`/ai-scrum:setup` first. Below, `<sprints>` and `<requirements>` mean the corresponding
-paths from the profile.
+acceptance policy, `changelog-path` and doc language come from there. If it is missing, stop
+and say: run `/ai-scrum:setup` first. Below, `<sprints>` and `<requirements>` mean the
+corresponding paths from the profile.
 
 ## Core principle
 
@@ -160,8 +160,13 @@ and only on the sprint branch (never push, never on a `protected-branches` entry
    acceptance — until then "built, acceptance pending"); add lasting gaps from the findings
    under the milestone's "Gaps/notes". If a concept is thereby fully implemented (all
    stories done): `git mv` it to `systems-path` and update its status line.
-4. `sprint.md`: `status: done` (blocked stories stay visibly marked).
-5. Final commit: `$1: sprint review + testplan + roadmap`.
+4. **If `changelog-path` is set in the profile:** check that every story done in this sprint
+   with a user-facing change has its entry there, under `# Features` / `# Fixes` of the current
+   version section. `/build` writes them per story; this is the sweep that catches the ones it
+   missed. A missing entry is a finding in the review, not something you fix silently — add it,
+   and say in the review that it was added late. When `changelog-path` is `none`, skip this.
+5. `sprint.md`: `status: done` (blocked stories stay visibly marked).
+6. Final commit: `$1: sprint review + testplan + roadmap`.
 
 ## Final report to the user
 

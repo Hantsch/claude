@@ -8,7 +8,15 @@ purpose: no token, no auth, no clone needed to install from it.
 | Plugin | What it does | Changes |
 | --- | --- | --- |
 | [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
-| [common](plugins/common/) | Building blocks for every project. Output styles **Briefing** (short overview first, details on request) and **KIS** (keep it simple), selectable in `/config`. | [CHANGELOG](plugins/common/CHANGELOG.md) |
+| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, the `karpathy` behavioral skill, and the `/common:premortem` and `/common:secrets-scan` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
+| [dotnet](plugins/dotnet/) | House rules for modular ASP.NET Core backends: layering and type placement, a composition root without extension methods, hand-written-fake unit tests, and `/dotnet:review` for diffs. | [CHANGELOG](plugins/dotnet/CHANGELOG.md) |
+| [react](plugins/react/) | House rules for React/TypeScript frontends: Atomic Design with a downward-only dependency direction, mandatory primitives and duplicate scan, plus a semantic design-token method and the mobile accessibility floor. | [CHANGELOG](plugins/react/CHANGELOG.md) |
+| [electron](plugins/electron/) | House rules for Electron apps: main/preload/renderer layering with a hardened trust boundary, contract-first typed IPC, Playwright UI verification, plus one-time templates for an env-scrubbing launcher and a self-healing JSON store. | [CHANGELOG](plugins/electron/CHANGELOG.md) |
+
+The three stack plugins are **direct-ship**: the rules live in the plugin, so `/plugin update` is
+the whole update story and nothing plugin-owned ever sits in your repository. Enable them per
+repository with an `enabledPlugins` block in that repository's `.claude/settings.json` — each
+plugin's README has the snippet, and no plugin writes that file for you.
 
 Versions are not repeated here — they are owned by the release workflow and live in
 [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), in each plugin's
@@ -128,8 +136,9 @@ scripts/ci-release.ps1            release orchestration (commit, tag, push, GitH
 1. `plugins/<name>/.claude-plugin/plugin.json` with `name`, `description`, `version`.
 2. Commands as markdown files with YAML frontmatter (`description`, optional
    `argument-hint`, `model`, `effort`); agents likewise with `name`, `description`, `model`;
-   output styles in `output-styles/` with `name`, `description` and usually
-   `keep-coding-instructions: true`. At least one of the three has to exist.
+   skills as `skills/<name>/SKILL.md` with a trigger-shaped `description`; output styles in
+   `output-styles/` with `name`, `description` and usually `keep-coding-instructions: true`. At
+   least one of the four has to exist.
 3. Add an entry to `.claude-plugin/marketplace.json` — `name`, `source: "./plugins/<name>"`,
    `description`, `version`. The version has to match `plugin.json`; CI enforces that.
 4. Reference files shipped with the plugin as `${CLAUDE_PLUGIN_ROOT}/<path>` — that variable

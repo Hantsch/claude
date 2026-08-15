@@ -12,8 +12,9 @@ Implement the story with ID **$1**.
 
 ## Project profile
 
-Read `.claude/ai-scrum.md` first — paths, verify commands, acceptance policy, doc language
-and the files every agent must read before coding all come from there. If it is missing,
+Read `.claude/ai-scrum.md` first — paths, verify commands, acceptance policy,
+`changelog-path`, doc language and the files every agent must read before coding all come
+from there. If it is missing,
 stop and say: run `/ai-scrum:setup` (ai-scrum plugin) first. Below, `<requirements>` means
 `requirements-path` from the profile.
 
@@ -122,6 +123,13 @@ implementation agents together. Back to `/refine $1`.
      first, e.g. `042: finish team-based combat`).
    - Verification: build/test/lint status + review outcome; open points and blockers.
 9. Check all `## Acceptance Criteria` and tick the ones that are met.
+9b. **If `changelog-path` is set in the profile:** every user-facing feature or fix in this
+    story gets an entry there, under `# Features` or `# Fixes` of the **current** version
+    section — appended, never restructuring an earlier one. Short, punchy, a little funny, in
+    `doc-language`; what the user can now do, not how it was built. Tests, refactors and
+    internal changes get no entry, because they change nothing for the user. A story with no
+    user-facing change adds nothing at all — an empty entry is worse than none. When
+    `changelog-path` is `none`, skip this step entirely.
 10. Set `status: done` — for user-facing stories **only** after a passed live smoke or a
     confirmed user acceptance (P2, if enabled); otherwise leave `in-progress` and hand over.
     Then `git mv` the file to `<requirements>/done/` and append a line to

@@ -10,7 +10,27 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+### Added
+
+- **`/concept` document format is sharper.** Scope is now three lists instead of one: in-scope for
+  v1, deliberately-not-in-v1 *with the rationale for the deferral*, and permanent non-goals with
+  their reason — a permanent no that is written down stops being re-proposed every few months. The
+  decision table gained a rationale column, and a `Tech decisions` table (area / choice / rationale)
+  is written where a concept fixes technology, omitted where it adds nothing to the stack.
+- **Open points are resolved inline.** When the user answers one during the review loop, the answer
+  goes into the section it belongs to and the item leaves the list, instead of the document carrying
+  two truths. The list shrinking to nothing is what a decided concept looks like.
+- **`/ai-scrum:setup` checks `.gitignore` in both directions** and reports both lists, in `check`
+  mode too, without ever editing the file. Ignored-but-must-not-be was already covered for
+  `.claude/`; the new direction is generated data that is *not* ignored — build output, dependency
+  folders, test and screenshot artefacts, seeded fixture and demo-data folders, `.env*`, per-user
+  editor state — each named with the line that would cover it.
+- **Optional `changelog-path` profile knob** for a user-facing changelog (`version.md`,
+  `CHANGELOG.md`). When set, `/build` requires an entry per user-facing feature or fix under
+  `# Features` / `# Fixes` of the current version section, and `/sprint` sweeps the sprint for
+  missing ones and records a late addition in the review. House style is documented in the profile
+  template: appended only, short, punchy, a little funny, in `doc-language`, no entries for tests or
+  refactors. Default `none` keeps the rule dormant.
 
 ## 2.0.0 — 2026-08-13
 
