@@ -18,32 +18,43 @@ plugins/<name>/
   skills/<name>/SKILL.md          skills, matched against a task by their description
   output-styles/*.md              output styles, offered in the user's /config picker
   templates/*                     files the plugin writes into a consuming project
-  templates/workflow/             payload installed as the project's OWN commands/agents
+  templates/workflow/             managed payload: the project's OWN commands/agents
     commands/*.md  agents/*.md
+  templates/skills/<group>/       managed payload: the project's OWN skills, per stack group
+    <skill>/SKILL.md
   README.md  CHANGELOG.md
 scripts/*.ps1                     validate, plan-release, release, ci-release
 .github/workflows/                validate (push + PR), release (push to main)
 inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
-Five plugins, in two shapes:
+Three plugins, in two shapes:
 
-- **Installer:** [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
-  whose commands* live in the consuming repository.
-- **Direct-ship:** [common](plugins/common/) (stack-agnostic building blocks — output styles, the
-  `karpathy` skill, `premortem` and `secrets-scan`), [dotnet](plugins/dotnet/),
-  [react](plugins/react/) and [electron](plugins/electron/) (per-stack house rules as skills).
-  Their content stays in the plugin; nothing plugin-owned lands in a consuming repository, so
-  `/plugin update` is the whole update story. This is deliberate: the same rule text had been
-  committed into up to nine repositories and had drifted. When editing them, the rule is that
-  there is exactly **one** copy of a rule — a project deviates by recording the deviation in its
-  own `CLAUDE.md`, never by re-pasting the rule.
+- **Installers:** [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
+  whose commands* live in the consuming repository — and [tech-rules](plugins/tech-rules/), which
+  installs the house rules for a project's stack as that project's own skills. Both register
+  exactly one command, `setup`, and ship everything else as payload.
+- **Direct-ship:** [common](plugins/common/) — output styles plus `premortem` and `secrets-scan`.
+  Its content stays in the plugin, so `/plugin update` is the whole update story. That fits
+  because these are tools for the person at the keyboard, not rules a repository has to enforce.
 
-`electron` additionally ships two **one-time templates** (`templates/launch.js`,
-`templates/json-store.ts`): code copied into a project once and user-owned forever. They carry no
-managed marker and no lock entry — that is what separates them from `templates/workflow/`.
+**Why the stack rules are payload and not plugin skills.** A plugin is installed per user, so a
+contributor who never installed it gets none of the rules and nothing says so. Project skills in
+`.claude/skills/` are discovered for everyone who clones, with no install and no trust dialog, and
+declaring the plugin in the project's `.claude/settings.json` does not close the gap — a plugin
+from an external source that only the project enables is not installed automatically. Hence the
+retired `dotnet`, `react` and `electron` plugins: their rules are now tech-rules' payload. The
+consequence for editing is unchanged, though — there is exactly **one** copy of a rule, the one in
+`templates/skills/`. A project deviates by recording the deviation in its own `CLAUDE.md`, never by
+editing its installed copy, and a rule must never be shipped in both shapes at once: a plugin skill
+and a project skill of the same name both load, which doubles the context cost and the drift.
 
-**ai-scrum is an installer, not a command set.** It registers exactly one command,
+`tech-rules` additionally ships two **one-time files** (`templates/oneshot/launch.js`,
+`templates/oneshot/json-store.ts`): code copied into a project once and user-owned forever. They
+carry no managed marker and no lock entry — that is what separates them from the managed payload
+directories.
+
+**An installer is not a command set.** ai-scrum registers exactly one command,
 `/ai-scrum:setup`. The workflow lives in `templates/workflow/{commands,agents}/` and is copied
 into the consuming project as `.claude/commands/*.md` and `.claude/agents/*.md`, where it is
 invoked without a namespace (`/refine 042`). Consequences when editing it: the files must be
@@ -52,6 +63,15 @@ to each other by project path (`.claude/commands/build.md`), and only `/ai-scrum
 its namespace. Setup owns them in the project: each carries an
 `<!-- ai-scrum:managed <ai-scrum-version> -->` marker and a hash in `.claude/ai-scrum.lock`, so
 an update replaces an untouched copy silently and asks about an edited one.
+
+`tech-rules` works the same way, one level deeper: the payload is grouped by stack
+(`templates/skills/<group>/<skill>/SKILL.md`), setup installs only the groups it detects — skill
+descriptions sit in every session's context and get truncated when the listing overflows — and the
+project copies live in `.claude/skills/<name>/` with `.claude/tech-rules.lock`. It also maintains a
+block in the project's `CLAUDE.md` between `<!-- tech-rules:managed:start -->` and
+`<!-- tech-rules:managed:end -->`, but only after an explicit yes and never a byte outside those
+markers. Adding a rule to a group is dropping a folder into the payload: `setup.md` reads the
+groups from disk, so it needs no edit.
 
 ## The one command to run
 
@@ -83,14 +103,18 @@ frontmatter on every command and agent, and that every referenced file actually 
   name if present. `user-invocable` and `disable-model-invocation` must be `true`/`false` —
   same reason as the output-style flags: a misspelling is silently ignored.
 - **A plugin needs at least one of** `commands/`, `agents/`, `skills/`, `output-styles/`.
-- **`templates/workflow/` is validated like the real thing.** Its `commands/*.md` and
-  `agents/*.md` go through the same frontmatter checks (including agent `name` = file name).
-  *Every* file under `templates/workflow/` must carry the
-  `<plugin>:managed <<plugin>-version>` marker the installer substitutes into — as
-  `<!-- ... -->` or, for shell and YAML payload, as `# ...` — and must not contain
-  `${CLAUDE_PLUGIN_ROOT}`. The directory is what separates the two template classes:
-  `templates/workflow/` is managed payload, anything else under `templates/` is a one-time
-  scaffold that becomes user-owned on copy and therefore carries no marker.
+- **The managed payload is validated like the real thing.** `templates/workflow/commands/*.md`
+  and `.../agents/*.md` go through the same frontmatter checks (including agent `name` = file
+  name), and `templates/skills/<group>/<skill>/SKILL.md` through the same skill checks (folder
+  name = `name` if present, `description` present, boolean flags strict). A loose `*.md` in
+  `templates/skills/` or directly in a group folder is an error, same as in a real `skills/`.
+  *Every* file under either directory must carry the `<plugin>:managed <<plugin>-version>` marker
+  the installer substitutes into — as `<!-- ... -->` or, for shell and YAML payload, as `# ...` —
+  and must not contain `${CLAUDE_PLUGIN_ROOT}`. In a `SKILL.md` the marker goes after the closing
+  `---` of the frontmatter, never before it. The directory is what separates the two template
+  classes: `templates/workflow/` and `templates/skills/` are managed payload, anything else under
+  `templates/` is a one-time scaffold that becomes user-owned on copy and therefore carries no
+  marker.
 - **Every file a plugin references must ship.** Two patterns are scanned in all `*.md` outside
   `templates/` — `SKILL.md` included: `${CLAUDE_PLUGIN_ROOT}/<path>` and a bare
   `templates/<path>.<ext>` in prose, subdirectories included. So mentioning
@@ -165,8 +189,16 @@ commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Han
   repository is written in one.
 - Semver per plugin: major = users must change something after updating, minor = new capability,
   patch = wording/fix.
-- A plugin **never writes to a project's `CLAUDE.md` or `.claude/settings.json`** — it proposes,
-  the user decides.
+- A plugin **never writes to a project's `.claude/settings.json`** — it proposes, the user
+  decides. That is not pedantry: hooks execute code. `CLAUDE.md` is the user's file too, with one
+  narrow exception — a block between explicit `<plugin>:managed:start` / `:managed:end` markers,
+  written only after the user said yes, with every line outside the markers left byte for byte.
+  Maintaining that block is worth the exception because it is the pointer that gets the right skill
+  read at the right time, and hand-maintaining it in every repository is exactly the drift the
+  payload model exists to remove.
+- **Say what is enforced.** A skill is model-invoked and `CLAUDE.md` is advisory; neither gates
+  anything. Real enforcement is a lint rule, a test or a hook. A command that installs rules says
+  so plainly instead of implying the rules are binding.
 - Every file a plugin writes into a project is either clearly plugin-owned (regenerated on
   update) or clearly user-owned (never overwritten). There is no third category.
 - Project-specific facts belong in the plugin's own profile file in the consuming repo, never

@@ -4,8 +4,10 @@
     Validates every plugin in this marketplace. Same checks CI runs.
 .DESCRIPTION
     Checks that the marketplace manifest and all plugin manifests are valid and in sync,
-    that commands, agents, output styles and skills carry usable frontmatter, and that every
-    file a command references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
+    that commands, agents, output styles and skills carry usable frontmatter - for a plugin's
+    own components and for the managed payload in templates/workflow/ and templates/skills/
+    alike - and that every file a command references (${CLAUDE_PLUGIN_ROOT}/... or
+    templates/...) actually ships.
 .EXAMPLE
     pwsh -File scripts/validate.ps1
 #>
@@ -222,19 +224,19 @@ foreach ($entry in $marketplace.plugins) {
         }
     }
 
-    # --- workflow payload -------------------------------------------------------------
-    # templates/workflow/ is the managed payload an installer plugin copies into a consuming
-    # project, where the files become that project's own commands and agents. Everything in
-    # there must be self-contained (no ${CLAUDE_PLUGIN_ROOT}, which only resolves inside a
-    # plugin) and carry the managed marker the installer substitutes a version into, in the
-    # markdown or the shell form. Anything under templates/ but OUTSIDE workflow/ is a
-    # one-time scaffold that becomes user-owned on copy, so it carries no marker - the
-    # directory is what tells the two classes apart.
+    # --- managed payload --------------------------------------------------------------
+    # templates/workflow/ and templates/skills/ are the managed payload an installer plugin
+    # copies into a consuming project, where the files become that project's own commands,
+    # agents and skills. Everything in there must be self-contained (no ${CLAUDE_PLUGIN_ROOT},
+    # which only resolves inside a plugin) and carry the managed marker the installer
+    # substitutes a version into, in the markdown or the shell form. Anything under templates/
+    # but OUTSIDE those two directories is a one-time scaffold that becomes user-owned on copy,
+    # so it carries no marker - the directory is what tells the two classes apart.
+    $esc = [regex]::Escape($name)
+    $marker = "(?:<!--|#)\s*$esc`:managed <$esc-version>"
+
     $workflowDir = Join-Path $pluginDir 'templates/workflow'
     if (Test-Path $workflowDir) {
-        $esc = [regex]::Escape($name)
-        $marker = "(?:<!--|#)\s*$esc`:managed <$esc-version>"
-
         $wfCommandDir = Join-Path $workflowDir 'commands'
         $wfAgentDir = Join-Path $workflowDir 'agents'
         Test-Check -Where "$where / templates/workflow" -Message 'holds neither commands/ nor agents/' `
@@ -250,8 +252,35 @@ foreach ($entry in $marketplace.plugins) {
                 Test-AgentFile -Where "$where / templates/workflow/agents/$($agent.Name)" -Path $agent.FullName -BaseName $agent.BaseName
             }
         }
+    }
 
-        foreach ($file in Get-ChildItem -Path $workflowDir -File -Recurse) {
+    # Skill payload is grouped, because an installer picks the groups that match the consuming
+    # project's stack: templates/skills/<group>/<skill-name>/SKILL.md. Same folder rule as a
+    # real skill - a loose markdown file is a skill nobody will ever see.
+    $payloadSkillDir = Join-Path $pluginDir 'templates/skills'
+    if (Test-Path $payloadSkillDir) {
+        $groups = @(Get-ChildItem -Path $payloadSkillDir -Directory)
+        Test-Check -Where "$where / templates/skills" -Message 'holds no group folder (expected templates/skills/<group>/<name>/SKILL.md)' `
+            -Condition ($groups.Count -gt 0)
+        foreach ($loose in Get-ChildItem -Path $payloadSkillDir -Filter '*.md' -File) {
+            Add-Failure -Where "$where / templates/skills/$($loose.Name)" -Message 'lies loose in templates/skills/ - the payload is templates/skills/<group>/<name>/SKILL.md'
+        }
+        foreach ($group in $groups) {
+            $gwhere = "$where / templates/skills/$($group.Name)"
+            $groupSkills = @(Get-ChildItem -Path $group.FullName -Directory)
+            Test-Check -Where $gwhere -Message 'group holds no skill folder' -Condition ($groupSkills.Count -gt 0)
+            foreach ($loose in Get-ChildItem -Path $group.FullName -Filter '*.md' -File) {
+                Add-Failure -Where "$gwhere/$($loose.Name)" -Message 'lies loose in the group folder - a skill must be <group>/<name>/SKILL.md'
+            }
+            foreach ($skill in $groupSkills) {
+                Test-SkillFolder -Where "$gwhere/$($skill.Name)" -Path $skill.FullName -FolderName $skill.Name
+            }
+        }
+    }
+
+    foreach ($payloadDir in @($workflowDir, $payloadSkillDir)) {
+        if (-not (Test-Path $payloadDir)) { continue }
+        foreach ($file in Get-ChildItem -Path $payloadDir -File -Recurse) {
             $pwhere = "$where / " + $file.FullName.Substring($pluginDir.Length).TrimStart('\', '/').Replace('\', '/')
             $text = Get-Content -Path $file.FullName -Raw -Encoding UTF8
             Test-Check -Where $pwhere -Message 'uses ${CLAUDE_PLUGIN_ROOT}, which does not resolve once the file lives in a project' `

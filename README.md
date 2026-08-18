@@ -8,15 +8,17 @@ purpose: no token, no auth, no clone needed to install from it.
 | Plugin | What it does | Changes |
 | --- | --- | --- |
 | [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
-| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, the `karpathy` behavioral skill, and the `/common:premortem` and `/common:secrets-scan` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
-| [dotnet](plugins/dotnet/) | House rules for modular ASP.NET Core backends: layering and type placement, a composition root without extension methods, hand-written-fake unit tests, and `/dotnet:review` for diffs. | [CHANGELOG](plugins/dotnet/CHANGELOG.md) |
-| [react](plugins/react/) | House rules for React/TypeScript frontends: Atomic Design with a downward-only dependency direction, mandatory primitives and duplicate scan, plus a semantic design-token method and the mobile accessibility floor. | [CHANGELOG](plugins/react/CHANGELOG.md) |
-| [electron](plugins/electron/) | House rules for Electron apps: main/preload/renderer layering with a hardened trust boundary, contract-first typed IPC, Playwright UI verification, plus one-time templates for an env-scrubbing launcher and a self-healing JSON store. | [CHANGELOG](plugins/electron/CHANGELOG.md) |
+| [tech-rules](plugins/tech-rules/) | Installs the house rules for a project's stack into the repository itself: `/tech-rules:setup` detects .NET, React and Electron, writes the matching skills to `.claude/skills/`, keeps a pointer block in `CLAUDE.md` and updates both later. | [CHANGELOG](plugins/tech-rules/CHANGELOG.md) |
+| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, and the `/common:premortem` and `/common:secrets-scan` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
 
-The three stack plugins are **direct-ship**: the rules live in the plugin, so `/plugin update` is
-the whole update story and nothing plugin-owned ever sits in your repository. Enable them per
-repository with an `enabledPlugins` block in that repository's `.claude/settings.json` — each
-plugin's README has the snippet, and no plugin writes that file for you.
+Two of the three are **installers**: what they ship ends up in the consuming repository, so a
+contributor who never installed a plugin still gets the workflow (ai-scrum) and the house rules
+(tech-rules). Only whoever installs or updates them needs the plugin. `common` is the exception —
+output styles and two commands are tools for the person at the keyboard, not repository content, so
+they stay in the plugin.
+
+The former `dotnet`, `react` and `electron` plugins are gone. Their rules are tech-rules' payload,
+unchanged; see [Migrating](plugins/tech-rules/README.md#migrating-from-the-react-dotnet-and-electron-plugins).
 
 Versions are not repeated here — they are owned by the release workflow and live in
 [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), in each plugin's
@@ -54,9 +56,17 @@ needs on disk is created by that plugin's own setup command — for ai-scrum:
 /ai-scrum:setup
 ```
 
-ai-scrum goes one step further: setup writes the whole workflow into the project
-(`.claude/commands/`, `.claude/agents/`). Once that is committed, everyone who clones the repo
-can use it without installing the plugin — it is only needed to install and update those files.
+```
+/tech-rules:setup
+```
+
+Both setups write into the project — ai-scrum the workflow (`.claude/commands/`,
+`.claude/agents/`), tech-rules the house rules (`.claude/skills/`). Once that is committed,
+everyone who clones the repository has it without installing anything; the plugin is only needed
+to install and update those files. That is deliberate: a plugin declared in a repository's
+`.claude/settings.json` is **not** installed automatically for a contributor when it comes from an
+external source — Claude Code reports it as missing and prints the install command — so anything
+that has to apply to everyone belongs in the repository.
 
 ## Troubleshooting
 
@@ -120,8 +130,10 @@ plugins/<name>/
   skills/<skill>/SKILL.md         skills (optional)
   output-styles/*.md              output styles, selectable in /config (optional)
   templates/*                     files a plugin writes into a project
-  templates/workflow/             payload a plugin installs as the project's own
-    commands/*.md  agents/*.md    commands and agents (validated like the real thing)
+  templates/workflow/             managed payload: the project's own commands and agents
+    commands/*.md  agents/*.md    (validated like the real thing)
+  templates/skills/<group>/       managed payload: the project's own skills, grouped by stack
+    <skill>/SKILL.md              (validated like the real thing)
   README.md  CHANGELOG.md
 scripts/validate.ps1              manifests, versions, frontmatter, shipped references
 scripts/plan-release.ps1          derives the semver bump from commit messages
@@ -221,8 +233,10 @@ optionally forcing a plugin and a bump level.
   capability, **patch** = wording/fix.
 - Every plugin's `CHANGELOG.md` keeps an `## Unreleased` section at the top; a release without
   notes is refused by CI.
-- A plugin never writes to `CLAUDE.md` or `.claude/settings.json` of a project; it proposes and
-  the user decides.
+- A plugin never writes to `.claude/settings.json` of a project; it proposes and the user decides.
+  `CLAUDE.md` is the user's too — the one exception is a block between explicit
+  `<plugin>:managed:start` / `:managed:end` markers, written only after the user said yes, with
+  everything outside the markers untouched.
 - Every file a plugin writes into a project is either clearly plugin-owned (regenerated on
   update) or clearly user-owned (never overwritten). No third category.
 

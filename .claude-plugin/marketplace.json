@@ -30,7 +30,7 @@
     {
       "name": "common",
       "source": "./plugins/common",
-      "description": "Stack-agnostic building blocks for every project: output styles Briefing and KIS, the karpathy behavioral skill, and the premortem and secrets-scan commands.",
+      "description": "Stack-agnostic building blocks for every project: the output styles Briefing and KIS, and the premortem and secrets-scan commands.",
       "version": "1.0.0",
       "author": {
         "name": "Hantsch"
@@ -40,62 +40,10 @@
         "communication",
         "briefing",
         "concise",
-        "skills",
         "premortem",
         "secrets"
       ],
       "category": "productivity"
-    },
-    {
-      "name": "dotnet",
-      "source": "./plugins/dotnet",
-      "description": "House rules for modular ASP.NET Core backends: layering and naming, a discoverable composition root without extension methods, hand-written-fake unit tests, and a review command for diffs.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Hantsch"
-      },
-      "keywords": [
-        "dotnet",
-        "csharp",
-        "aspnetcore",
-        "architecture",
-        "testing"
-      ],
-      "category": "development"
-    },
-    {
-      "name": "react",
-      "source": "./plugins/react",
-      "description": "House rules for React/TypeScript frontends: Atomic Design layering with a hard dependency direction, mandatory primitives and duplicate scan, plus a semantic design-token method and the mobile accessibility floor.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Hantsch"
-      },
-      "keywords": [
-        "react",
-        "typescript",
-        "atomic-design",
-        "design-tokens",
-        "accessibility"
-      ],
-      "category": "development"
-    },
-    {
-      "name": "electron",
-      "source": "./plugins/electron",
-      "description": "House rules for Electron apps: main/preload/renderer layering with a hardened trust boundary, contract-first typed IPC, Playwright UI verification, plus one-time templates for an env-scrubbing launcher and a self-healing JSON store.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Hantsch"
-      },
-      "keywords": [
-        "electron",
-        "typescript",
-        "ipc",
-        "security",
-        "playwright"
-      ],
-      "category": "development"
     }
   ]
 }
