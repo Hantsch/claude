@@ -1,7 +1,7 @@
 # common
 
 Shared building blocks that are not tied to any workflow and not to any stack: how Claude
-answers, how Claude behaves while coding, and two commands that are useful in every repository.
+answers, and two commands that are useful in every repository.
 
 ## What ships
 
@@ -9,17 +9,17 @@ answers, how Claude behaves while coding, and two commands that are useful in ev
 | --- | --- | --- |
 | `output-styles/briefing.md` | style **Briefing** | Answer as a ~10-line briefing: what it is about, what was found/done, how to proceed. Paths instead of file dumps. Full step-by-step precision when you have to run something yourself. Answers in German. |
 | `output-styles/kis.md` | style **KIS** | Keep it simple: small words, short sentences, only what is necessary. At most 2 options when a decision is needed. |
-| `skills/karpathy/` | skill | The four behavioral rules against the recurring LLM coding mistakes: think before coding, simplicity first, surgical changes, goal-driven execution. MIT, attributed. |
 | `commands/premortem.md` | `/common:premortem` | Assume the plan failed, work backward to causes, early warning signs and preventions. Reads the actual plan first and checks it against the repository. |
 | `commands/secrets-scan.md` | `/common:secrets-scan` | Scan staged changes, the tree or history for credentials, connection strings and secrets leaking through logs. |
 
-### Why karpathy is a skill and not an output style
+### Where the karpathy rules went
 
-Output styles are mutually exclusive - one is active at a time, so shipping the behavioral rules
-as a style would mean giving up **Briefing** or **KIS** to get them. Styles also apply to the main
-conversation only, while a skill reaches subagents. And it is deliberately *one* copy: the same
-four rules had been pasted into eight places across the portfolio and had started to drift. Point
-at the skill from your `CLAUDE.md`, do not paste it.
+The behavioral rules against the recurring LLM coding mistakes are no longer here: they ship as
+payload of [tech-rules](../tech-rules/README.md) and are installed into a repository as the project
+skill `karpathy`, so they also apply to a contributor who has no plugin installed. They stay a
+skill rather than an output style for two reasons that have not changed: styles are mutually
+exclusive, so shipping them as one would mean giving up **Briefing** or **KIS** to get them, and a
+style applies to the main conversation only while a skill reaches subagents.
 
 ## Output styles
 
@@ -60,10 +60,10 @@ Two things worth knowing:
 - Output styles apply to the **main conversation only**. Subagents run their own system prompt,
   so a subagent's report is unaffected.
 
-## Commands and the skill
+## Commands
 
 Nothing to activate: with the plugin enabled, `/common:premortem` and `/common:secrets-scan` are
-available, and the `karpathy` skill is offered to Claude whenever a task matches its description.
+available.
 
 `/common:secrets-scan` defaults to staged changes, so the useful moment is right before a commit;
 `tree` and `history` take arguments for the wider sweeps. It looks for credentials and log leaks

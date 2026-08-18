@@ -10,13 +10,15 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+### Changed
+
+- The **karpathy** skill moved to the `tech-rules` plugin, which installs it into a repository as a
+  project skill. It never shipped in a released version of `common`, so nothing to migrate: the
+  rules are the same text, they just arrive via `/tech-rules:setup` now and therefore also reach
+  contributors who have no plugin installed.
+
 ### Added
 
-- Skill **karpathy** (`skills/karpathy/`) — the four behavioral rules against the recurring LLM
-  coding mistakes (think before coding, simplicity first, surgical changes, goal-driven
-  execution), MIT-licensed and attributed, with the "biases toward caution over speed" caveat
-  kept. This is now the single canonical copy; point at it from a project's `CLAUDE.md` instead
-  of pasting the rules.
 - Command **`/common:premortem`** (`commands/premortem.md`) — assume the plan has failed, work
   backward to causes, early warning signs, preventions and owners. Starts by reading the actual
   plan and checking it against the repository, so the failure causes are evidence and not filler.
