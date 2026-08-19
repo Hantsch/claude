@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.0.1 — 2026-08-18
+
 ### Added
 
 - **`/concept` document format is sharper.** Scope is now three lists instead of one: in-scope for

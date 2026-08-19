@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 1.0.1 — 2026-08-18
+
 ### Changed
 
 - The **karpathy** skill moved to the `tech-rules` plugin, which installs it into a repository as a
