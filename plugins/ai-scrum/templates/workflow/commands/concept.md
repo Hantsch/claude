@@ -32,8 +32,10 @@ rules from `CLAUDE.md`, content of concepts already decided.
      (already implemented, as reference) — at least the project's overall vision document
      and the topically closest ones, which are also your **format reference**. The docs index
      tells you what lives where; the roadmap says what is planned or unprioritised.
-   - For code/system research call `Agent` with `subagent_type: "Explore"` — never grep
-     broadly through the repo yourself. Goal: know what already exists, so your questions are
+   - For code/system research call `Agent` with `subagent_type: "Explore"`,
+     `model: "sonnet"` and `run_in_background: false` — never grep broadly through the repo
+     yourself, and never leave those two parameters unset (unset `model` inherits the session
+     tier, unset `run_in_background` means background, i.e. an answer you never get). Goal: know what already exists, so your questions are
      precise and the concept builds on what is there.
 
 2. **Run the interview (iteratively, in rounds):**

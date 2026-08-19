@@ -85,10 +85,19 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   pulls them through in one go and the user accepts once, based on `## Done`.
 - **Whoever implements does not verify.** Build always delegates the code review to a fresh
   agent that sees only spec + diff, and reports PASS/FAIL/UNCLEAR with evidence.
-- **Two tiers, chosen in advance.** Refine marks the few risky deliverables
+- **Two tiers, chosen in advance and pinned.** Refine marks the few risky deliverables
   `→ deliverable-hard` (Opus + high effort) with a one-sentence justification; everything else
-  runs on the cheap tier. Build is forbidden from escalating on its own — subagents are the
-  bulk of the bill, and the tier decides it.
+  runs on Sonnet, written out on the call rather than inherited. That matters more than it
+  sounds: an `Agent` call without an explicit `model` takes the *session* model and passes it
+  down its whole subtree, so a session switched to Opus mid-run re-tiers everything below it
+  at roughly five times the price, invisibly. Build is forbidden from escalating on its own —
+  subagents are the bulk of the bill, and the tier decides it.
+- **Everything is delegated in the foreground.** A background subagent's completion
+  notification reaches the top-level session only, never a subagent — so a build agent that
+  backgrounds a deliverable and then waits for it waits forever, and the sprint stops with
+  nothing in the working tree to show for it. Every delegation therefore passes
+  `run_in_background: false`; parallelism is several foreground calls in one message, which
+  run concurrently and block until all of them return.
 - **Open questions belong to the user.** Anything a story deliberately left open is never
   decided by an agent. In a sprint the orchestrator bundles those questions, records the
   answers as binding `(User)` decisions, and only then lets the agents run.

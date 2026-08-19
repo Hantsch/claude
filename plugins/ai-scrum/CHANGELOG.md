@@ -31,6 +31,49 @@ is empty, so no version ever ships without notes.
   missing ones and records a late addition in the review. House style is documented in the profile
   template: appended only, short, punchy, a little funny, in `doc-language`, no entries for tests or
   refactors. Default `none` keeps the rule dormant.
+- **`progress.md` per sprint.** The build agent appends one line per finished deliverable to
+  `<sprints>/SNN/progress.md`, and the sprints README says to watch it. A sprint runs for hours
+  and is otherwise indistinguishable from a dead one in the working tree — which is exactly how a
+  stuck agent used to go unnoticed for an hour or more.
+
+### Fixed
+
+- **Builds no longer hang silently.** `/build` delegated with "no `run_in_background`" back when
+  foreground was the default; today an omitted flag means *background*, and a background child
+  never wakes its caller — completion notifications reach the top-level session only, never a
+  subagent. So the build agent would end a turn with "waiting for D2 and D3", which is not a pause
+  but its final answer, and the story stopped there. Every `Agent` call in `/build`, `/sprint`,
+  `/refine` and `/concept` now spells out `run_in_background: false`, and a new
+  `## Delegation rules` section in `/build` states the three consequences: never background a
+  child, never end a turn with "waiting", and parallelism is several foreground calls in ONE
+  message (which run concurrently *and* block) — never background plus polling. Measured over five
+  real sprints: 71 idle turns, 1765 minutes of dead time, one of them 111 minutes after all three
+  children had already finished.
+- **No more improvised watchdogs.** `/sprint` now states that `ScheduleWakeup` is rejected outside
+  `/loop` mode and `TaskOutput` cannot resolve a subagent id — both fail with an error instead of
+  protecting the run. Orchestrators had started answering that by spawning dummy `noop` agents just
+  to wake themselves, then mistook the dummy's completion for the real build's.
+- **A failed agent is no longer treated as a finished one.** Reports that come back empty, say
+  "terminated early" or name an API error (`529 Overloaded`) mean nothing was delivered: `/build`
+  now inspects the working tree for partial edits and re-dispatches that deliverable once.
+
+### Changed
+
+- **The agent tier is pinned, never inherited.** An `Agent` call without `model` does not take the
+  command's frontmatter — it takes the *session* model and hands it down its whole subtree, so a
+  session switched to Opus mid-run silently re-tiers every agent below it at roughly five times the
+  price. Default-tier deliverables, story builds, test-plan writing and `Explore` research now pass
+  `model: "sonnet"` explicitly; the hard tier stays exactly where `## Model Hints` puts it. Across
+  the five sprints that were measured, Opus was 46% of the turns and 76% of the bill, and the same
+  sprint shape cost ~$255 per story with an inherited Opus tree against ~$63 with a pinned default.
+  `/sprint` also tells the user not to switch the session model mid-sprint.
+- **Agent reports are capped.** Deliverable agents return at most 10 lines, story builds at most 20,
+  reviewers return `file:line` pointers instead of pasted code — because everything an agent returns
+  stays in its caller's context and is re-read on every turn it has left. The same reasoning is now
+  spelled out for the orchestrators themselves: `/build` and `/sprint` delegate reading instead of
+  opening source files, and each verify command runs once rather than being repeated on an untouched
+  tree. The eight longest-lived agents grew to 250k-460k context and accounted for 29% of all cached
+  input over two days.
 
 ## 2.0.0 — 2026-08-13
 
