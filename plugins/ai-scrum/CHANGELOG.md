@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.1.0 — 2026-08-19
+
 ### Added
 
 - **`progress.md` per sprint.** The build agent appends one line per finished deliverable to
