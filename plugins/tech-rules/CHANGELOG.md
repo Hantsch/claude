@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 1.1.0 — 2026-08-20
+
 ### Changed
 
 - **`ui-verify`** now writes down the session model it was silent about: one app session per fixture
