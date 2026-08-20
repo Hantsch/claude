@@ -19,6 +19,12 @@ is empty, so no version ever ships without notes.
 
 ### Fixed
 
+- **Progress trail timestamps were invented, not read.** `/sprint` told the build agent to
+  append `<YYYY-MM-DD HH:MM>` to `progress.md` without saying how to get that value, so the
+  agent guessed — off by hours in practice. It now must run `date` (or `Get-Date`) and use that
+  output instead of estimating, and it logs a `started` line right before delegating each
+  deliverable in addition to the `done`/`blocked` line after, so `progress.md` also shows how
+  long each deliverable actually took.
 - **Builds no longer hang silently.** `/build` delegated with "no `run_in_background`" back when
   foreground was the default; today an omitted flag means *background*, and a background child
   never wakes its caller — completion notifications reach the top-level session only, never a
