@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.1.1 — 2026-08-20
+
 ### Fixed
 
 - **Progress trail timestamps were invented, not read.** `/sprint` told the build agent to
