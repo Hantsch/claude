@@ -10,6 +10,29 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+### Changed
+
+- **`ui-verify`** now writes down the session model it was silent about: one app session per fixture
+  variant, `page.reload()` between screens, a fresh app only for a screen whose subject is the cold
+  boot (`coldStart: true`) or after a crash. Two implementations of this skill read it in opposite
+  ways - 56 launches and two minutes of stolen focus versus 2 launches and under 30 seconds, with
+  identical evidence.
+- **`ui-verify`**: a run must not take the keyboard focus. `window.show()` activates from the main
+  process on `ready-to-show`, so the app has to offer `showInactive()` under the verification flag
+  the harness already sets - the harness cannot fix this from outside.
+- **`ui-verify`**: relaunching does not reset the fixture, it re-reads it. State resets come from
+  rewriting the fixture, which is now required at the start of every run instead of only when the
+  fixture is missing.
+- **`ui-verify`**: screenshot and axe must come from the same visit to a screen, and console output
+  must be attributed per screen rather than per session. Plus the exit-code contract (0 clean, 1
+  harness or app failure, 2 accessibility findings), a flow API for scripting a story's own
+  acceptance steps, a screen filter for the fast edit/verify loop, and the fixture's duty to switch
+  off boot-time side effects that reach outside it (a scan of the real system, a network call).
+- **`ui-verify`**: two absolutes softened into conditions - content in every shipped language only
+  applies when the UI ships more than one, and the numeric a11y floor read from the stylesheet only
+  when the project has such a token. A mouse-driven desktop app has no tap-target floor, and
+  inventing one in the harness is a design decision the harness does not own.
+
 ## 1.0.0 — 2026-08-18
 
 First release. The house rules stop being a plugin you have to install and become part of the
