@@ -21,6 +21,10 @@
 .PARAMETER NotesOut
     Write the release notes (the promoted section's body) to this file, for use as GitHub
     release notes.
+.PARAMETER ValidateNotesOnly
+    Only run the -PromoteUnreleased notes validation and exit - no file is touched, no version
+    is computed. This is how check-notes.ps1 reaches the release workflow's verdict without
+    performing a release.
 .EXAMPLE
     pwsh -File scripts/release.ps1 -Plugin ai-scrum -Bump minor
 .EXAMPLE
@@ -35,11 +39,16 @@ param(
     [string]$Version,
     [switch]$Tag,
     [switch]$PromoteUnreleased,
-    [string]$NotesOut
+    [string]$NotesOut,
+    [switch]$ValidateNotesOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+
+# -ValidateNotesOnly is the front half of a promoted release and nothing else, so it runs the
+# identical code path instead of a copy that can drift away from it.
+if ($ValidateNotesOnly) { $PromoteUnreleased = $true }
 
 function Write-TextFile {
     # UTF-8 without BOM, explicitly: on PowerShell 5.1 `Set-Content -Encoding UTF8` writes a
@@ -77,7 +86,7 @@ if ($next -eq $current) { throw "version is already $next - nothing to do" }
 # Em dash as a char code on purpose: this file must stay pure ASCII, because PowerShell 5.1
 # reads a BOM-less script as ANSI and would parse the 0x94 byte of an em dash as a quote.
 $emDash = [char]0x2014
-Write-Host "$Plugin`: $current -> $next" -ForegroundColor Cyan
+if (-not $ValidateNotesOnly) { Write-Host "$Plugin`: $current -> $next" -ForegroundColor Cyan }
 
 # --- for a promoted release: validate the notes BEFORE touching any manifest -----------
 $changelog = ''
@@ -110,6 +119,12 @@ if ($PromoteUnreleased) {
     if ($notes -notmatch '(?m)^\s*[-*]\s+\S') {
         throw "'## Unreleased' in plugins/$Plugin/CHANGELOG.md has no bullet list - write the notes as '- ...' items"
     }
+}
+
+if ($ValidateNotesOnly) {
+    $count = ([regex]::Matches($notes, '(?m)^\s*[-*]\s+\S')).Count
+    Write-Host "$Plugin`: '## Unreleased' holds $count note(s) - releasable" -ForegroundColor Green
+    return
 }
 
 # --- plugin.json: replace only the version value, keep formatting ---------------------

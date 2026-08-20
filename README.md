@@ -137,6 +137,7 @@ plugins/<name>/
   README.md  CHANGELOG.md
 scripts/validate.ps1              manifests, versions, frontmatter, shipped references
 scripts/plan-release.ps1          derives the semver bump from commit messages
+scripts/check-notes.ps1           refuses a push that would release without release notes
 scripts/release.ps1               version bump in both manifests + changelog promotion
 scripts/ci-release.ps1            release orchestration (commit, tag, push, GitHub release)
 .github/workflows/validate.yml    CI on every push and PR
@@ -173,6 +174,13 @@ Run the same checks CI runs:
 
 ```
 pwsh -File scripts/validate.ps1
+pwsh -File scripts/check-notes.ps1
+```
+
+Enable the repository hooks once per clone so the second one runs before every push:
+
+```
+git config core.hooksPath .githooks
 ```
 
 ## Releasing
@@ -217,6 +225,7 @@ write**, and no branch protection on `main` that would reject the bot's push.
 
 ```
 pwsh -File scripts/plan-release.ps1 -Plugin ai-scrum        # what would be released, and why
+pwsh -File scripts/check-notes.ps1 -Plugin ai-scrum         # ... and are its notes written?
 pwsh -File scripts/ci-release.ps1 -DryRun                   # full run without commit/tag/push
 pwsh -File scripts/release.ps1 -Plugin ai-scrum -Bump minor # bump by hand, no CI involved
 ```

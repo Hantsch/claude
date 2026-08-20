@@ -84,6 +84,24 @@ runs, and it fails the release workflow too. It checks manifest validity and cro
 version equality, semver, presence of README/CHANGELOG plus a `## Unreleased` section,
 frontmatter on every command and agent, and that every referenced file actually ships.
 
+The second command, and the one that keeps releases green:
+
+```
+pwsh -File scripts/check-notes.ps1
+```
+
+It asks the question the release workflow asks after the merge — *does every plugin whose
+commits trigger a release actually have notes under `## Unreleased`?* — and answers it before
+the push. It changes nothing. The **pre-push hook runs it for you** once you have enabled the
+hooks in your clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+That is a one-time, per-clone setting — git does not enable repository hooks by itself. Bypass
+a single push with `git push --no-verify`.
+
 ## Authoring rules the validator enforces
 
 - **Command frontmatter** needs `description`; `model` (if set) must be one of `opus`, `sonnet`,
@@ -151,12 +169,13 @@ Escape hatches, all safe to run locally:
 
 ```
 pwsh -File scripts/plan-release.ps1 -Plugin ai-scrum        # what would release, and why
+pwsh -File scripts/check-notes.ps1 -Plugin ai-scrum         # ... and would it be blocked?
 pwsh -File scripts/ci-release.ps1 -DryRun                   # full run, no commit/tag/push
 pwsh -File scripts/release.ps1 -Plugin ai-scrum -Bump minor # manual bump, no CI
 ```
 
-`plan-release.ps1` changes nothing. `ci-release.ps1 -DryRun` *does* modify files (revert with
-`git checkout -- .`).
+`plan-release.ps1` and `check-notes.ps1` change nothing. `ci-release.ps1 -DryRun` *does* modify
+files (revert with `git checkout -- .`).
 
 ## PowerShell constraints in scripts/
 

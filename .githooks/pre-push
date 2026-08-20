@@ -1,0 +1,17 @@
+#!/bin/sh
+# Refuses a push whose commits would trigger a release without release notes - the check the
+# release workflow runs after the merge, run before the push instead.
+#
+# Enable once, per clone:  git config core.hooksPath .githooks
+# Bypass once:             git push --no-verify
+if command -v pwsh >/dev/null 2>&1; then
+  shell=pwsh
+elif command -v powershell >/dev/null 2>&1; then
+  shell=powershell
+else
+  echo "pre-push: no PowerShell found - skipping the release-notes check" >&2
+  exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+exec "$shell" -NoProfile -File "$root/scripts/check-notes.ps1"

@@ -12,7 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # check-notes.ps1 needs tags and history to derive the bump level
 
       - name: Validate manifests, frontmatter and references
         shell: pwsh
         run: ./scripts/validate.ps1
+
+      # Same verdict the release job reaches after the merge - here it fails the PR instead.
+      - name: Check release notes for every plugin that would release
+        shell: pwsh
+        run: ./scripts/check-notes.ps1

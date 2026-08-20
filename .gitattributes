@@ -1,0 +1,2 @@
+# Git hooks are run by sh - a CR at the end of the shebang line breaks the interpreter.
+.githooks/** text eol=lf
