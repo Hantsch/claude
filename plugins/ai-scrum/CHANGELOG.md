@@ -12,12 +12,18 @@ is empty, so no version ever ships without notes.
 
 ### Fixed
 
-- **Progress trail timestamps were invented, not read.** `/sprint` told the build agent to
-  append `<YYYY-MM-DD HH:MM>` to `progress.md` without saying how to get that value, so the
-  agent guessed — off by hours in practice. It now must run `date` (or `Get-Date`) and use that
-  output instead of estimating, and it logs a `started` line right before delegating each
-  deliverable in addition to the `done`/`blocked` line after, so `progress.md` also shows how
-  long each deliverable actually took.
+- **Progress trail timestamps were invented, not read — second attempt.** `/sprint` told the
+  build agent to append `<YYYY-MM-DD HH:MM>` to `progress.md` without saying how to get that
+  value, so the agent guessed. The first fix ("run `date`/`Get-Date`, never guess") did not
+  hold: with the clock read in one step and the line typed in another, an agent still produced
+  trails 30 minutes in the future and running backwards, while its own children never called
+  the clock at all. The rule now lives where the agent actually works — a fifth entry in
+  `/build`'s `## Delegation rules` — and the timestamp is no longer typed at all: one shell
+  command per `started`/`done`/`blocked` event reads the clock and appends the line in the
+  same step (`Add-Content … (Get-Date …)` / `echo "$(date …)" >>`), run immediately before and
+  after each `Agent` call. `/sprint` only hands over the progress-file path and, after each
+  story, checks the new lines for monotonic, not-in-the-future timestamps and records a
+  violation as a review finding instead of fixing it by hand.
 
 ## 2.1.0 — 2026-08-19
 
