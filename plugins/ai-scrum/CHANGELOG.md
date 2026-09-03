@@ -25,6 +25,21 @@ is empty, so no version ever ships without notes.
   story, checks the new lines for monotonic, not-in-the-future timestamps and records a
   violation as a review finding instead of fixing it by hand.
 
+## Unreleased
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.1.1 — 2026-08-20
+
+### Fixed
+
+- **Progress trail timestamps were invented, not read.** `/sprint` told the build agent to
+  append `<YYYY-MM-DD HH:MM>` to `progress.md` without saying how to get that value, so the
+  agent guessed — off by hours in practice. It now must run `date` (or `Get-Date`) and use that
+  output instead of estimating, and it logs a `started` line right before delegating each
+  deliverable in addition to the `done`/`blocked` line after, so `progress.md` also shows how
+  long each deliverable actually took.
+
 ## 2.1.0 — 2026-08-19
 
 ### Added
@@ -37,14 +52,14 @@ is empty, so no version ever ships without notes.
 ### Fixed
 
 - **Builds no longer hang silently.** `/build` delegated with "no `run_in_background`" back when
-  foreground was the default; today an omitted flag means *background*, and a background child
+  foreground was the default; today an omitted flag means _background_, and a background child
   never wakes its caller — completion notifications reach the top-level session only, never a
   subagent. So the build agent would end a turn with "waiting for D2 and D3", which is not a pause
   but its final answer, and the story stopped there. Every `Agent` call in `/build`, `/sprint`,
   `/refine` and `/concept` now spells out `run_in_background: false`, and a new
   `## Delegation rules` section in `/build` states the three consequences: never background a
   child, never end a turn with "waiting", and parallelism is several foreground calls in ONE
-  message (which run concurrently *and* block) — never background plus polling. Measured over five
+  message (which run concurrently _and_ block) — never background plus polling. Measured over five
   real sprints: 71 idle turns, 1765 minutes of dead time, one of them 111 minutes after all three
   children had already finished.
 - **No more improvised watchdogs.** `/sprint` now states that `ScheduleWakeup` is rejected outside
@@ -58,7 +73,7 @@ is empty, so no version ever ships without notes.
 ### Changed
 
 - **The agent tier is pinned, never inherited.** An `Agent` call without `model` does not take the
-  command's frontmatter — it takes the *session* model and hands it down its whole subtree, so a
+  command's frontmatter — it takes the _session_ model and hands it down its whole subtree, so a
   session switched to Opus mid-run silently re-tiers every agent below it at roughly five times the
   price. Default-tier deliverables, story builds, test-plan writing and `Explore` research now pass
   `model: "sonnet"` explicitly; the hard tier stays exactly where `## Model Hints` puts it. Across
@@ -78,7 +93,7 @@ is empty, so no version ever ships without notes.
 ### Added
 
 - **`/concept` document format is sharper.** Scope is now three lists instead of one: in-scope for
-  v1, deliberately-not-in-v1 *with the rationale for the deferral*, and permanent non-goals with
+  v1, deliberately-not-in-v1 _with the rationale for the deferral_, and permanent non-goals with
   their reason — a permanent no that is written down stops being re-proposed every few months. The
   decision table gained a rationale column, and a `Tech decisions` table (area / choice / rationale)
   is written where a concept fixes technology, omitted where it adds nothing to the stack.
@@ -87,7 +102,7 @@ is empty, so no version ever ships without notes.
   two truths. The list shrinking to nothing is what a decided concept looks like.
 - **`/ai-scrum:setup` checks `.gitignore` in both directions** and reports both lists, in `check`
   mode too, without ever editing the file. Ignored-but-must-not-be was already covered for
-  `.claude/`; the new direction is generated data that is *not* ignored — build output, dependency
+  `.claude/`; the new direction is generated data that is _not_ ignored — build output, dependency
   folders, test and screenshot artefacts, seeded fixture and demo-data folders, `.env*`, per-user
   editor state — each named with the line that would cover it.
 - **Optional `changelog-path` profile knob** for a user-facing changelog (`version.md`,
