@@ -1,6 +1,6 @@
 ---
 name: ui-verify
-description: "Drive a built Electron app through Playwright's _electron to produce screenshots of every screen and an axe-core accessibility report, without anyone starting the app by hand. Use when: asked to verify, screenshot, smoke-test or look at the UI of an Electron app; setting up UI verification or a visual check; a story needs a live smoke test on a running app; adding an accessibility gate to CI; reviewing whether a UI change actually renders. DO NOT USE FOR: unit or component tests; web-only apps (use plain Playwright); Electron layering or IPC questions."
+description: "Drive a built Electron app through Playwright's _electron to produce screenshots of every screen and an axe-core accessibility report, without anyone starting the app by hand. Use when: asked to verify, screenshot, smoke-test or look at the UI of an Electron app; setting up UI verification or a visual check; a story needs a live smoke test on a running app; writing functional acceptance or e2e tests that drive the real Electron UI; adding an accessibility gate to CI; reviewing whether a UI change actually renders. DO NOT USE FOR: unit or component tests; web-only apps (use plain Playwright); Electron layering or IPC questions."
 ---
 
 <!-- tech-rules:managed <tech-rules-version> -->
@@ -11,9 +11,12 @@ A harness that starts the built app, visits every screen, writes PNGs and runs a
 same session. The point is that the UI becomes verifiable without a human starting the app - and
 without touching that human's real data.
 
-This is the concrete implementation of a live smoke test: where a workflow asks for one (ai-scrum's
-`live-smoke-required` profile flag, for instance), `npm run shot` is the answer, and
-`live-smoke-how` names it.
+The same harness is what a functional acceptance suite runs on. Screenshots and axe prove that a
+screen renders; they do not prove that a button does what a story says. Where a workflow asks for
+acceptance through the real surface (ai-scrum's `ui-acceptance-required`, with the command named in
+its `e2e` profile entry), the answer is Playwright specs driving *this* harness - same app start,
+same scrubbed env, same seeded fixture - as `npm run test:e2e` alongside `shot` and `a11y`. Never
+offer a screenshot as the acceptance of a behaviour: a PNG cannot fail a criterion.
 
 ## Shape
 

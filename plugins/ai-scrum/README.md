@@ -9,9 +9,9 @@ run it without installing anything.
 /concept <topic>       requirements interview  -> docs/concepts/<topic>.md
 /roadmap check         drift check             -> docs/ROADMAP.md kept honest
 /roadmap plan          cut the next sprint     -> story drafts + sprints/SNN/sprint.md
-/refine <id>           plan a story  (Opus)    -> Plan + Deliverables in the story file
-/build <id>            implement it  (cheap)   -> code + verify + clean review + Done
-/sprint <id>           run a whole sprint      -> branch, all stories, review + testplan
+/refine <id>           plan a story  (Opus)    -> Plan + Deliverables + AC -> test mapping
+/build <id>            implement it  (cheap)   -> code + tests + verify + clean review + Done
+/sprint <id>           run a whole sprint      -> branch, all stories, review.md
 
 /ai-scrum:setup        install / update        -> the six commands above + scaffolding
 ```
@@ -78,11 +78,15 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
                  ▲                                                  │
                  └──────────── sprint review / roadmap check ────────┘
 
-              sprint = clarify -> refine all -> build all -> review + testplan
+              sprint = clarify -> refine all -> build all -> review.md
 ```
 
-- **Small deliverables, one acceptance at the end.** Refine cuts a story into `D1…Dn`; build
-  pulls them through in one go and the user accepts once, based on `## Done`.
+- **Small deliverables, each with its own test.** Refine cuts a story into `D1…Dn` and maps
+  every acceptance criterion to the test that will prove it; build pulls them through in one go,
+  test included, and `## Done` records which test proved which criterion.
+- **Acceptance is the suite, not a click list.** A story is `done` when its criteria's tests pass
+  and the review is through — no manual round behind it, nothing held open for someone to walk.
+  See [Acceptance is the test suite](#acceptance-is-the-test-suite).
 - **Whoever implements does not verify.** Build always delegates the code review to a fresh
   agent that sees only spec + diff, and reports PASS/FAIL/UNCLEAR with evidence.
 - **Two tiers, chosen in advance and pinned.** Refine marks the few risky deliverables
@@ -148,19 +152,36 @@ no user-facing change adds nothing.
 
 Default is `none`, and then the rule is dormant — nothing asks for a changelog that does not exist.
 
-## Acceptance policy (P1/P2)
+## Acceptance is the test suite
 
-Two rules that only make sense for projects with a user-facing surface, so they are switches in
-the profile:
+**A sprint does not end with a list of things for you to click.** Every acceptance criterion is
+mapped to one automated test during refine — that mapping is `## Acceptance Tests` in the story,
+and no story reaches `ready` without it. The test is written by the same deliverable that
+implements the behaviour, and `/build` sets `done` when those tests pass and the clean-agent
+review is through. There is no approval state behind that: you read `review.md` and merge. What a
+later walk-through finds becomes a new story, not a reopened one.
 
-- `ui-acceptance-required` (**P1**) — every user-facing capability needs a real path through the
-  actual UI. An acceptance step for a user action that requires a console command or a direct
-  internal call is a story gap, not a valid test.
-- `live-smoke-required` (**P2**) — a green build is not acceptance. For a story with a visible
-  surface the real flow must be driven through the running app (how, is `live-smoke-how` in the
-  profile) before it may be `done`; otherwise it is handed over as "built, acceptance pending".
+Three switches in the profile:
 
-For a library, CLI or mod both stay `false` and the workflow accepts via tests.
+- `ac-tests-required` (default `true`) — every criterion needs a named test before `ready` and a
+  passing one before `done`. Off only for spikes.
+- `ui-acceptance-required` — a criterion about something the *user does* is proven through the
+  real surface: the `e2e` command from `## Verify`. A console call or a renderer test with a faked
+  backend is not a substitute. If `e2e` is `none`, the harness does not exist yet — refine plans
+  it as a deliverable or names the gap, and never converts it into a manual step. `false` for a
+  library, CLI, service or mod.
+- `testplan` (default `optional`) — `testplan.md` is not a gate any more. `optional` writes only
+  the criteria declared `manual residue`, and no file at all when there are none.
+
+**Manual residue** is the bounded exception: a criterion that cannot be automated for a real
+reason (an OS-level dialog, specific hardware, a paid external service), declared in the story
+with that reason. It is listed in the sprint review and holds nothing open. "Hard to test" is
+not a reason — it is work.
+
+Because the implementing agent also writes the test, the clean-agent review has an explicit job:
+open each acceptance test and judge whether a broken implementation would make it fail. A green
+tautology looks exactly like acceptance from the outside, and this is the only place that catches
+it.
 
 ## Migrating
 

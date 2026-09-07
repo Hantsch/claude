@@ -10,6 +10,59 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+### Changed
+
+- **Acceptance is the test suite now, not a person with a click list** (breaking: the profile
+  gains `e2e`, `ac-tests-required`, `manual-residue-allowed` and `testplan`, and loses
+  `live-smoke-required` and `live-smoke-how`). A sprint used to end by handing the user a
+  `testplan.md` and holding every user-facing story at `in-progress` as "built, acceptance
+  pending" until they had walked it. In practice that list grew faster than anyone could walk it
+  — eight milestones deep,
+  with items that needed a second machine, a signed build or a specific GPU to even attempt — and
+  the sprint stayed nominally open while the work had long been finished.
+
+  So the coverage gate moved: `/refine` now maps **every acceptance criterion to one automated
+  test** in a new story section `## Acceptance Tests` (level, file, test name), and `status:
+  ready` is refused while a criterion has neither a test nor a declared reason it cannot have
+  one. The test is written by the deliverable that implements the behaviour — a trailing
+  "D5 — write the tests" is called out as the anti-pattern it is, because that is the D that gets
+  dropped. `/build` runs those tests as its gate (including the new `e2e` command for criteria
+  about user actions), walks the mapping line by line, and sets `status: done` when they pass and
+  the clean-agent review is through. Acceptance criteria are numbered `AC1`, `AC2`, … so the
+  mapping can point at them, and `/roadmap plan` now cuts them as *observable facts* — a
+  criterion phrased as an intention cannot be tested by anyone and is rejected at cutting time.
+
+  Consequences, deliberately:
+  - **No story is held open for a human.** `in-progress` is now only a real blocker (red tests,
+    a missing test, an e2e harness that cannot run, review-fix cycles exhausted). Anything a
+    later walk-through finds is a **new** story.
+  - **No milestone waits to be "accepted".** `/sprint` and `/roadmap check` set a milestone whose
+    stories are all done to `done`; the user-only "accepted" marker is gone from the roadmap
+    template, `/roadmap` and `/sprint`.
+  - **`testplan.md` is optional and no longer a gate.** The new `testplan` profile key defaults
+    to `optional`: `/sprint` writes only the criteria declared `manual residue` and skips the
+    file entirely when there are none. `required` restores the old full plan, `off` disables it.
+  - **`manual residue` is the bounded exception:** a criterion that cannot be automated for a
+    real reason (an OS-level dialog, specific hardware, a paid external service), declared with
+    that reason in the story, listed in the sprint review and in the roadmap's "Gaps/notes". It
+    blocks nothing. "Hard to test" is not a reason — it is work.
+  - **The clean-agent review got a new job.** Because the implementing agent also writes the
+    test, the reviewer now opens each acceptance test and judges whether a broken implementation
+    would make it fail — reporting tautologies, tests that mock away the thing under test, and
+    skipped tests as findings. A green tautology is indistinguishable from acceptance from the
+    outside, and this is the only place left that catches it.
+  - **`review.md` gained an acceptance record:** per story, which test proved which criterion,
+    plus the residues and any criterion covered below the real surface.
+
+  Profile migration is done by `/ai-scrum:setup`: `live-smoke-required: true` becomes
+  `ac-tests-required: true` + `ui-acceptance-required: true`, the old `live-smoke-how` value is
+  offered as the new `e2e` verify command, and both old keys are dropped. Where a project has a
+  user-facing surface but no e2e suite yet (`e2e: none`), the workflow says so out loud: refine
+  plans the harness as a deliverable where scope allows, otherwise covers the criterion one level
+  down **and** names the gap in the story and the sprint review. It never quietly becomes a
+  manual step again. Stories refined before this section existed are left alone — `/build`
+  verifies them against the tests that exist and notes that they predate the mapping.
+
 ### Fixed
 
 - **Progress trail timestamps were invented, not read — second attempt.** `/sprint` told the
@@ -24,10 +77,6 @@ is empty, so no version ever ships without notes.
   after each `Agent` call. `/sprint` only hands over the progress-file path and, after each
   story, checks the new lines for monotonic, not-in-the-future timestamps and records a
   violation as a review finding instead of fixing it by hand.
-
-## Unreleased
-
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
 ## 2.1.1 — 2026-08-20
 

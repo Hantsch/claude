@@ -10,7 +10,15 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+### Changed
+
+- **`ui-verify` no longer sells a screenshot as acceptance.** It pointed at ai-scrum's retired
+  `live-smoke-required` / `live-smoke-how` flags and answered them with `npm run shot`. A PNG
+  proves that a screen renders; it cannot fail an acceptance criterion. The skill now names the
+  same harness as the base for a functional Playwright suite (`npm run test:e2e` — same app start,
+  same scrubbed env, same seeded fixture) and points at ai-scrum's `ui-acceptance-required` plus
+  its `e2e` profile entry. Trigger list extended to functional/e2e tests driving a real Electron
+  UI.
 
 ## 1.1.0 — 2026-08-20
 

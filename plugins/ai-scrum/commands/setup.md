@@ -92,10 +92,34 @@ Cover, in this order of importance:
 
 1. **Verify commands** — build/test (+ lint/typecheck if the project has them), offered as
    the detected suggestion with "correct" as the recommended option.
-2. **Acceptance policy** — `ui-acceptance-required` and `live-smoke-required`: does this
-   project have a user-facing surface whose acceptance must go through the real UI
-   (P1/P2)? For a library, CLI or mod the answer is usually no. If yes, ask how the
-   running app is driven (`live-smoke-how`).
+1b. **`e2e`** — the command that runs functional tests against the real app. Suggest a
+   detected script (`test:e2e`, `e2e`, `test:integration`, a Playwright or Cypress config,
+   `dotnet test --filter Category=E2E`) or `none`. Ask this separately from `test`: it is
+   usually a slower, separate suite, and it is what proves acceptance criteria about user
+   actions. If the project has a user-facing surface but no such suite, say so plainly in the
+   report — the first sprint touching that surface has to build the harness, and until it
+   exists those criteria can only be covered a level below the real path.
+2. **Acceptance policy** — three values, and together they are this workflow's promise that a
+   sprint needs no manual acceptance round:
+   - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an
+     automated test in refine and proven by it in build. Turn it off only for a spike or a
+     throwaway project.
+   - `ui-acceptance-required`: does this project have a user-facing surface whose criteria
+     must be proven through it? For a library, CLI, service or mod the answer is usually no.
+     If yes, `e2e` from step 1b is the command that does it.
+   - `manual-residue-allowed` (default `true`): may a criterion be declared unautomatable
+     with a reason (an OS dialog, specific hardware, a paid external service)? `false` forces
+     refine to reformulate or drop it instead. Do not ask unless the user brings it up — the
+     default is right for almost everyone.
+   - `testplan` (default `optional`): whether `/sprint` still writes `testplan.md`.
+     `optional` = only the criteria declared as `manual residue`, and no file at all when
+     there are none; `required` = the old full step-by-step plan; `off` = never.
+   - **Migrating a profile older than the test mapping** (it has `live-smoke-required` /
+     `live-smoke-how`): convert instead of asking twice. `live-smoke-required: true` becomes
+     `ac-tests-required: true` plus `ui-acceptance-required: true`; the old `live-smoke-how`
+     value is the best available hint for `e2e` — offer it converted, and drop both old keys.
+     Say in the report that the manual acceptance gate (P2) is gone: stories are no longer
+     held open waiting for a human to walk them, and `testplan.md` is no longer a gate.
 3. **Branching** — `branch-base` (detected default branch or `dev`), and whether
    `/sprint` may auto-commit once per story on the sprint branch.
 4. **doc-language** — detected default; `en` for a new project.
