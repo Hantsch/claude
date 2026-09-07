@@ -130,9 +130,12 @@ rules from `CLAUDE.md`, content of concepts already decided.
    and work the feedback straight into the file. The command is done only once the user is
    satisfied.
 
-5. **Close out:** add the new concept with one line to the roadmap (table "Open /
-   unprioritised": topic, state, next step). Point out that prioritisation and story cutting
-   happen later via `/roadmap plan` — **not** part of this command.
+5. **Close out:** add the new concept with one row to the roadmap's "Open / unprioritised"
+   table: topic (linked to the concept), state as **one sentence** ("concept drafted
+   <date>, N open points"), next step as one command (`/roadmap plan`). The open points, the
+   rationale and the prototype references stay in the concept — the roadmap row points at it,
+   it does not summarise it. Point out that prioritisation and story cutting happen later via
+   `/roadmap plan` — **not** part of this command.
 
 ## Rules
 

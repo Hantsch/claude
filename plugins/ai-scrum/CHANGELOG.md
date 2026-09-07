@@ -10,7 +10,39 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+### Changed
+
+- **The roadmap is a one-screen map again, not a log** (breaking: the roadmap template has a
+  new section layout, and `/roadmap check` rebuilds an existing roadmap into it after asking).
+  The template said "this file links, it does not duplicate", but the write moments did the
+  opposite: every `/sprint` appended a "Gaps/notes" paragraph, manual residue and sprint prose
+  under the milestone, nothing was ever removed, and finished milestones stayed in full under
+  "Current phase". Two real roadmaps had reached 800–900 lines, with the status invisible in
+  them.
+
+  The new shape has six sections with a budget each: **Where we stand** (max. five lines,
+  rewritten every time — phase, current build, what finished last, the next concrete step,
+  what waits on the user), **Phase overview** (one row per phase, milestones done/total),
+  **Current phase** (one table row per milestone: status, sprint links, one-sentence note),
+  **Open / unprioritised** (one row per idea, state one sentence, next step one command),
+  **Follow-ups worth doing** (one line per small item a sprint surfaced, with its source —
+  new as a standard section, it used to appear ad hoc) and **History** (finished phases, one
+  row per milestone). The rules block at the top of the roadmap is gone; the rules live in
+  `/roadmap`.
+
+  Consequences for the commands:
+  - `/sprint` phase 3 touches exactly three places in the roadmap: the milestone row, the
+    follow-up lines, and "Where we stand". **"Gaps/notes" is abolished** — gaps, manual
+    residue and criteria covered below the real surface stay in `review.md`; a gap that
+    matters becomes a follow-up line or a story.
+  - `/roadmap check` now also compacts: cells cut back to one sentence with a link, done
+    follow-ups removed (not struck through), finished phases collapsed into History, stories
+    with no home given an "Open / unprioritised" row per theme. A roadmap in the old shape is
+    rebuilt into the new one on the first `check`, after an explicit yes; the paragraph
+    detail is not carried over, because it already lives in the sprint reviews and in git.
+  - `/roadmap plan` writes the decisions taken at the cut into `sprint.md` and the stories,
+    not into the roadmap.
+  - `/concept` adds one row with a one-sentence state — open points stay in the concept.
 
 ## 3.0.0 — 2026-09-07
 

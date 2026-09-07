@@ -1,52 +1,55 @@
 # Roadmap
 
-**The** one source of status and planning: where we stand, what comes next, what is not planned
-at all yet. As of: <YYYY-MM-DD>.
+As of: <YYYY-MM-DD>. One screen: where the project stands, what was done recently, what comes
+next. Detail lives where it is produced — sprint reviews, story files, concepts — and this file
+links to it. Maintained by `/sprint`, `/concept` and `/roadmap`; the rules are in
+`.claude/commands/roadmap.md`.
 
-Rules (so this document does not drift):
+## Where we stand
 
-- **Milestone granularity.** Story truth lives in the requirements folder (open = flat folder,
-  finished = `done/INDEX.md`); sprint detail in the sprints folder. This file links, it does not
-  duplicate.
-- **Concepts are timeless** (what/why) — when/status lives **only** here.
-- **Defined write moments:** end of `/sprint` (phase 3), end of `/concept`,
-  and the `/roadmap` ritual (sync check + sprint cut).
-- **A milestone whose stories are all done is `done`.** Acceptance happens inside the sprint,
-  through the test each acceptance criterion was mapped to — there is no separate approval
-  state waiting on anyone. What a later walk-through finds goes under "Gaps/notes" and into a
-  new story, never into a milestone reopened after the fact.
-
----
+<Max. five lines, plain sentences, rewritten every time — not appended to:>
+<— which phase and milestone we are in, and what is being built right now (sprint link)>
+<— what was finished last (last one or two milestones, with dates)>
+<— what comes next, as a concrete step (`/sprint S05`, `/roadmap plan` for M3, `/refine 042`)>
+<— anything waiting on the user (a merge, a decision, a question), or "nothing"; this line
+   is dropped when there is nothing>
 
 ## Phase overview
 
-| Phase | Goal | Status |
-| --- | --- | --- |
-| 1 — <name> | <what is true at the end of this phase> | ▶ **in progress** |
-| 2 — <name> | <…> | planned |
-
----
+| Phase | Goal | Milestones | Status |
+| --- | --- | --- | --- |
+| 1 — <name> | <what is true at the end of this phase, one sentence> | <done>/<total> | ▶ **in progress** |
+| 2 — <name> | <…> | 0/? | planned |
 
 ## Current phase: 1 — <name>
 
 Concept: [concepts/<concept>.md](concepts/<concept>.md).
-Way of working: <e.g. every milestone ends in a verifiable increment, verified by its own
-tests; review + steering by the user in between. Stories are cut one milestone at a time, so
-scope does not balloon up front.>
 
-### M1 — <name> — status
-
-<What this milestone delivers, in 1–3 sentences.>
-Sprints: <link to sprint.md / review.md once they exist>
-Gaps/notes:
-- <lasting gaps from the sprint findings — struck through and marked "resolved" once closed>
-- <criteria that could only be covered below the real surface, and every `manual residue`
-  from the sprint reviews — the honest remainder of what no test proves>
-
----
+| M | Milestone | Status | Sprints | Note |
+| --- | --- | --- | --- | --- |
+| M1 | <name, one line> | done <YYYY-MM-DD> | [S01](sprints/done/S01/review.md) | <one sentence at most, or empty> |
+| M2 | <name> | ▶ in progress | [S02](sprints/S02/sprint.md) | <e.g. "042 blocked on a user decision"> |
+| M3 | <name> | planned | | |
 
 ## Open / unprioritised
 
+Ideas and concepts that need a decision before they become work. One line each.
+
 | Topic | State | Next step |
 | --- | --- | --- |
-| <concept or idea> | <e.g. concept drafted (link)> | <e.g. cut into stories via /roadmap plan> |
+| <concept or idea> | <one sentence + link, e.g. concept drafted (link)> | <one command, e.g. `/roadmap plan`> |
+
+## Follow-ups worth doing
+
+Small things a sprint surfaced that need no decision and no story yet — for the user while a
+sprint runs, or for the next cut. One line each, with where it came from. Done items are
+removed, not struck through.
+
+- <what, one line> — <source: [S03 review](sprints/done/S03/review.md), story 017, …>
+
+## History
+
+Completed phases, one line per milestone; nothing else.
+
+| Phase | M | Milestone | Done | Sprints |
+| --- | --- | --- | --- | --- |
