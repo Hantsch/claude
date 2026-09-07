@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 2.0.0 — 2026-09-07
+
 ### Changed
 
 - **`ui-verify` no longer sells a screenshot as acceptance.** It pointed at ai-scrum's retired
