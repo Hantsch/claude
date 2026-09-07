@@ -10,10 +10,6 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
-
-## 2.1.2 — 2026-09-03
-
 ### Changed
 
 - **Acceptance is the test suite now, not a person with a click list** (breaking: the profile
@@ -66,6 +62,8 @@ is empty, so no version ever ships without notes.
   down **and** names the gap in the story and the sprint review. It never quietly becomes a
   manual step again. Stories refined before this section existed are left alone — `/build`
   verifies them against the tests that exist and notes that they predate the mapping.
+
+## 2.1.2 — 2026-09-03
 
 ### Fixed
 
