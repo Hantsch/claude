@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 4.0.0 — 2026-09-07
+
 ### Changed
 
 - **The roadmap is a one-screen map again, not a log** (breaking: the roadmap template has a
