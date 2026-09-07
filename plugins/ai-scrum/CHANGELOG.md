@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 3.0.0 — 2026-09-07
+
 ### Changed
 
 - **Acceptance is the test suite now, not a person with a click list** (breaking: the profile
