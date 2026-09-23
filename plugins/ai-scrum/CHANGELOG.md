@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.1.0 — 2026-09-23
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **Narrow gate per story, full regression gate per sprint.** `/build` no longer runs the whole
   `test` and `e2e` suites after every story. Three new, optional profile keys:
   - `test-story` — the tests the story's uncommitted changes affect (e.g.
