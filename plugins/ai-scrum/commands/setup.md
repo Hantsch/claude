@@ -57,6 +57,13 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `pytest -q` (+ `ruff check .` if configured); `info.json` + `*.lua` → Factorio mod,
    usually `none` for build/test; `Cargo.toml` → `cargo build` + `cargo test`;
    `go.mod` → `go build ./...` + `go test ./...`.
+   Also look for the narrow and broad gate keys (`test-story`, `e2e-story`, `e2e-all` in the
+   profile template): Vitest → `test-story: npx vitest run --changed HEAD`, Jest →
+   `npx jest --onlyChanged`, `pytest-picked`/`pytest-testmon` in the dependencies →
+   `pytest -q --picked` / `pytest -q --testmon`, otherwise `none`; a Playwright config →
+   `e2e-story: npx playwright test {files}`; a script that runs one flow by name
+   (`ui:flow`, `e2e:flow`) → `npm run <script> -- {test}`; a script that runs every flow
+   (`ui:flows`, `e2e:flows`) next to a separate `e2e` → `e2e-all`. No match → `none`.
 6. **Doc language:** if requirement/story files already exist, sample one or two and
    detect the language actually used — that is the default for `doc-language`, so an
    existing German project stays German.
@@ -99,6 +106,14 @@ Cover, in this order of importance:
    actions. If the project has a user-facing surface but no such suite, say so plainly in the
    report — the first sprint touching that surface has to build the harness, and until it
    exists those criteria can only be covered a level below the real path.
+1c. **Narrow and broad gate** — `test-story`, `e2e-story`, `e2e-all` (see their comment in
+   the profile template). `/build` runs `test-story` and `e2e-story` instead of the full
+   `test`/`e2e` per story; `/sprint` runs full `test`, full `e2e` and `e2e-all` once after the
+   last story. All three are optional, and `none` keeps the old behaviour: full suites per
+   story. Offer the detected suggestion or `none`, bundled in one question per key. **On an
+   update these are the keys an older profile lacks — offer them, never fill them in
+   silently, and never replace a value the profile already has**, placeholder excepted. An
+   answer left open becomes `none`. Do not offer `e2e-story` while `e2e` is `none`.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
    - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an
@@ -220,6 +235,8 @@ Short and complete:
 - Workflow files: installed / updated / kept as three short lists, plus the lock file.
 - Docs: created / overwritten / left alone.
 - Placeholders still in the profile that the user has to fill in.
+- Profile keys **added** on this update, with the value each one got (`none` included), so a
+  new key never appears unannounced.
 - **Gitignore findings** from Phase 1 step 8: what is ignored but must not be, and what should
   be ignored but is not, each with the line that would fix it. You do not write `.gitignore`.
 - **Commit reminder:** `.claude/commands/`, `.claude/agents/`, `.claude/ai-scrum.md` and

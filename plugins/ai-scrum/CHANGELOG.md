@@ -12,6 +12,32 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **Narrow gate per story, full regression gate per sprint.** `/build` no longer runs the whole
+  `test` and `e2e` suites after every story. Three new, optional profile keys:
+  - `test-story` — the tests the story's uncommitted changes affect (e.g.
+    `npx vitest run --changed HEAD`), run instead of `test`.
+  - `e2e-story` — a template run instead of `e2e`, filled from the story's own e2e lines in
+    `## Acceptance Tests`: `{files}` for one run over all of them, `{file}`/`{test}` for one
+    run per line (e.g. `npx playwright test {files}`, `npm run ui:flow -- {test}`).
+  - `e2e-all` — every acceptance flow, where they are a suite of their own next to `e2e`
+    (e.g. `npm run ui:flows`); runs only in the sprint's regression gate.
+  Missing or `none` falls back to the full `test` / `e2e` per story, so existing profiles
+  behave exactly as before. A narrowed run that did not execute every test the story names is
+  not green: it falls back to the full suite.
+- **`/sprint` has a mandatory regression gate** (phase 2b), after the last story and before
+  `review.md`: full `test`, full `e2e` and `e2e-all`, once, on the finished branch. A red result
+  is checked for flakiness and for failing already at the sprint's start, then bisected over the
+  story commits to the story that caused it; that story gets a fix commit on the sprint branch,
+  or the failure is reported as a merge blocker. The result is recorded in `sprint.md` under
+  `## Regression gate` (also the resume marker) and in a new `review.md` section.
+- **`/build <id> --full`** runs the full gate once after the review cycles; without it, a
+  standalone `/build` ends with one line naming the full suites still pending.
+- `/refine`: e2e lines in `## Acceptance Tests` must name the real file and the literal test
+  name, because `/build` now substitutes them into `e2e-story`.
+- `/ai-scrum:setup` detects suggestions for the three keys (Vitest, Jest, pytest-picked/testmon,
+  Playwright, `ui:flow`/`ui:flows`-style scripts) and, on an update, offers them without
+  touching existing values; the report lists every key it added.
+
 ## 4.0.0 — 2026-09-07
 
 ### Changed

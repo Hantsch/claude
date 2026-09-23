@@ -10,8 +10,8 @@ run it without installing anything.
 /roadmap check         drift check             -> docs/ROADMAP.md kept honest
 /roadmap plan          cut the next sprint     -> story drafts + sprints/SNN/sprint.md
 /refine <id>           plan a story  (Opus)    -> Plan + Deliverables + AC -> test mapping
-/build <id>            implement it  (cheap)   -> code + tests + verify + clean review + Done
-/sprint <id>           run a whole sprint      -> branch, all stories, review.md
+/build <id> [--full]   implement it  (cheap)   -> code + tests + narrow gate + clean review + Done
+/sprint <id>           run a whole sprint      -> branch, all stories, regression gate, review.md
 
 /ai-scrum:setup        install / update        -> the six commands above + scaffolding
 ```
@@ -78,7 +78,7 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
                  ▲                                                  │
                  └──────────── sprint review / roadmap check ────────┘
 
-              sprint = clarify -> refine all -> build all -> review.md
+              sprint = clarify -> refine all -> build all -> regression gate -> review.md
 ```
 
 - **Small deliverables, each with its own test.** Refine cuts a story into `D1…Dn` and maps
@@ -182,6 +182,31 @@ Because the implementing agent also writes the test, the clean-agent review has 
 open each acceptance test and judge whether a broken implementation would make it fail. A green
 tautology looks exactly like acceptance from the outside, and this is the only place that catches
 it.
+
+## Narrow per story, broad per sprint
+
+Running every suite after every story gets slow as a project grows — hundreds of unit test files
+and dozens of UI flows per story, most of them untouched by it. Running only a story's own tests
+misses the regression one story causes in another's flow. So the gate is split:
+
+- **Per story (`/build`):** `build`, `lint`, `typecheck` as always; `test-story` instead of
+  `test` — the tests the story's uncommitted changes affect (`npx vitest run --changed HEAD`);
+  and `e2e-story` instead of `e2e` — a template filled with the files and test names the story
+  mapped to e2e in `## Acceptance Tests` (`npx playwright test {files}`,
+  `npm run ui:flow -- {test}`). A narrowed run that missed a named test does not count as green.
+- **Per sprint (`/sprint`, after the last story, before `review.md`):** the full `test`, the
+  full `e2e` and `e2e-all` — every acceptance flow, where those are a suite of their own. A red
+  result is checked for flakiness and for failing already on the sprint's start, then bisected
+  over the story commits; the story it lands on gets a fix commit on the sprint branch, or the
+  failure is a merge blocker in the review. Either way `review.md` records it.
+- **Standalone `/build`:** the narrow gate, and one closing line naming the full suites that
+  have not run yet. `/build <id> --full` runs them once at the end instead.
+
+All three keys are optional. Missing or `none` means the full `test` / `e2e` per story, exactly
+as before, so an existing profile keeps working unchanged. The command lives in the profile
+rather than in each `## Acceptance Tests` line because the line names the *target* (file, test)
+and the invocation is the harness's — one template, not a hand-written command per story that
+nobody checks.
 
 ## Migrating
 
