@@ -12,6 +12,70 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **`/sprint` marks the sprint as running on the base branch before cutting the branch.**
+  Phase 0 now sets `status: in-progress` and the `branch:` line in `sprint.md` and commits that
+  one file on `branch-base` as `SNN: sprint started`, then creates the sprint branch — so anyone
+  on the base branch sees that a sprint is under way and where. It is the one commit `/sprint`
+  makes outside the sprint branch, allowed even when `branch-base` is in `protected-branches`,
+  never pushed; the profile template's comment on `protected-branches` says so.
+- **Status lines: the user is told what runs, since when, how long it took last time and where
+  to watch.** New `## Status lines` section in `/sprint`: one line before and one after every
+  step longer than about three minutes (the refine round, each story build, the long gate
+  suite), the clock read by the shell in the same command that appends the step to
+  `progress.md`, the escape (`Esc`, then `/sprint SNN`) named; the first line of the sprint
+  names the phases and the progress file; a status question ("hängt das?") is answered with the
+  last trail line, elapsed against expected and the background tasks alive — never with "it is
+  running", never with a relaunch. Measured before: four 12–20-minute builds with one line of
+  text between them, `progress.md` mentioned zero times although the README says to watch it,
+  four "is it hanging?" questions in one sprint and the same question in five other sessions.
+- **Regression gate split by duration; the long suite runs from the orchestrator in the
+  background.** A `Bash` call ends after ten minutes and a subagent is never told when a
+  background task finishes — so the gate agent runs only `build`, `test` and `e2e`, and
+  `e2e-all` runs from the top-level session as one background call with `tee` into
+  `SNN/gate-e2e-all.log`, after a check for leftover instances (`e2e-cleanup`, new optional
+  profile key offered by setup for projects whose e2e starts an app or a server) and with a
+  status line naming the log. Measured before: the gate agent's `ui:flows` hit the ceiling, was
+  forced to hand back inconclusive and left an orphaned Electron instance that failed the next
+  two runs with "another instance is already running".
+- **The gate has a launch budget, and the attribution verdict is final.** Full suites once,
+  failing tests at most twice (HEAD, merge-base), fix confirmation once per attempt, one
+  relaunch for a run the environment lost — at most five, usually one; a collision with a
+  stale process is not a test result; once the attribution agent has returned, no baseline
+  worktree and no "one clean run to be sure". Failures the budget could not attribute are
+  recorded as `unattributed` and count as a merge blocker. The gate record now carries measured
+  minutes per command. Measured before: nine launches of the same 15-minute suite, and a gate
+  phase as long as all four story builds together.
+- **The final report ends the run.** New `## Closing the run`: before the report every agent
+  has returned and every background task has finished or been stopped (`TaskStop`), gate logs
+  are deleted; after it, a late task notification or agent result gets one line and no new
+  work — the only exception is a result contradicting the recorded verdict, which becomes an
+  `AskUserQuestion`. The report states that nothing is still running and lists the measured
+  minutes. Measured before: three seconds after "Sprint abgeschlossen" a stale notification
+  triggered four more suite launches and fourteen silent minutes; in another sprint a pending
+  agent kept working for eight minutes after "complete".
+- **Rules corrected to what the harness actually does.** "Never end a turn with waiting" now
+  says *waiting for an agent* and names the one sanctioned wait — the gate's background task,
+  whose exit notification does reach the top-level session (observed 8 of 8 times); the
+  watchdog rule names `ScheduleWakeup` as a no-op outside `/loop` (it answered "no pending
+  wakeup to cancel" and the orchestrator ended the turn on a promise), the blocked `sleep`,
+  `Monitor` dying with the turn, and polling loops. A build agent return that is neither `done`
+  nor `BLOCKED` is a failed agent: re-dispatch once, never `SendMessage`, never end the turn; a
+  rate limit ends the run with the reset time and the resume instruction. An interrupted
+  foreground agent is detached, not stopped — never start a second build for the same story on
+  top of it.
+- **`/build`: a sixth delegation rule and a longer trail.** The ten-minute `Bash` ceiling and
+  what a subagent does when it hits it (`TaskStop` at once, `INCONCLUSIVE`, never wait, never a
+  command that may need longer, `timeout: 600000` spelled out on every verify call); the
+  progress trail now also marks `verify · started/done`, `review <n> · started/done` and
+  `story · done` — the stretches after the last deliverable that used to leave 15–55-minute
+  gaps indistinguishable from a dead agent. Standalone `--full` runs `e2e-all` as a background
+  task with a tee'd log next to the story.
+- Refine: the status line counts the stories and exactly that many `Agent` calls follow in the
+  same message — one call per message ran four refines one after another (20 min instead of 7).
+- Sprints README rewritten around the two signals (chat status lines, `progress.md`), the gate
+  log and "after the final report the sprint is over". Lands in a project after
+  `/ai-scrum:setup` re-runs.
+
 ## 4.1.0 — 2026-09-23
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

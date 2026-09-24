@@ -38,6 +38,7 @@ e2e: <functional tests that drive the real app, e.g. npm run test:e2e | dotnet t
 test-story: none <!-- e.g. npx vitest run --changed HEAD | npx jest --onlyChanged | pytest -q --picked | none -->
 e2e-story: none <!-- e.g. npx playwright test {files} | npm run ui:flow -- {test} | dotnet test --filter "FullyQualifiedName~{test}" | pytest -q "{file}::{test}" | none -->
 e2e-all: none <!-- e.g. npm run ui:flows | npx playwright test --project=flows | none -->
+e2e-cleanup: none <!-- e.g. taskkill /F /IM electron.exe | pkill -f electron | none — stops what a crashed or killed e2e run leaves behind; /sprint runs it before relaunching a suite. It kills your own running instance too. -->
 <!--
   Narrow per story, broad per sprint. `/build` runs a story-sized gate; `/sprint` runs
   the full one once, after the last story, and bisects a red result back to a story.
@@ -94,7 +95,7 @@ changelog-path: none
 branch-base: main <!-- branch a sprint is cut from -->
 sprint-branch-pattern: sprint/{id}
 auto-commit-per-story: true <!-- /sprint commits once per story ON THE SPRINT BRANCH only -->
-protected-branches: main <!-- never commit here, never push, never merge -->
+protected-branches: main <!-- never commit here, never push, never merge — except the one `SNN: sprint started` commit /sprint makes on branch-base -->
 
 ## Acceptance
 

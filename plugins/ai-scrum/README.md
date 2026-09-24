@@ -89,6 +89,12 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   See [Acceptance is the test suite](#acceptance-is-the-test-suite).
 - **Whoever implements does not verify.** Build always delegates the code review to a fresh
   agent that sees only spec + diff, and reports PASS/FAIL/UNCLEAR with evidence.
+- **A sprint is observable from outside.** `/sprint` commits `SNN: sprint started` on the base
+  branch before it cuts the sprint branch, frames every long step with a status line (what
+  runs, since when, how long it took last time, which file to watch, how to stop), grows
+  `progress.md` per step, deliverable, verification and review, and treats the final report as
+  the end of the run — nothing keeps running behind it. A status question is answered with the
+  last trail line and the elapsed time, not with "it is running".
 - **Two tiers, chosen in advance and pinned.** Refine marks the few risky deliverables
   `→ deliverable-hard` (Opus + high effort) with a one-sentence justification; everything else
   runs on Sonnet, written out on the call rather than inherited. That matters more than it
@@ -195,10 +201,16 @@ misses the regression one story causes in another's flow. So the gate is split:
   mapped to e2e in `## Acceptance Tests` (`npx playwright test {files}`,
   `npm run ui:flow -- {test}`). A narrowed run that missed a named test does not count as green.
 - **Per sprint (`/sprint`, after the last story, before `review.md`):** the full `test`, the
-  full `e2e` and `e2e-all` — every acceptance flow, where those are a suite of their own. A red
-  result is checked for flakiness and for failing already on the sprint's start, then bisected
-  over the story commits; the story it lands on gets a fix commit on the sprint branch, or the
-  failure is a merge blocker in the review. Either way `review.md` records it.
+  full `e2e` and `e2e-all` — every acceptance flow, where those are a suite of their own. The
+  short suites run inside one agent; `e2e-all` runs from the orchestrator as a background task
+  with its log in the sprint folder, because a single tool call ends after ten minutes and a
+  subagent is never told when a background task finishes. A red result is checked for
+  flakiness and for failing already on the sprint's start, then bisected over the story
+  commits; the story it lands on gets a fix commit on the sprint branch, or the failure is a
+  merge blocker in the review. The gate has a launch budget — at most five launches per suite,
+  usually one — so a flaky suite is reported as flaky instead of being relaunched until it is
+  green. Either way `review.md` records it. `e2e-cleanup` (optional) names the command that
+  stops what a killed e2e run leaves behind; `/sprint` runs it before relaunching.
 - **Standalone `/build`:** the narrow gate, and one closing line naming the full suites that
   have not run yet. `/build <id> --full` runs them once at the end instead.
 
