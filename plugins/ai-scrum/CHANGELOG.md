@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.2.0 — 2026-09-24
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **`/sprint` marks the sprint as running on the base branch before cutting the branch.**
   Phase 0 now sets `status: in-progress` and the `branch:` line in `sprint.md` and commits that
   one file on `branch-base` as `SNN: sprint started`, then creates the sprint branch — so anyone
