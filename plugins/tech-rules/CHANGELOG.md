@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.0.1 — 2026-09-25
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 ### Changed
 
 - **`ui-verify`: a test run stays off the desktop, not just out of the focus.** New section
