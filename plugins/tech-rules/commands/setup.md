@@ -41,7 +41,7 @@ touch `.gitignore`, and does not commit.
 | --- | --- | --- |
 | `all` | `karpathy` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or any `*.csproj` exists |
-| `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` |
+| `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` — unless `react-native` or `expo` sits in the same file: the rules assume a DOM and Tailwind, so that is a *looks wrong* case for Phase 2, not a detection |
 | `electron` | `electron-arch`, `typed-ipc`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
 
 Read the groups from disk, never from this table alone: every folder under
@@ -105,10 +105,17 @@ Ask with `AskUserQuestion`, bundled — at most 4 questions per call, and **only
 could not determine or that are genuine decisions. On an update, ask only about what changed.
 
 1. **Groups**, if the detection is ambiguous or a detected group looks wrong: which groups to
-   install. Detected ones are the recommended answer.
+   install. Detected ones are the recommended answer. On an update the lock's `groups` is the set
+   confirmed last time and the default now: a group detected but absent from it was declined then —
+   offer it as an addition, never install it unasked; a group in it whose indicator is gone is the
+   orphan case of Phase 3.
 2. **Placement**, only when a group's stack lives in a subdirectory: repo root
    (`.claude/skills/`, always loaded) or nested (`apps/web/.claude/skills/`, loaded once Claude
    touches that subtree). Recommend nested in a monorepo with several stacks, root otherwise.
+   A group that contains a user-invoked skill (`disable-model-invocation: true` — today `dotnet`,
+   because of `dotnet-review`) stays at the root: a nested skill cannot be invoked by name until
+   Claude has read a file in its subtree, so `/dotnet-review staged` as the first thing in a
+   session would fail.
 3. **`CLAUDE.md` block**: may setup maintain a marked block there? Show the exact text first.
    A no is fine and changes nothing else — the skills work either way, the block only raises the
    odds that Claude reads the right one at the right time.
@@ -130,7 +137,8 @@ Per file, decide by its class from Phase 1:
 
 - **missing** → write it.
 - **untouched** → overwrite silently (that is what an update is for).
-- **local** → leave it, and ask once whether it should now be replaced after all.
+- **local** → leave it. If the plugin version differs from the lock's `tech-rules-version`, ask
+  once whether the new version should replace it after all; on a same-version rerun say nothing.
 - **modified/unknown** → **never overwrite unasked.** Show what differs — prefer
   `git diff --no-index -- <project file> <plugin payload file>`, and if the diff is longer than
   ~30 lines describe it instead of dumping it. Then ask with `AskUserQuestion` (bundle the files,
@@ -138,6 +146,8 @@ Per file, decide by its class from Phase 1:
   a deliberate project adaptation, say so explicitly — that adaptation belongs in `CLAUDE.md`,
   and you offer to move it there before replacing the file.
 - **orphaned** → ask whether to delete it (the stack is gone) or keep it. Never delete unasked.
+  A kept orphan keeps its hash entry and its group stays in `groups` and, like `local`, is asked
+  about again only when the plugin version changed; a deleted one leaves both.
 - **collision** (Phase 1 step 5, first bullet) → do not diff it, do not offer to replace it.
   Report it and stop for that file; one of the two has to be renamed, and anything else silently
   breaks the project's own skill.
@@ -195,11 +205,11 @@ group says where it lives. Nothing else goes in the block.
 
 ## Phase 5 — The one-time files
 
-Only with the yes from Phase 2, only when the target does not exist, and **never** on an update:
-these are code, user-owned from the moment they land. Copy verbatim, carry no marker, get no lock
-entry. Say in the report which target you wrote and, for the launcher, the `package.json` script
-line the user may want (`"dev": "node scripts/launch.js electron-vite dev"`) — you do not edit
-`package.json`.
+Only with the yes from Phase 2 and only when the target does not exist: these are code, user-owned
+from the moment they land, so an existing copy is never touched. Copy verbatim, carry no marker, get
+no lock entry. Say in the report which target you wrote and, for the launcher, the `package.json`
+script line the user may want (`"dev": "node scripts/launch.js electron-vite dev"`) — you do not
+edit `package.json`.
 
 ## Phase 6 — Report
 

@@ -158,7 +158,7 @@ Not aspirational - this is the definition of done for any touch-operated UI.
   button, select, toggle (`min-height: 44px; min-width: 44px`). 44 flat, no per-component exception:
   a smaller target is a miss on a phone, and "it looks fine on my desktop" is not evidence.
 - **No iOS auto-zoom:** every `<select>`, `<input>` and `<textarea>` renders at 16px or larger
-  (`font-size: max(var(--fs-base), 16px)`). Below that, Safari zooms the page on focus and the layout
+  (`font-size: max(1rem, 16px)`). Below that, Safari zooms the page on focus and the layout
   jumps.
 - **Safe-area insets:** apply `env(safe-area-inset-*)` through `max()` to every fixed or sticky
   element that can touch a screen edge - top bars, bottom navigation, modals, overlays. Bottom

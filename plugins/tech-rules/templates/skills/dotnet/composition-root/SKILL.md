@@ -133,7 +133,7 @@ MongoDbRegistration.Register(builder.Services, builder.Configuration);
 CrossCuttingRegistration.Register(builder.Services);
 var storageRoot = ImageStorageRegistration.Register(builder.Services, builder.Configuration, builder.Environment);
 
-var mvcBuilder = ApiBootstrap.CreateMvcBuilder(builder.Services);
+var mvcBuilder = builder.Services.AddControllers();
 MembersModuleRegistration.Register(builder.Services, mvcBuilder, builder.Configuration);
 EventsModuleRegistration.Register(builder.Services, mvcBuilder, builder.Configuration);
 

@@ -63,13 +63,13 @@ export const EVENT_CHANNELS = ['window:state', 'app:toast'] as const satisfies r
 
 /**
  * Fails the build when a channel exists in the map but not in the array above.
- * `never` is the only assignable value, so a missing channel is a type error at
- * the assignment, naming exactly which one is missing.
+ * Only `never` is assignable to `never`, so a missing channel is a type error at
+ * the assignment - `Type '"x:y"' is not assignable to type 'never'` - naming it.
  */
-export const ALL_INVOKE_CHANNELS_LISTED: Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]> =
-  undefined as never
-export const ALL_EVENT_CHANNELS_LISTED: Exclude<EventChannel, (typeof EVENT_CHANNELS)[number]> =
-  undefined as never
+export const ALL_INVOKE_CHANNELS_LISTED: never =
+  undefined as unknown as Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>
+export const ALL_EVENT_CHANNELS_LISTED: never =
+  undefined as unknown as Exclude<EventChannel, (typeof EVENT_CHANNELS)[number]>
 ```
 
 `satisfies` catches a name that is not a channel; the `Exclude<>` assertion catches a channel that is

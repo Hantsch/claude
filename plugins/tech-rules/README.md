@@ -34,13 +34,13 @@ every session.
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` |
 | `electron` | `electron-arch`, `typed-ipc`, `ui-verify` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
 
-| Skill | What it enforces |
+| Skill | What it covers |
 | --- | --- |
 | `karpathy` | The four behavioral rules against the recurring LLM coding mistakes: think before coding, simplicity first, surgical changes, goal-driven execution. |
 | `backend-guidelines` | Layering, dependency direction, type placement and naming for modular ASP.NET Core backends, with the review checklist. |
 | `composition-root` | A readable entry point: one named static registration class per concern, called by name — no authored extension methods. |
 | `csharp-unittest` | Per-domain test projects, one file per use case, AAA, snake_case names, hand-written fakes, blackbox assertions. |
-| `dotnet-review` | `/dotnet-review [staged\|branch\|<path>]` — reviews a C# diff against the three skills above. |
+| `dotnet-review` | `/dotnet-review [staged\|branch [<base>]\|<path>]` — reviews a C# diff against the three skills above. |
 | `frontend-guidelines` | Atomic Design layering with a hard dependency direction, mandatory primitives, the duplicate scan, naming and i18n rules. |
 | `design-tokens` | A semantic token layer instead of raw palette classes, dark mode, and the mobile accessibility floor. |
 | `electron-arch` | The four layers and the trust boundary: privilege only in main, a pure shared layer, path containment, the per-window security checklist, quarantined state. |
@@ -55,7 +55,10 @@ entry.
 
 ## Install and run
 
+Once per machine, for whoever installs or updates the rules:
+
 ```
+/plugin marketplace add Hantsch/claude
 claude plugin install tech-rules@hantsch --scope user
 ```
 
@@ -87,8 +90,8 @@ Each installed file carries `<!-- tech-rules:managed <version> -->` and a `git h
 the lock. On the next `/tech-rules:setup`:
 
 - untouched copy → overwritten silently,
-- edited copy → you get the diff and decide (replace / keep; a kept file is recorded as `local` and
-  left alone from then on),
+- edited copy → you get the diff and decide (replace / keep; a kept file is recorded as `local`, is
+  never overwritten, and each new plugin version asks once more whether to take the rule after all),
 - a group whose stack is gone → setup asks before deleting,
 - no git → drift cannot be detected, so setup asks about every existing file.
 

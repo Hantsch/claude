@@ -27,13 +27,16 @@ scripts/
   seed.mjs              builds the demo fixture the app runs against
   shot.mjs              screenshots every screen -> .screenshots/
   a11y.mjs              axe-core over every screen -> .screenshots/a11y.json
+  flows/<name>.mjs      a scripted acceptance sequence on the same harness (see Flows)
 ```
 
-Three npm scripts: `seed`, `shot`, `a11y`. `shot` and `a11y` share the harness on purpose, so "what
-is in the picture" and "what axe found" are the same state. Sharing the harness *file* is not enough
-for that: two runs over the same registry are two different app instances, and the report then
-describes a state nobody has a picture of. Screenshot and audit belong in **one visit per screen** -
-navigate, shoot, inject axe - with the entry points as filters over that one pass.
+Four npm scripts: `seed`, `shot`, `a11y`, `test:e2e` - the last runs the flows, all of them or one
+by name, and that run, not the PNGs, is a story's acceptance. `shot` and `a11y` share the harness on
+purpose, so "what is in the picture" and "what axe found" are the same state. Sharing the harness
+*file* is not enough for that: two runs over the same registry are two different app instances, and
+the report then describes a state nobody has a picture of. Screenshot and audit belong in **one
+visit per screen** - navigate, shoot, inject axe - with the entry points as filters over that one
+pass.
 
 ## The harness
 
@@ -180,8 +183,10 @@ run" rather than as an empty violations list.
 Static screenshots verify that screens render; a story's acceptance steps are usually a sequence.
 Expose one documented way to script one - `flows/<name>.mjs` with a default export receiving
 `{ page, app, shot(label), log }` - so a story writes its own smoke on top of the harness instead of
-beside it. A flow gets its own app session; there is one of them per run, so that cost does not
-matter. A failing step exits non-zero naming the flow and the step.
+beside it. Each flow gets its own app session; `npm run test:e2e` runs them all (the command
+ai-scrum's `e2e` entry names - `e2e-all` stays `none`, the flows are not a suite beside it), and a
+story runs only its own by name (the `e2e-story` template), so the per-flow launch cost stays
+bounded. A failing step exits non-zero naming the flow and the step.
 
 ## Procedure
 
@@ -191,7 +196,9 @@ matter. A failing step exits non-zero naming the flow and the step.
 3. `npm run shot` - read the summary, then look at the PNGs. Looking is the point; a green exit code
    only means nothing crashed.
 4. `npm run a11y` - fix every `serious` and `critical` finding.
-5. Report what you saw per screen, and name explicitly anything you could not reach.
+5. `npm run test:e2e` - or the single flow a story maps its criteria to - where a criterion is about
+   what the user does. That run is the acceptance; a PNG cannot fail a criterion.
+6. Report what you saw per screen, and name explicitly anything you could not reach.
 
 ## Review checklist
 

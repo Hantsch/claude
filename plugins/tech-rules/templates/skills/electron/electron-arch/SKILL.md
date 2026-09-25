@@ -53,7 +53,7 @@ Any path that originates in the renderer is contained before use. One helper, us
 point:
 
 ```ts
-import { relative, sep } from 'node:path'
+import { isAbsolute, relative, sep } from 'node:path'
 
 /**
  * Every path the renderer asks for must resolve inside the root the user picked.
@@ -61,7 +61,8 @@ import { relative, sep } from 'node:path'
  */
 function assertInside(root: string, target: string): void {
   const rel = relative(root, target)
-  if (rel.startsWith('..') || (rel.length > 0 && rel.split(sep)[0] === '..')) {
+  // relative() hands back the absolute target when it is on another drive - isAbsolute catches that
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
     throw new Error(`Path is outside the allowed root: ${target}`)
   }
 }

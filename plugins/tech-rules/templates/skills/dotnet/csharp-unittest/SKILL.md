@@ -104,13 +104,13 @@ Template (xUnit):
 [Fact]
 public async Task <Subject>_<observable_outcome>()
 {
-    var repo = new FakeOrderRepository();
-    var service = OrderTestHelpers.CreateService(repo);
+    var repository = new FakeOrderRepository();
+    var service = OrderTestHelpers.CreateService(repository);
 
     await service.PlaceOrderAsync("order-1", "customer-1",
         new PlaceOrderRequest(items: [new("sku-1", 2)]));
 
-    var order = Assert.Single(repo.All());
+    var order = Assert.Single(repository.All());
     Assert.Equal("order-1", order.Id);
     Assert.Equal(OrderStatus.Placed, order.Status);
 }

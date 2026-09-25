@@ -1,7 +1,7 @@
 ---
 name: dotnet-review
-description: Review a .NET diff against this project's backend house rules - layering, dependency direction, naming, code style and test coverage. Invoked as /dotnet-review [staged | branch | <path>].
-argument-hint: [staged | branch | <path>]  (default: staged)
+description: Review a .NET diff against this project's backend house rules - layering, dependency direction, naming, code style and test coverage. Invoked as /dotnet-review [staged | branch [<base>] | <path>].
+argument-hint: [staged | branch [<base>] | <path>]  (default: staged)
 disable-model-invocation: true
 ---
 
@@ -9,10 +9,11 @@ disable-model-invocation: true
 
 # Backend review
 
-Apply the house rules to changed C# code and report violations. Rules, verbatim:
-`.claude/skills/backend-guidelines/SKILL.md`, plus `.claude/skills/composition-root/SKILL.md` for
-anything that touches the entry file and `.claude/skills/csharp-unittest/SKILL.md` for test files.
-Read them before judging; do not review from memory.
+Apply the house rules to changed C# code and report violations. Rules, verbatim: the
+`backend-guidelines` skill, plus `composition-root` for anything that touches the entry file and
+`csharp-unittest` for test files - each a `SKILL.md` next to this one in the same `.claude/skills/`
+folder (setup keeps the `dotnet` group at the repo root, so this skill is always invocable). Read
+the files before judging; do not review from memory.
 
 ## Scope
 
@@ -21,7 +22,7 @@ Read them before judging; do not review from memory.
 | Argument | What to review |
 | --- | --- |
 | `staged` | `git diff --cached` |
-| `branch` | `git diff` against the merge base with the default branch |
+| `branch [<base>]` | `git diff` against the merge base with `<base>`, the branch this one was cut from. Default: the default branch. Pass the integration branch (`dev`) when the project has one - otherwise the diff includes everything on it that is not yet on the default branch, and their violations are reported as yours. |
 | a path | every `*.cs` file under it, changed or not |
 
 Review the changed code, not the whole file - but read enough of each file around a change to judge

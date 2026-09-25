@@ -29,11 +29,15 @@ if (args.length === 0) {
 }
 
 const [command, ...rest] = args
-const child = spawn(command, rest, {
-  env,
-  stdio: 'inherit',
-  shell: process.platform === 'win32'
-})
+// Windows needs a shell: node_modules/.bin/*.cmd shims cannot be spawned directly
+// (Node refuses .cmd/.bat without one since CVE-2024-27980). Passing an args array
+// together with shell:true is deprecated (DEP0190, warns on every run since Node 24),
+// so build the single command line here with explicit quoting. Elsewhere spawn the
+// binary directly.
+const quote = (s) => (/\s/.test(s) ? `"${s}"` : s)
+const child = process.platform === 'win32'
+  ? spawn([command, ...rest].map(quote).join(' '), { env, stdio: 'inherit', shell: true })
+  : spawn(command, rest, { env, stdio: 'inherit' })
 
 child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal)

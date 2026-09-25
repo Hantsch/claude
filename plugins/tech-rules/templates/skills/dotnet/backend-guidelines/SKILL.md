@@ -96,14 +96,14 @@ searching for a module name finds its wiring and F12 from the host jumps straigh
 extension methods the framework ships (`AddControllers`, `AddApplicationPart`, `UseAuthentication`)
 is unavoidable and fine - the rule is about the ones you write.
 
-- The host creates the shared MVC builder with a **single** `AddControllers()` call. A bootstrap
-  helper (e.g. `ApiBootstrap`) returns that `IMvcBuilder`.
-- Each module ships one `internal static class <Module>ModuleRegistration` with a single
-  `Register` method that takes what it needs and returns nothing (or a value the host needs
-  later):
+- The host creates the shared MVC builder with a **single** `AddControllers()` call and passes the
+  resulting `IMvcBuilder` to each module registration.
+- Each module ships one `public static class <Module>ModuleRegistration` - `public`, because the
+  host that calls it is another assembly - with a single `Register` method that takes what it
+  needs and returns nothing (or a value the host needs later):
 
 ```csharp
-internal static class MembersModuleRegistration
+public static class MembersModuleRegistration
 {
     public static void Register(IServiceCollection services, IMvcBuilder mvcBuilder, IConfiguration configuration)
     {
@@ -123,7 +123,7 @@ MembersModuleRegistration.Register(builder.Services, mvcBuilder, builder.Configu
 
 - Each module registers its **own** controller assembly with `AddApplicationPart`. Controller
   registration stays **inside** the module's registration class - never in a central list in
-  `Program.cs` or the bootstrap helper, which would have to be edited for every new module.
+  `Program.cs`, which would have to be edited for every new module.
 
 ## Module Rules
 

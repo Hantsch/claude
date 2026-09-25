@@ -12,6 +12,57 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+### Fixed
+
+- **`backend-guidelines`: the module registration class is `public`, not `internal`.** It is called
+  from the `*.Api` host, a different assembly, so the sample as written did not compile (CS0122).
+  The same section and `composition-root`'s entry-file example no longer route `AddControllers()`
+  through an `ApiBootstrap` helper, which broke the skill's own inline-framework-call and
+  `<Concern><Role>` naming rules.
+- **`typed-ipc`: the compile-time channel-completeness check could never fail.** `never` is
+  assignable to everything, so `undefined as never` satisfied any declared type. The assertion now
+  assigns to `never`, and the error names the missing channel.
+- **`electron-arch`: `assertInside` rejects a target on another drive.** On Windows `path.relative`
+  returns the absolute target when root and target share no prefix, so a renderer-supplied
+  `D:\...` path passed containment. The check is now exact (`..`, `..<sep>...` or an absolute
+  result) and no longer rejects a child literally named `..name`.
+- **`json-store.ts` no longer treats an unreadable state file as absent.** A locked or
+  permission-denied file made `load()` return defaults, and the next write replaced the user's
+  data; `load()` now rejects on anything but `ENOENT`. One-time file: an existing copy in a project
+  needs the three-line patch by hand.
+- **`launch.js` no longer triggers Node's DEP0190 deprecation warning** on every `npm run dev` on
+  Windows with Node 24 or later: the Windows branch passes one quoted command string to the shell
+  instead of an args array. One-time file: apply the same change by hand to an existing copy.
+- **`design-tokens`:** the iOS auto-zoom snippet referenced an undefined `--fs-base` token, so the
+  16px floor did nothing; now `max(1rem, 16px)`.
+- **`frontend-guidelines`:** the no-default-exports rule names the tool-required exceptions (CSF
+  story `meta`, config files) and shows the `React.lazy` named-export shim, so it no longer
+  contradicts the story and lazy-route steps in the same skill. `PageHeader` was listed as both an
+  organism example and a mandatory molecule; the layer map now uses `Sidebar` as the organism
+  example.
+- **`csharp-unittest`:** the test template no longer uses the abbreviated local `repo`, which
+  `backend-guidelines` forbids and `/dotnet-review` flags.
+- **`dotnet-review`** no longer hardcodes repo-root paths to its sibling rules, which did not exist
+  when the dotnet group was installed nested; and `branch` takes an optional base
+  (`/dotnet-review branch dev`), because diffing against the default branch on a project that
+  integrates via `dev` reported everyone's unmerged work as the branch's own violations.
+- **`ui-verify`:** Shape, script list, Flows and Procedure now name the `test:e2e` run and
+  `flows/<name>.mjs` that the 2.0.0 intro already required; `test:e2e` runs every flow, a story runs
+  its own by name.
+- **`karpathy`:** the closing section pointed at the `common` plugin, which has not shipped the
+  skill since it moved into this payload; it now names `.claude/skills/karpathy/SKILL.md` and the
+  managed `CLAUDE.md` block.
+- **`/tech-rules:setup`:** offers the one-time files on an update too when the target is missing —
+  an installed `electron-arch`/`ui-verify` skill sent users to setup for them, and setup refused on
+  every run after the first. The lock's `groups` is now the default group set on an update: a
+  declined group is offered again as an addition but never installed unasked, and a kept orphan
+  stays recorded. A `local` file or a kept orphan is re-asked about only when the plugin version
+  changed. A group with a user-invoked skill stays at the repo root (a nested `/dotnet-review` is
+  not invocable until Claude has touched that subtree), and a `package.json` with `react-native` or
+  `expo` is a *looks wrong* case for the `react` group rather than a detection.
+- README: the skill table says what a skill *covers*, not what it enforces; the install block names
+  the marketplace step; the `local` wording matches setup.
+
 ## 2.0.0 — 2026-09-07
 
 ### Changed
@@ -65,7 +116,8 @@ repository they apply to, so a contributor who never installed anything still ge
 - **Rule payload** under `templates/skills/<group>/` — group `all`: `karpathy`; `dotnet`:
   `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review`; `react`:
   `frontend-guidelines`, `design-tokens`; `electron`: `electron-arch`, `typed-ipc`, `ui-verify`.
-  Content unchanged from the retired `react`, `dotnet`, `electron` and `common` plugins; only the
+  Content unchanged from the retired `react`, `dotnet` and `electron` plugins and from `common`,
+  whose `karpathy` skill moved here; only the
   managed marker was added and the two references to the one-time files were rewritten, because a
   `${CLAUDE_PLUGIN_ROOT}` path does not resolve once a file lives in a project.
 - **`dotnet-review`** — the former `/dotnet:review` command as a skill (`disable-model-invocation`,

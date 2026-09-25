@@ -197,8 +197,9 @@ export class JsonStore<T> {
     let text: string
     try {
       text = await readFile(path, 'utf8')
-    } catch {
-      return { status: 'absent' }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'absent' }
+      throw error // locked, permission denied, is a directory: fail loudly rather than overwrite
     }
     if (text.trim().length === 0) return { status: 'damaged' }
     try {
