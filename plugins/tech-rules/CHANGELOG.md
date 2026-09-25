@@ -12,6 +12,24 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+### Changed
+
+- **`ui-verify`: a test run stays off the desktop, not just out of the focus.** New section
+  *An invisible run*: the harness window is placed left of every display at its normal size, keeps
+  painting (`backgroundThrottling: false`, Windows' `CalculateNativeWinOcclusion` switched off
+  before `ready`), skips maximize/fullscreen, and the harness's `resize()` no longer centres it.
+  `<APP>_UI_VISIBLE=1` brings it back on screen for debugging, and a `harness-offscreen` flow
+  asserts bounds, focus, visibility and frame rate. The developer keeps working during a run; the
+  price is not watching it. Measured on Windows; macOS is named as unverified.
+- **`ui-verify`: the e2e run is split into three parts, mapped to ai-scrum's gate keys.** `verify`
+  (screenshots + axe in one visit) is `e2e`; `flow -- <name>` runs one flow and is `e2e-story`;
+  `flows [name ...]` runs every flow or a named subset, each in its own process on a freshly written
+  fixture, with progress lines and a pass count, and is `e2e-all` - the sprint's regression gate.
+  This replaces the previous advice that `test:e2e` runs every flow as `e2e` with `e2e-all: none`.
+  A project on the old shape keeps working; to adopt the new one, point `e2e` at the screen pass
+  and set `e2e-story` and `e2e-all` - `e2e-story` is required in that shape, because ai-scrum's
+  fallback is the full `e2e`, which then runs no flow at all.
+
 ### Fixed
 
 - **`backend-guidelines`: the module registration class is `public`, not `internal`.** It is called

@@ -113,7 +113,10 @@ Cover, in this order of importance:
    story. Offer the detected suggestion or `none`, bundled in one question per key. **On an
    update these are the keys an older profile lacks — offer them, never fill them in
    silently, and never replace a value the profile already has**, placeholder excepted. An
-   answer left open becomes `none`. Do not offer `e2e-story` while `e2e` is `none`. A fourth,
+   answer left open becomes `none`. Do not offer `e2e-story` while `e2e` is `none`. When the
+   flows live in `e2e-all` and `e2e` is a screen pass (screenshots + axe), offer `e2e-story`
+   together with it and say why: without it `/build` falls back to the full `e2e`, which runs
+   none of the flows a story's criteria are mapped to. A fourth,
    optional key, `e2e-cleanup`: offer it only when `e2e` or `e2e-all` starts a desktop app or a
    server (Electron, a dev server, an emulator) — a leftover instance from a killed run is what
    makes the next run fail with "already running". Suggest the process name you can see

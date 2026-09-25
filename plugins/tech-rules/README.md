@@ -45,7 +45,7 @@ every session.
 | `design-tokens` | A semantic token layer instead of raw palette classes, dark mode, and the mobile accessibility floor. |
 | `electron-arch` | The four layers and the trust boundary: privilege only in main, a pure shared layer, path containment, the per-window security checklist, quarantined state. |
 | `typed-ipc` | One channel map in the shared layer that main handlers, the preload allowlist and renderer types all derive from, with boot-time and compile-time completeness checks. |
-| `ui-verify` | A Playwright `_electron` harness: screenshot every screen, run axe-core in the same session, gate on `serious`/`critical`. |
+| `ui-verify` | A Playwright `_electron` harness: screenshot every screen, run axe-core in the same session, gate on `serious`/`critical`; acceptance flows run one per story and all per sprint, in a window that stays offscreen and out of the focus. |
 
 Two **one-time files** ship as well and are offered only for an Electron project, only when the
 target is missing: `templates/oneshot/launch.js` (env-scrubbing dev launcher, so `npm run dev`

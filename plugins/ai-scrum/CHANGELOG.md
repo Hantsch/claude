@@ -12,6 +12,11 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **`/ai-scrum:setup` offers `e2e-story` together with `e2e-all`** when the flows live in
+  `e2e-all` and `e2e` is only a screen pass (screenshots + axe), and says why: without it `/build`
+  falls back to the full `e2e`, which runs none of the flows a story's criteria are mapped to.
+  Matches the split that tech-rules' `ui-verify` now recommends.
+
 ## 4.2.0 — 2026-09-24
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

@@ -1,6 +1,6 @@
 ---
 name: ui-verify
-description: "Drive a built Electron app through Playwright's _electron to produce screenshots of every screen and an axe-core accessibility report, without anyone starting the app by hand. Use when: asked to verify, screenshot, smoke-test or look at the UI of an Electron app; setting up UI verification or a visual check; a story needs a live smoke test on a running app; writing functional acceptance or e2e tests that drive the real Electron UI; adding an accessibility gate to CI; reviewing whether a UI change actually renders. DO NOT USE FOR: unit or component tests; web-only apps (use plain Playwright); Electron layering or IPC questions."
+description: "Drive a built Electron app through Playwright's _electron to produce screenshots of every screen and an axe-core accessibility report, without anyone starting the app by hand. Use when: asked to verify, screenshot, smoke-test or look at the UI of an Electron app; setting up UI verification or a visual check; a story needs a live smoke test on a running app; writing functional acceptance or e2e tests that drive the real Electron UI; making a test run stay off the desktop and out of the keyboard focus; splitting e2e runs into one flow per story and all flows per sprint; adding an accessibility gate to CI; reviewing whether a UI change actually renders. DO NOT USE FOR: unit or component tests; web-only apps (use plain Playwright); Electron layering or IPC questions."
 ---
 
 <!-- tech-rules:managed <tech-rules-version> -->
@@ -13,10 +13,10 @@ without touching that human's real data.
 
 The same harness is what a functional acceptance suite runs on. Screenshots and axe prove that a
 screen renders; they do not prove that a button does what a story says. Where a workflow asks for
-acceptance through the real surface (ai-scrum's `ui-acceptance-required`, with the command named in
-its `e2e` profile entry), the answer is Playwright specs driving *this* harness - same app start,
-same scrubbed env, same seeded fixture - as `npm run test:e2e` alongside `shot` and `a11y`. Never
-offer a screenshot as the acceptance of a behaviour: a PNG cannot fail a criterion.
+acceptance through the real surface (ai-scrum's `ui-acceptance-required`), the answer is flows
+driving *this* harness - same app start, same scrubbed env, same seeded fixture - next to the screen
+pass, not instead of it. Never offer a screenshot as the acceptance of a behaviour: a PNG cannot
+fail a criterion.
 
 ## Shape
 
@@ -27,11 +27,28 @@ scripts/
   seed.mjs              builds the demo fixture the app runs against
   shot.mjs              screenshots every screen -> .screenshots/
   a11y.mjs              axe-core over every screen -> .screenshots/a11y.json
+  verify.mjs            the screen pass: screenshot + axe in one visit per screen
   flows/<name>.mjs      a scripted acceptance sequence on the same harness (see Flows)
+  flow.mjs              runs one flow by name
+  flows.mjs             runs every flow, or the named ones, each on a freshly seeded fixture
 ```
 
-Four npm scripts: `seed`, `shot`, `a11y`, `test:e2e` - the last runs the flows, all of them or one
-by name, and that run, not the PNGs, is a story's acceptance. `shot` and `a11y` share the harness on
+npm scripts: `seed`, `verify` (with `shot` and `a11y` as its two filters), `flow` and `flows`. The
+test run is split on purpose, because the three parts have very different costs and prove different
+things:
+
+| Run                      | ai-scrum key | When                  | Proves                                   |
+| ------------------------ | ------------ | --------------------- | ---------------------------------------- |
+| `npm run verify`         | `e2e`        | per story, per sprint | every screen renders and passes the gate |
+| `npm run flow -- {test}` | `e2e-story`  | per story             | this story's criteria, nothing else      |
+| `npm run flows`          | `e2e-all`    | once per sprint       | no story broke another story's flow      |
+
+Every flow on every story is what makes a sprint slow without making it safer: a story's own flows
+are the ones its change can break directly, and the cross-story breakage the rest would catch is the
+sprint gate's job. In this shape `e2e-story` is not optional - without it ai-scrum falls back to the
+full `e2e`, which is the screen pass and runs none of the flows.
+
+The screen pass shares the harness with the flows, and screenshot and audit share one visit on
 purpose, so "what is in the picture" and "what axe found" are the same state. Sharing the harness
 *file* is not enough for that: two runs over the same registry are two different app instances, and
 the report then describes a state nobody has a picture of. Screenshot and audit belong in **one
@@ -64,14 +81,68 @@ Three Electron specifics the harness must handle:
 2. **Each run gets its own `--user-data-dir`**, pre-populated with the settings the run needs
    (window size, theme, which fixture to open, whether onboarding is done). Never let the harness
    read the user's real installation - and never let it write there.
-3. **A run must not steal the keyboard focus.** `window.show()` activates and raises, and it happens
-   in the main process on `ready-to-show` - so no amount of care in the harness can prevent it. The
-   app has to offer `showInactive()` under the same verification flag the harness already sets:
-   three lines, gated, normal launches byte-identical. Skip it and the developer cannot use the
-   machine while a run is going, which ends with the verification not being run.
+3. **A run stays off the desktop and out of the keyboard focus.** See the next section. Skip it and
+   the developer cannot use the machine while a run is going, which ends with the verification not
+   being run.
 
 The fixture path and any mode flags go in through environment variables the main process prefers over
 its persisted state. Then one built app can be driven into any starting state without a debug build.
+
+## An invisible run
+
+The developer keeps working while the suite runs - so a run neither takes the focus nor paints over
+their screen. The price is that nobody watches the run; the screenshots, the axe report and a
+failing step's message are the evidence, and a visible opt-out exists for debugging.
+
+Both halves live in the **main process**, because `window.show()` on `ready-to-show` activates and
+raises there and no amount of care in the harness can prevent it. Gate them on the verification flag
+the harness already sets, so every normal launch stays byte-identical:
+
+```ts
+const HARNESS = process.env['APP_UI_HARNESS'] === '1'
+const OFFSCREEN = HARNESS && process.env['APP_UI_VISIBLE'] !== '1'
+
+// Module load, before `ready`: Windows occlusion tracking treats an offscreen window as hidden and
+// stops painting it, which stalls every screenshot.
+if (OFFSCREEN) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
+// createMainWindow - left of every display, same size, so the layout is the one that ships.
+const left = Math.min(...screen.getAllDisplays().map((display) => display.bounds.x))
+const window = new BrowserWindow({
+  width: saved.width,
+  height: saved.height,
+  ...(OFFSCREEN ? { x: left - saved.width - 100, y: 0 } : savedPosition(saved)),
+  show: false,
+  ...(HARNESS ? { focusable: false } : {}),
+  webPreferences: { ...SECURE_PREFS, ...(OFFSCREEN ? { backgroundThrottling: false } : {}) },
+})
+
+window.once('ready-to-show', () => {
+  if (!OFFSCREEN) restoreMaximizedOrFullscreen(window, saved) // would pull it back onto a display
+  if (HARNESS) window.showInactive()
+  else window.show()
+})
+```
+
+- **Offscreen, not hidden.** A window that is never shown gets throttled and paints unreliably, and
+  `webPreferences.offscreen` switches to a different render path - neither shows what ships. A
+  shown window left of every display does, as long as it keeps painting: `backgroundThrottling:
+  false` plus the occlusion switch above.
+- **`showInactive()` and `focusable: false` together.** `focusable: false` alone leaves Electron
+  requesting a focus the window then refuses; `showInactive()` paints without asking for activation.
+  On Windows `focusable: false` also keeps the window off the taskbar.
+- **The harness keeps it there.** A `resize()` helper must not `center()` the window; it re-derives
+  the offscreen position from the new width. Anything else that moves the window - maximize,
+  fullscreen, restoring a saved position - is skipped offscreen.
+- **`APP_UI_VISIBLE=1` puts the window back on screen** (prefix both variables with the app's name).
+  That is the debugging path, not a mode a run needs.
+- **One flow checks all of it** (`flows/harness-offscreen.mjs`): the window's bounds intersect no
+  display, `isFocused()` is false, `isVisible()` is true, and ten `requestAnimationFrame` ticks land
+  within two seconds. A few seconds of run time, and the regression that would put the window back
+  in the developer's face or blank every screenshot fails loudly instead of quietly.
+
+Measured on Windows. macOS constrains window positions to the visible screen, so run that flow there
+before relying on the offscreen half; the focus half does not depend on it.
 
 ## Session boundaries
 
@@ -134,7 +205,7 @@ The seed script is where a project's shape shows most, so keep it honest:
   system, a network call, an auto-updater: an empty fixture is exactly the state that triggers those,
   and the resulting modal both leaks foreign content into the screenshots and intercepts every click
   of the run.
-- `ensureDemoVault`-style behaviour: if the fixture is missing when `shot` runs, build it rather than
+- `ensureDemoVault`-style behaviour: if the fixture is missing when `verify` runs, build it rather than
   failing.
 
 ## Screenshots
@@ -182,22 +253,34 @@ run" rather than as an empty violations list.
 
 Static screenshots verify that screens render; a story's acceptance steps are usually a sequence.
 Expose one documented way to script one - `flows/<name>.mjs` with a default export receiving
-`{ page, app, shot(label), log }` - so a story writes its own smoke on top of the harness instead of
-beside it. Each flow gets its own app session; `npm run test:e2e` runs them all (the command
-ai-scrum's `e2e` entry names - `e2e-all` stays `none`, the flows are not a suite beside it), and a
-story runs only its own by name (the `e2e-story` template), so the per-flow launch cost stays
-bounded. A failing step exits non-zero naming the flow and the step.
+`{ page, app, step(label), shot(label), log }` - so a story writes its own smoke on top of the
+harness instead of beside it. Each flow gets its own app session. A failing step exits non-zero
+naming the flow and the step.
+
+Two runners, matching the split in Shape:
+
+- **`npm run flow -- <name>`** runs one flow. It is what a story runs for its criteria (ai-scrum's
+  `e2e-story: npm run flow -- {test}`), so the flow's file name is the test name a story's
+  `## Acceptance Tests` line carries.
+- **`npm run flows [name ...]`** runs every flow under `flows/`, sorted, or only the named ones.
+  **Each flow in its own process, each against a freshly written fixture** - flows mutate their
+  fixture and never reseed themselves, and a crashed flow must not take the rest down. Reseeding
+  costs well under a second. Print `[i/n] <name>` before each flow and `<passed>/<total> flows
+  passed in <s>s` at the end, list the failed ones by name and exit `1` if there are any. This is
+  the sprint's regression gate (`e2e-all`); ai-scrum runs it in the background with its output
+  teed into a log, so the progress lines are what the developer watches instead of a window.
 
 ## Procedure
 
 1. `npm run build` - the harness runs the built app, not the dev server, so what you verify is what
    ships.
-2. `npm run seed` if the fixture is missing (or let `shot` do it).
-3. `npm run shot` - read the summary, then look at the PNGs. Looking is the point; a green exit code
-   only means nothing crashed.
-4. `npm run a11y` - fix every `serious` and `critical` finding.
-5. `npm run test:e2e` - or the single flow a story maps its criteria to - where a criterion is about
+2. `npm run seed` if the fixture is missing (or let `verify` do it).
+3. `npm run verify` (or `shot` / `a11y` alone) - read the summary, then look at the PNGs. Looking is
+   the point; a green exit code only means nothing crashed. Fix every `serious` and `critical`
+   finding.
+4. `npm run flow -- <name>` for each flow a story maps its criteria to, where a criterion is about
    what the user does. That run is the acceptance; a PNG cannot fail a criterion.
+5. `npm run flows` once the stories are in - the whole set, not per story.
 6. Report what you saw per screen, and name explicitly anything you could not reach.
 
 ## Review checklist
@@ -205,7 +288,10 @@ bounded. A failing step exits non-zero naming the flow and the step.
 - [ ] Runs against the built app, not the dev server
 - [ ] Own `--user-data-dir` per run; the user's real data is neither read nor written
 - [ ] `ELECTRON_RUN_AS_NODE` scrubbed from the environment
-- [ ] The run does not take the keyboard focus; normal launches unchanged
+- [ ] The run neither takes the keyboard focus nor appears on the desktop: offscreen, still
+      painting, `showInactive()`; a visible opt-out; normal launches unchanged; one flow checks it
+- [ ] Test run split: screen pass per story, one flow by name per story, every flow once per
+      sprint - each flow in its own process on a freshly written fixture, a subset by name
 - [ ] One session per fixture variant, `reload()` between screens, a new app only for declared
       cold-start screens and after a crash
 - [ ] Fixture rewritten at the start of every run, covering empty/populated/error states - and
