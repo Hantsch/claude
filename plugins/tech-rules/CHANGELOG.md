@@ -12,10 +12,6 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
-## 2.0.1 — 2026-09-25
-
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
-
 ### Changed
 
 - **`ui-verify`: a test run stays off the desktop, not just out of the focus.** New section
@@ -33,6 +29,10 @@ is empty, so no version ever ships without notes.
   A project on the old shape keeps working; to adopt the new one, point `e2e` at the screen pass
   and set `e2e-story` and `e2e-all` - `e2e-story` is required in that shape, because ai-scrum's
   fallback is the full `e2e`, which then runs no flow at all.
+
+## 2.0.1 — 2026-09-25
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
 ### Fixed
 
