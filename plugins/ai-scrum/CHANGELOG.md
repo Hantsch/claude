@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.4.0 — 2026-09-25
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **Two-stage code review.** `/build` runs the clean-agent review on the default tier for every
   story, with `model: "sonnet"` pinned on the call. `Review: → story-review-hard` no longer
   replaces that review: it adds a second Opus pass after the first has passed, briefed with the
