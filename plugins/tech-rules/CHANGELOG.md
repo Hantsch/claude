@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.0.1 — 2026-09-25
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 ### Fixed
 
 - **`backend-guidelines`: the module registration class is `public`, not `internal`.** It is called
