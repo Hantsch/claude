@@ -12,6 +12,35 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **Two-stage code review.** `/build` runs the clean-agent review on the default tier for every
+  story, with `model: "sonnet"` pinned on the call. `Review: → story-review-hard` no longer
+  replaces that review: it adds a second Opus pass after the first has passed, briefed with the
+  first verdict and told to look for what the default tier could not see. The
+  `story-review-hard` agent definition says so. Measured before: 60% of all stories carried the
+  hard review, and four of them cost $32 where four default reviews of the same shape cost $3.
+- **Hard-deliverable budget.** `/refine` (and the refine round inside `/sprint`) marks at most one
+  `deliverable-hard` per story on its own authority; a story that seems to need two is cut too
+  big and goes back to the user as a split proposal (`BLOCKED: user question` in a sprint). The
+  review line needs the plausible wrong implementation named, not a topic.
+- **Turn budget for deliverable agents.** Every deliverable prompt carries a budget of about 35
+  tool calls; past it the agent leaves a consistent tree and returns `PARTIAL` with what is done,
+  what is red and the next step. `/build` re-dispatches once with a fresh agent, a second
+  `PARTIAL` is a blocker. Measured: 17 of 109 deliverable agents exceeded 40 calls and cost 40%
+  of all deliverable spend.
+- **`/build` orchestrates leaner.** The narrow gate (step 5) is delegated to a fresh Sonnet agent
+  so suite output never enters the orchestrator's context; the story file is read once; the
+  deliverable prompt is bounded (D text, files, test lines — no plan, no pasted files) and tells
+  the agent not to open the story file; the Done section is bounded to 10–25 lines.
+- **Tier record.** Every Done section ends with a `tiers:` line (deliverables total / hard, review
+  stages, review cycles, agents dispatched). `/sprint` prints one line of tiers after refine,
+  collects the lines into a `## Tier record` table in `review.md` with the question whether the
+  hard review found anything new, and repeats the totals in the final report.
+- **`/sprint` phase 1a says how many open questions block the start**, and recommends resolving
+  them with `/refine` in planning — a sprint started before leaving the desk otherwise waits at
+  that question until someone comes back.
+- Analysis behind these changes: `docs/reviews/2026-09-25-sprint-token-analysis.md` in the
+  marketplace repository.
+
 ## 4.3.0 — 2026-09-25
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

@@ -95,13 +95,19 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   `progress.md` per step, deliverable, verification and review, and treats the final report as
   the end of the run — nothing keeps running behind it. A status question is answered with the
   last trail line and the elapsed time, not with "it is running".
-- **Two tiers, chosen in advance and pinned.** Refine marks the few risky deliverables
-  `→ deliverable-hard` (Opus + high effort) with a one-sentence justification; everything else
-  runs on Sonnet, written out on the call rather than inherited. That matters more than it
-  sounds: an `Agent` call without an explicit `model` takes the *session* model and passes it
-  down its whole subtree, so a session switched to Opus mid-run re-tiers everything below it
-  at roughly five times the price, invisibly. Build is forbidden from escalating on its own —
-  subagents are the bulk of the bill, and the tier decides it.
+- **Two tiers, chosen in advance, pinned, and budgeted.** Refine marks at most one risky
+  deliverable per story `→ deliverable-hard` (Opus + high effort) with a one-sentence
+  justification; everything else runs on Sonnet, written out on the call rather than
+  inherited. That matters more than it sounds: an `Agent` call without an explicit `model`
+  takes the *session* model and passes it down its whole subtree, so a session switched to
+  Opus mid-run re-tiers everything below it at roughly five times the price, invisibly. Build
+  is forbidden from escalating on its own — subagents are the bulk of the bill, and the tier
+  decides it. The code review is two-staged: a Sonnet review for every story, and for stories
+  marked `Review: → story-review-hard` a second Opus pass after the first one passed, briefed
+  with its verdict and looking only for what the default tier could not see. Deliverable
+  agents carry a turn budget and hand a runaway D back as `PARTIAL` for a fresh agent to
+  finish. Every story's Done section ends with a `tiers:` line, and the sprint review collects
+  them into a tier record — the number to watch when tuning the budget.
 - **Everything is delegated in the foreground.** A background subagent's completion
   notification reaches the top-level session only, never a subagent — so a build agent that
   backgrounds a deliverable and then waits for it waits forever, and the sprint stops with
