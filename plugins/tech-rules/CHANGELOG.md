@@ -12,6 +12,13 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **`ui-verify`: the invisible run covers every window, not just the main one.** The harness
+  flags, offscreen position and throttling switch come from one shared module that every
+  `BrowserWindow` uses - an overlay or secondary window that bypasses it is the one that pops up.
+  Harness helpers select windows by identity instead of `getAllWindows()[0]`, and `resize()`
+  corrects the content-size drift an offscreen frameless window shows on a mixed-DPI Windows
+  desktop. New checklist item for both.
+
 ## 2.1.0 — 2026-09-25
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
