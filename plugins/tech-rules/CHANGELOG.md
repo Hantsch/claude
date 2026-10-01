@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.2.0 — 2026-10-01
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **`ui-verify`: the invisible run covers every window, not just the main one.** The harness
   flags, offscreen position and throttling switch come from one shared module that every
   `BrowserWindow` uses - an overlay or secondary window that bypasses it is the one that pops up.
