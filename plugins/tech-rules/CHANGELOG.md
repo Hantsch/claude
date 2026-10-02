@@ -12,6 +12,11 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `typed-ipc` gains "The module bus is a contract too": per-module contract map,
+  `defineModule`/`createModuleClient`, one `Outcome` envelope (never nested), a per-module
+  coverage test, manifest-derived module ids, and the parallel "Adding a module handler"
+  procedure.
+
 - `ui-verify` says what a flow may assert, adds an expected-failure list (quarantine) for
   `flows`, tests the fixture against the app's real state loader, and keeps shared steps in
   `lib/`.
