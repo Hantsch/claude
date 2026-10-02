@@ -42,7 +42,7 @@ touch `.gitignore`, and does not commit.
 | `all` | `karpathy` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or any `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` — unless `react-native` or `expo` sits in the same file: the rules assume a DOM and Tailwind, so that is a *looks wrong* case for Phase 2, not a detection |
-| `electron` | `electron-arch`, `typed-ipc`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
+| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
 
 Read the groups from disk, never from this table alone: every folder under
 `${CLAUDE_PLUGIN_ROOT}/templates/skills/` is a group, and every folder inside it is one skill
@@ -52,7 +52,10 @@ no change here.
 **Install only the groups the project actually has.** This is not tidiness: skill *descriptions*
 sit in the context of every session, and when the listing overflows its budget Claude Code starts
 truncating them — which strips exactly the trigger sentences the rules are matched on. An Electron
-app that also has a React renderer gets both groups; a .NET backend gets neither.
+app with a React renderer gets `electron` plus `react` **minus `frontend-guidelines`**
+(`design-tokens` stays): `renderer-guidelines` replaces it, and loading both doubles the context
+cost while the two contradict each other (Atomic Design pages/templates vs shell + modules). A .NET
+backend gets neither.
 
 ## Phase 1 — Survey (always, also in `check`)
 
@@ -72,6 +75,8 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    - **modified/unknown** — hash differs, or there is no lock entry (that includes copies from
      the older per-stack plugins);
    - **orphaned** — the lock lists it but its group is no longer detected (the stack is gone).
+   - **superseded** — a managed `frontend-guidelines` copy (marker or lock entry) in a project where
+     `electron` is detected: `renderer-guidelines` replaces it. Handled like orphaned in Phase 3.
    No git available → every existing file is **modified/unknown**.
 5. **Name collisions and shadows**, all three cheap and all three silent failures otherwise:
    - A `.claude/skills/<name>/` or `.claude/commands/<name>.md` that is the project's own, not a
@@ -133,6 +138,10 @@ confirmed subdirectory. Copy each file **verbatim**, with exactly one substituti
 from Phase 1. Never adapt a rule to the project — a deviation belongs in the project's
 `CLAUDE.md` (see Phase 4), never in an edited copy of the rule.
 
+**One exclusion:** when `electron` is a confirmed group, skip `react/frontend-guidelines` even
+though it sits in a confirmed group — `renderer-guidelines` replaces it. Groups are read from disk,
+so without this line both would install. `design-tokens` and the rest of `react` install as usual.
+
 Per file, decide by its class from Phase 1:
 
 - **missing** → write it.
@@ -148,6 +157,9 @@ Per file, decide by its class from Phase 1:
 - **orphaned** → ask whether to delete it (the stack is gone) or keep it. Never delete unasked.
   A kept orphan keeps its hash entry and its group stays in `groups` and, like `local`, is asked
   about again only when the plugin version changed; a deleted one leaves both.
+- **superseded** → treat it like an orphan: offer to delete it (`renderer-guidelines` replaces it),
+  never delete unasked, and on a yes drop its lock entry too. A kept one stays as it is, asked about
+  again only when the plugin version changed.
 - **collision** (Phase 1 step 5, first bullet) → do not diff it, do not offer to replace it.
   Report it and stop for that file; one of the two has to be renamed, and anything else silently
   breaks the project's own skill.
@@ -200,7 +212,9 @@ row per control; a deviation without a reason is a violation that has been writt
 <!-- tech-rules:managed:end -->
 ```
 
-Only rows for skills actually installed, with the project's real paths from the survey. A nested
+Only rows for skills actually installed, with the project's real paths from the survey. In an
+Electron project the frontend row is the renderer row: `touching <renderer path>` →
+`/renderer-guidelines`, `/design-tokens`. A nested
 group says where it lives. Nothing else goes in the block.
 
 ## Phase 5 — The one-time files

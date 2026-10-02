@@ -12,6 +12,13 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- New skill `electron/renderer-guidelines`: shell + modules layout, import boundaries, one
+  query/mutation hook for main-owned data, mandatory desktop primitives (`NameDialog`,
+  `ConfirmDialog`, `Tabs`, one `ErrorBoundary`), the rule of three across the tree, component
+  size and effect limits, failure surfaces, shared test support.
+- Setup installs `renderer-guidelines` for Electron projects and skips `react/frontend-guidelines`
+  there (an installed copy is offered for removal); `design-tokens` stays.
+
 - `typed-ipc` gains "The module bus is a contract too": per-module contract map,
   `defineModule`/`createModuleClient`, one `Outcome` envelope (never nested), a per-module
   coverage test, manifest-derived module ids, and the parallel "Adding a module handler"
