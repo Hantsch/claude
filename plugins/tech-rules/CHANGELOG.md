@@ -16,7 +16,7 @@ is empty, so no version ever ships without notes.
   unknown keys kept, the shell file holds shell state only), slices change through a mutator
   only, and quit is awaited (`preventDefault()` once, release processes, dispose-all plus every
   store's `settle()` under a bound, a failed write retried once and then shown). "Adding a
-  feature" gains *Persisted section* and *Dispose* steps.
+  feature" gains _Persisted section_ and _Dispose_ steps.
 - `electron-arch`: "The layering test" gives "it is checkable, so check it" a shape: one
   tree-walking test (shared purity, renderer free of `electron`/`node:`, no cross-module import
   outside a story-referenced allowlist, no `electron`/`process.env` under `modules/`), with
@@ -39,6 +39,11 @@ is empty, so no version ever ships without notes.
   stylesheet.
 - The managed CLAUDE.md block asks for one deviation row per rule deviated from, never one per
   control.
+
+## 2.2.0 — 2026-10-01
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **`ui-verify`: the invisible run covers every window, not just the main one.** The harness
   flags, offscreen position and throttling switch come from one shared module that every
   `BrowserWindow` uses - an overlay or secondary window that bypasses it is the one that pops up.
@@ -53,7 +58,7 @@ is empty, so no version ever ships without notes.
 ### Changed
 
 - **`ui-verify`: a test run stays off the desktop, not just out of the focus.** New section
-  *An invisible run*: the harness window is placed left of every display at its normal size, keeps
+  _An invisible run_: the harness window is placed left of every display at its normal size, keeps
   painting (`backgroundThrottling: false`, Windows' `CalculateNativeWinOcclusion` switched off
   before `ready`), skips maximize/fullscreen, and the harness's `resize()` no longer centres it.
   `<APP>_UI_VISIBLE=1` brings it back on screen for debugging, and a `harness-offscreen` flow
@@ -119,8 +124,8 @@ is empty, so no version ever ships without notes.
   stays recorded. A `local` file or a kept orphan is re-asked about only when the plugin version
   changed. A group with a user-invoked skill stays at the repo root (a nested `/dotnet-review` is
   not invocable until Claude has touched that subtree), and a `package.json` with `react-native` or
-  `expo` is a *looks wrong* case for the `react` group rather than a detection.
-- README: the skill table says what a skill *covers*, not what it enforces; the install block names
+  `expo` is a _looks wrong_ case for the `react` group rather than a detection.
+- README: the skill table says what a skill _covers_, not what it enforces; the install block names
   the marketplace step; the `local` wording matches setup.
 
 ## 2.0.0 — 2026-09-07
