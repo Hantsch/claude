@@ -1,7 +1,7 @@
 # common
 
 Shared building blocks that are not tied to any workflow and not to any stack: how Claude
-answers, and two commands that are useful in every repository.
+answers, and three commands that are useful in every repository.
 
 ## What ships
 
@@ -11,6 +11,7 @@ answers, and two commands that are useful in every repository.
 | `output-styles/kis.md` | style **KIS** | Keep it simple: small words, short sentences, only what is necessary. At most 2 options when a decision is needed. |
 | `commands/premortem.md` | `/common:premortem` | Assume the plan failed, work backward to causes, early warning signs and preventions. Reads the actual plan first and checks it against the repository. |
 | `commands/secrets-scan.md` | `/common:secrets-scan` | Scan staged changes, the tree or history for credentials, connection strings and secrets leaking through logs. |
+| `commands/architecture-review.md` | `/common:architecture-review` | Whole-codebase review: one reviewer per dimension, findings merged and verified, a dated report plus one draft story per confirmed cluster. |
 
 ### Where the karpathy rules went
 
@@ -62,8 +63,8 @@ Two things worth knowing:
 
 ## Commands
 
-Nothing to activate: with the plugin enabled, `/common:premortem` and `/common:secrets-scan` are
-available.
+Nothing to activate: with the plugin enabled, `/common:premortem`, `/common:secrets-scan` and
+`/common:architecture-review` are available.
 
 `/common:secrets-scan` defaults to staged changes, so the useful moment is right before a commit;
 `tree` and `history` take arguments for the wider sweeps. It looks for credentials and log leaks
@@ -71,6 +72,9 @@ only - for injection, authorization and input validation use the built-in `/secu
 
 Findings from a `history` scan mean rotation, not deletion: a secret that was ever pushed is
 public.
+
+`/common:architecture-review` is for a phase end or an overgrown follow-up list, not every sprint;
+it enforces nothing and only writes a report and `draft` stories for `/refine` to re-measure.
 
 ## Adding your own style
 

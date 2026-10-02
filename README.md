@@ -9,7 +9,7 @@ purpose: no token, no auth, no clone needed to install from it.
 | --- | --- | --- |
 | [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
 | [tech-rules](plugins/tech-rules/) | Installs the house rules for a project's stack into the repository itself: `/tech-rules:setup` detects .NET, React and Electron, writes the matching skills to `.claude/skills/`, keeps a pointer block in `CLAUDE.md` and updates both later. | [CHANGELOG](plugins/tech-rules/CHANGELOG.md) |
-| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, and the `/common:premortem` and `/common:secrets-scan` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
+| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, and the `/common:premortem`, `/common:secrets-scan` and `/common:architecture-review` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
 
 Two of the three are **installers**: what they ship ends up in the consuming repository, so a
 contributor who never installed a plugin still gets the workflow (ai-scrum) and the house rules

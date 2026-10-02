@@ -34,7 +34,7 @@ Three plugins, in two shapes:
   whose commands* live in the consuming repository — and [tech-rules](plugins/tech-rules/), which
   installs the house rules for a project's stack as that project's own skills. Both register
   exactly one command, `setup`, and ship everything else as payload.
-- **Direct-ship:** [common](plugins/common/) — output styles plus `premortem` and `secrets-scan`.
+- **Direct-ship:** [common](plugins/common/) — output styles plus `premortem`, `secrets-scan` and `architecture-review`.
   Its content stays in the plugin, so `/plugin update` is the whole update story. That fits
   because these are tools for the person at the keyboard, not rules a repository has to enforce.
 
