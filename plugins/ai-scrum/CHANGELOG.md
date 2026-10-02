@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- README documents who runs what: the agent graph of a sprint with each agent's tier, what it
+  gets and what it returns, the phase pipeline, and the chain of agents that makes up a story's
+  acceptance. It also corrects the file counts and stops quoting a fixed version in the marker.
+
 ## 4.5.0 — 2026-10-02
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
@@ -127,7 +131,7 @@ is empty, so no version ever ships without notes.
   triggered four more suite launches and fourteen silent minutes; in another sprint a pending
   agent kept working for eight minutes after "complete".
 - **Rules corrected to what the harness actually does.** "Never end a turn with waiting" now
-  says *waiting for an agent* and names the one sanctioned wait — the gate's background task,
+  says _waiting for an agent_ and names the one sanctioned wait — the gate's background task,
   whose exit notification does reach the top-level session (observed 8 of 8 times); the
   watchdog rule names `ScheduleWakeup` as a no-op outside `/loop` (it answered "no pending
   wakeup to cancel" and the orchestrator ended the turn on a promise), the blocked `sleep`,
@@ -162,9 +166,9 @@ is empty, so no version ever ships without notes.
     run per line (e.g. `npx playwright test {files}`, `npm run ui:flow -- {test}`).
   - `e2e-all` — every acceptance flow, where they are a suite of their own next to `e2e`
     (e.g. `npm run ui:flows`); runs only in the sprint's regression gate.
-  Missing or `none` falls back to the full `test` / `e2e` per story, so existing profiles
-  behave exactly as before. A narrowed run that did not execute every test the story names is
-  not green: it falls back to the full suite.
+    Missing or `none` falls back to the full `test` / `e2e` per story, so existing profiles
+    behave exactly as before. A narrowed run that did not execute every test the story names is
+    not green: it falls back to the full suite.
 - **`/sprint` has a mandatory regression gate** (phase 2b), after the last story and before
   `review.md`: full `test`, full `e2e` and `e2e-all`, once, on the finished branch. A red result
   is checked for flakiness and for failing already at the sprint's start, then bisected over the
@@ -230,13 +234,13 @@ is empty, so no version ever ships without notes.
 
   So the coverage gate moved: `/refine` now maps **every acceptance criterion to one automated
   test** in a new story section `## Acceptance Tests` (level, file, test name), and `status:
-  ready` is refused while a criterion has neither a test nor a declared reason it cannot have
+ready` is refused while a criterion has neither a test nor a declared reason it cannot have
   one. The test is written by the deliverable that implements the behaviour — a trailing
   "D5 — write the tests" is called out as the anti-pattern it is, because that is the D that gets
   dropped. `/build` runs those tests as its gate (including the new `e2e` command for criteria
   about user actions), walks the mapping line by line, and sets `status: done` when they pass and
   the clean-agent review is through. Acceptance criteria are numbered `AC1`, `AC2`, … so the
-  mapping can point at them, and `/roadmap plan` now cuts them as *observable facts* — a
+  mapping can point at them, and `/roadmap plan` now cuts them as _observable facts_ — a
   criterion phrased as an intention cannot be tested by anyone and is rejected at cutting time.
 
   Consequences, deliberately:
