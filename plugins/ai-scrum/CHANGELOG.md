@@ -12,6 +12,15 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- Story template has a `Decisions (Sprint)` section for choices made during a sprint.
+- Sprint template has a `Regression gate` section where the gate's results are recorded.
+- Story template's example test paths are labelled as examples; the real invocations live in
+  `.claude/ai-scrum.md`.
+- New profile keys `test-support` (shared fixtures and builders) and `e2e-quarantine`
+  (expected-failure list); setup asks for both, default `none`.
+- Roadmap template: follow-ups older than three sprints are promoted to a story or removed by
+  `/roadmap check`.
+
 ## 4.4.0 — 2026-09-25
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

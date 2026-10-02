@@ -122,6 +122,16 @@ Cover, in this order of importance:
    makes the next run fail with "already running". Suggest the process name you can see
    (`taskkill /F /IM electron.exe` / `pkill -f electron`), say that it kills the developer's own
    instance too, default `none`.
+1d. **Test support and quarantine** — `test-support` and `e2e-quarantine` (see their comment in
+   the profile template). Both are optional, default `none`, one question per key. `test-support`
+   is the path(s) of shared fixtures, builders and fakes that `/build` pastes into every
+   deliverable prompt; suggest a folder you can see (`tests/support/`, `tests/helpers/`,
+   `tests/fixtures/`, `test/utils/`), else `none`. `e2e-quarantine` is the expected-failure list
+   the `e2e-all` runner reads and `/sprint`'s regression gate writes; do not offer it while
+   `e2e-all` and `e2e` are both `none`, and never invent a file — if the project has no such
+   list yet, `none`. **On an update these are keys an older profile lacks — offer them, never
+   fill them in silently, and never replace a value the profile already has**, placeholder
+   excepted. An answer left open becomes `none`.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
    - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an

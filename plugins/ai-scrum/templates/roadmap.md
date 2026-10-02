@@ -43,7 +43,8 @@ Ideas and concepts that need a decision before they become work. One line each.
 
 Small things a sprint surfaced that need no decision and no story yet — for the user while a
 sprint runs, or for the next cut. One line each, with where it came from. Done items are
-removed, not struck through.
+removed, not struck through. A line older than three sprints is promoted to a story or removed
+by `/roadmap check`.
 
 - <what, one line> — <source: [S03 review](sprints/done/S03/review.md), story 017, …>
 

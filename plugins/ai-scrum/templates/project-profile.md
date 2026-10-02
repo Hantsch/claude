@@ -64,6 +64,9 @@ e2e-cleanup: none <!-- e.g. taskkill /F /IM electron.exe | pkill -f electron | n
                covers them; do not set it to the same command as `e2e`.
 -->
 
+test-support: none <!-- e.g. tests/support/ (shared fixtures, builders, fakes) | none — pasted into every deliverable prompt by /build so agents reuse it instead of writing their own -->
+e2e-quarantine: none <!-- e.g. tests/e2e/quarantine.json | none — the expected-failure list the e2e-all runner reads; /sprint's regression gate writes a pre-existing or flaky test into it -->
+
 ## Conventions
 
 doc-language: en <!-- language for generated artifacts: stories, sprint reviews, concepts -->
