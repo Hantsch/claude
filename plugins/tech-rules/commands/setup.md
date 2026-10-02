@@ -195,8 +195,8 @@ no plugin needed. Installed and updated with `/tech-rules:setup` (plugin `tech-r
 | main / preload / renderer, IPC, `webPreferences` | `/electron-arch`, `/typed-ipc` |
 
 Do not edit a skill to make it fit this project. A deviation is recorded **here**, with its
-reason, and wins over the skill; a deviation without a reason is a violation that has been
-written down.
+reason, and wins over the skill — one row per rule deviated from, listing the places, never one
+row per control; a deviation without a reason is a violation that has been written down.
 <!-- tech-rules:managed:end -->
 ```
 

@@ -12,6 +12,15 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `ui-verify` says what a flow may assert, adds an expected-failure list (quarantine) for
+  `flows`, tests the fixture against the app's real state loader, and keeps shared steps in
+  `lib/`.
+- `design-tokens` lets a mouse-and-keyboard-only desktop app record one project-wide floor
+  deviation instead of one row per control; `ui-verify`'s gate reads that floor from the
+  stylesheet.
+- The managed CLAUDE.md block asks for one deviation row per rule deviated from, never one per
+  control.
+
 - **`ui-verify`: the invisible run covers every window, not just the main one.** The harness
   flags, offscreen position and throttling switch come from one shared module that every
   `BrowserWindow` uses - an overlay or secondary window that bypasses it is the one that pops up.
