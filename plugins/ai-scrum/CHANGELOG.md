@@ -12,6 +12,21 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- Refine names a helper to reuse; a shape that already exists twice is extracted first, never
+  copied a third time.
+- Deliverable agents reuse the named helper, stop on a copied shape (`PARTIAL: shared shape`), and
+  write comments that state the invariant, not story or review history.
+- The story review flags code copied from elsewhere in the tree and comments that narrate history.
+- Tests are named after behaviour, not stories, and use the project's `test-support` first.
+- The sprint gate quarantines pre-existing and flaky tests (`e2e-quarantine`); still quarantined
+  after two sprints, they become stories.
+- `/roadmap check` ages follow-ups and quarantine entries into stories and moves finished concepts
+  to systems.
+- Unfixed review findings become follow-ups or story drafts instead of staying in the sprint
+  review.
+- A story that changes a documented system updates its systems doc; `/roadmap check` lists stale
+  ones.
+
 - Story template has a `Decisions (Sprint)` section for choices made during a sprint.
 - Sprint template has a `Regression gate` section where the gate's results are recorded.
 - Story template's example test paths are labelled as examples; the real invocations live in

@@ -29,6 +29,11 @@ Binding:
   existing tests cover it, what the effect on the seam/contract is. That is precisely why you
   run on this tier.
 - **Only this deliverable.** Do not jump ahead to later Ds, no unrequested refactoring.
+- **Comments state the invariant or the non-obvious why** — a trailing `(story 042)` at most;
+  never `D3`/`AC7`, never review-round or "used to be" narrative.
+- **Tests are named after the behaviour,** file and `describe`, never after the story. Use the
+  profile's `test-support` before writing a fixture, builder or fake of your own; when it is
+  `none` or nothing there fits, say so in your return.
 - **Do not commit, do not push.**
 - Never weaken, skip or delete a test to make things pass. If something is red, it is red and
   you say so.

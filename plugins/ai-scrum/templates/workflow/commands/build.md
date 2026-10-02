@@ -140,11 +140,20 @@ finishes or quietly stops with nothing in the working tree to show for it.
      cannot see this conversation, so give it:
      - the full text of exactly this one deliverable (not the other Ds),
      - the affected files/paths — from the D itself and from `## Plan` — and the file to
-       mirror if the D names one, with the instruction to **start from those files instead of
-       surveying the repo**: read what is listed, search only for what is genuinely missing.
+       mirror or the helper to reuse if the D names one, with the instruction to **start from
+       those files instead of surveying the repo**: read what is listed, search only for what
+       is genuinely missing.
        Exploration is the biggest cost driver in a build, because an agent's whole context is
        re-read on every turn: a wide search early makes every later turn more expensive. The
        plan already did that search — the agent should not repeat it.
+     - **reuse, not copy:** a helper the D names is used, not re-implemented. Copying more
+       than ~10 lines from the file to mirror means the shape wants sharing — stop and return
+       `PARTIAL: shared shape — <file>:<lines> exists in <n> places`, so refine can cut an
+       extraction D.
+     - **comments state the invariant or the non-obvious why.** A story pointer is a trailing
+       `(story 042)` at most — never a deliverable or criterion id (`D3`, `AC7`), never
+       review-round or "used to be" narrative. Measured without this rule: 4,780 story
+       references in one project's source, "story-045 review round 2, finding 4" among them.
      - **the instruction not to open the story file.** The D text, the file list and the test
        lines it gets are complete; the story file is 25–40k characters of plan, sibling Ds and
        Done section that the agent would pay for on every turn. Measured: seven to ten agents
@@ -163,9 +172,15 @@ finishes or quietly stops with nothing in the working tree to show for it.
        file, test name, and the criterion they prove), with the instruction to write them as
        part of this deliverable — same agent, same turn sequence, not as a follow-up. The test
        asserts the *criterion* as a user would observe it; a test that merely mirrors what the
-       implementation happens to do proves nothing and will be rejected in the review. If the
-       named test file does not exist yet, it creates it next to the project's existing ones
-       and follows their shape.
+       implementation happens to do proves nothing and will be rejected in the review. Tests
+       go into the file and `describe` named after the behaviour, never after the story
+       (`describe('story 045')` is rejected too); a file that does not exist yet is created
+       next to the project's existing ones, in their shape. Fixtures, builders and fakes come
+       from `test-support` first; when it is `none` or nothing there fits, the return says so.
+       Measured without this: a 3,613-line test file with 36 of 38 `describe`s named after
+       stories, and the same builder in ten test files.
+     - the profile's `test-support` paths from `.claude/ai-scrum.md`, verbatim (`none`
+       included),
      - for `deliverable-hard`, the risk justification from `## Model Hints`,
      - the instruction to read and honour `CLAUDE.md` plus every file listed under
        `## Context to read before coding` in `.claude/ai-scrum.md` **before writing code**,
@@ -188,6 +203,7 @@ finishes or quietly stops with nothing in the working tree to show for it.
      (same tier, same prompt, plus the partial report verbatim and the note that its edits are
      in the tree). A second `PARTIAL` on the same D is a plan gap: leave the D unticked, record
      both reports in the story file, and treat it as a blocker — do not dispatch a third.
+     `PARTIAL: shared shape …` is that plan gap on its first return — no re-dispatch.
      **Count what you dispatch:** deliverable agents by tier, verify agents, review agents and
      their stages — the Done section and your closing report carry that line (step 8).
 4. Honour the project rules in `CLAUDE.md` and the profile's context files yourself as well.
@@ -284,9 +300,13 @@ finishes or quietly stops with nothing in the working tree to show for it.
        (b) weakened or deleted tests, disabled assertions, suppressed warnings, silenced
            null checks or commented-out validations without a justifying comment on the
            same line,
-       (c) scope creep: changes with no visible relation to plan/deliverables,
+       (c) scope creep: changes with no visible relation to plan/deliverables — and the
+           reverse: a changed system whose doc under `systems-path` the diff leaves stale,
        (d) correctness bugs, removed validation or error handling, violations of the
-           guardrails in `CLAUDE.md`,
+           guardrails in `CLAUDE.md`, comments that narrate story or review history instead
+           of stating an invariant, tests named after a story instead of a behaviour,
+       (e) copied shapes: a block the diff adds that already exists elsewhere in the tree
+           (search for its distinctive line) is a finding, with the existing location,
      - the agent proposes no fixes and changes no files — it returns a verdict
        (PASS/FAIL/UNCLEAR) + a findings list (`file:line` + one line of reasoning).
    - **Handle findings:** fix confirmed ones (a fix is a delegated D like any other, with the
