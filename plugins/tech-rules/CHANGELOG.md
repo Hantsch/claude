@@ -12,6 +12,16 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `electron-arch`: a module owns its persisted section (`section({ key, parse, defaults })`,
+  unknown keys kept, the shell file holds shell state only), slices change through a mutator
+  only, and quit is awaited (`preventDefault()` once, release processes, dispose-all plus every
+  store's `settle()` under a bound, a failed write retried once and then shown). "Adding a
+  feature" gains *Persisted section* and *Dispose* steps.
+- `electron-arch`: "The layering test" gives "it is checkable, so check it" a shape: one
+  tree-walking test (shared purity, renderer free of `electron`/`node:`, no cross-module import
+  outside a story-referenced allowlist, no `electron`/`process.env` under `modules/`), with
+  `oxlint` as an optional mirror.
+
 - New skill `electron/renderer-guidelines`: shell + modules layout, import boundaries, one
   query/mutation hook for main-owned data, mandatory desktop primitives (`NameDialog`,
   `ConfirmDialog`, `Tabs`, one `ErrorBoundary`), the rule of three across the tree, component
