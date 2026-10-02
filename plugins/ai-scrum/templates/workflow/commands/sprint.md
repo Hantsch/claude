@@ -328,11 +328,11 @@ story builds together.
    agent attributes by which story's changed files the failing test exercises, and says that
    the attribution is a judgment, not a bisect result.
    **`flaky` and `pre-existing` are quarantined, not just reported.** Each such test gets an
-   entry in the list at the profile's `e2e-quarantine` — `{ flow/test, reason, story, since:
-   $1 }`, the reason being the agent's one-line cause — and one follow-up line in phase 3's
-   roadmap update. A quarantined test that fails again is an expected failure: it does not
-   turn the gate red and is not attributed again; one that passes is reported as an
-   unexpected pass. Still quarantined two sprints later, it is a story at the next
+   entry in the list at the profile's `e2e-quarantine` — `{ flow, reason, story, since: $1 }`,
+   `flow` being the test or flow name and the reason the agent's one-line cause — and one
+   follow-up line in phase 3's roadmap update. A quarantined test that fails again is an
+   expected failure: it does not turn the gate red and is not attributed again; one that
+   passes is reported as an unexpected pass. Still quarantined two sprints later, it is a story at the next
    `/roadmap plan`, not a follow-up. With `e2e-quarantine: none` the follow-up line is all
    there is, and the review says the project has no quarantine yet. Measured without this:
    four flows red for five sprints, re-attributed at ~10 minutes per gate.
@@ -419,7 +419,7 @@ story builds together.
      sprint has made obsolete. Anything bigger is a story draft (step 1), not a roadmap line.
    - **"Where we stand"** and "As of": rewrite the block (max. five lines) — what was just
      finished, what is next, what is waiting on the user (the merge).
-   If a concept is thereby fully implemented (all stories done): `git mv` it to
+   If every milestone of a concept's phase is thereby `done`: `git mv` the concept to
    `systems-path` and update its status line.
 4. **If `changelog-path` is set in the profile:** check that every story done in this sprint
    with a user-facing change has its entry there, under `# Features` / `# Fixes` of the current
@@ -433,8 +433,8 @@ story builds together.
    finished, and a story stays open only for a blocker that makes it genuinely
    uncompletable (normally caught in refinement, not here).
 6. Final commit: `$1: sprint review + roadmap` — it carries the `## Regression gate` record
-   in `sprint.md` too (add `+ testplan` only if a `testplan.md` was
-   actually written).
+   in `sprint.md` and the `e2e-quarantine` file the gate edited, if any, too (add `+ testplan`
+   only if a `testplan.md` was actually written).
 
 ## Closing the run — before the final report
 

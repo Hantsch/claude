@@ -26,7 +26,6 @@ is empty, so no version ever ships without notes.
   review.
 - A story that changes a documented system updates its systems doc; `/roadmap check` lists stale
   ones.
-
 - Story template has a `Decisions (Sprint)` section for choices made during a sprint.
 - Sprint template has a `Regression gate` section where the gate's results are recorded.
 - Story template's example test paths are labelled as examples; the real invocations live in

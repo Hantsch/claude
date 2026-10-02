@@ -83,7 +83,8 @@ into memory. Everything has to be reviewable in the repository.
 
      **Systems docs:** a story that changes a system with a doc under `systems-path` has a D
      that updates that doc — its own, or the D that changes the behaviour. `/build`'s review
-     checks it; nothing else in this workflow ever touches the doc again.
+     checks it. Only the story updates the doc: `/roadmap check` merely reports one gone
+     stale, it never edits it.
    - **`## Model Hints`** — here you fix the **agent tier** per deliverable that
      `/build` will use. There are exactly two tiers:
      - **Default (leave unmarked):** the session/Sonnet tier with `/build`'s effort (`medium`).

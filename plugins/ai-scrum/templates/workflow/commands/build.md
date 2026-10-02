@@ -152,8 +152,7 @@ finishes or quietly stops with nothing in the working tree to show for it.
        extraction D.
      - **comments state the invariant or the non-obvious why.** A story pointer is a trailing
        `(story 042)` at most — never a deliverable or criterion id (`D3`, `AC7`), never
-       review-round or "used to be" narrative. Measured without this rule: 4,780 story
-       references in one project's source, "story-045 review round 2, finding 4" among them.
+       review-round or "used to be" narrative.
      - **the instruction not to open the story file.** The D text, the file list and the test
        lines it gets are complete; the story file is 25–40k characters of plan, sibling Ds and
        Done section that the agent would pay for on every turn. Measured: seven to ten agents
@@ -165,9 +164,6 @@ finishes or quietly stops with nothing in the working tree to show for it.
        than the old one would pay per turn at 300k. Measured over 109 deliverable agents: the
        median took 22 calls, the 17 that exceeded 40 cost 40% of all deliverable spend, and
        the two worst ran 162 and 91 calls for one D each.
-     - **The prompt itself stays lean:** D text, files, test lines, the rules below — around
-       4k characters. No pasted file contents, no plan, no sibling Ds. Whatever you paste the
-       agent re-reads on each of its turns, and you on each of yours.
      - **the test lines from `## Acceptance Tests` that belong to this D** (verbatim: level,
        file, test name, and the criterion they prove), with the instruction to write them as
        part of this deliverable — same agent, same turn sequence, not as a follow-up. The test
@@ -177,8 +173,6 @@ finishes or quietly stops with nothing in the working tree to show for it.
        (`describe('story 045')` is rejected too); a file that does not exist yet is created
        next to the project's existing ones, in their shape. Fixtures, builders and fakes come
        from `test-support` first; when it is `none` or nothing there fits, the return says so.
-       Measured without this: a 3,613-line test file with 36 of 38 `describe`s named after
-       stories, and the same builder in ten test files.
      - the profile's `test-support` paths from `.claude/ai-scrum.md`, verbatim (`none`
        included),
      - for `deliverable-hard`, the risk justification from `## Model Hints`,
@@ -190,6 +184,14 @@ finishes or quietly stops with nothing in the working tree to show for it.
        result, and anything genuinely notable — no diffs, no pasted file contents, no
        restatement of the deliverable. Every line it returns lands in your context and is
        paid for again on each of your remaining turns.
+     **The prompt itself stays lean:** D text, files, test lines and the rules above — the
+     rules are ~3.5k characters, so the whole prompt lands around 5k. No pasted file contents,
+     no plan, no sibling Ds. Whatever you paste the agent re-reads on each of its turns, and
+     you on each of yours — which is why the rationale for the comment and test-naming rules
+     stays here, out of the prompt. Measured without them: 4,780 story references in one
+     project's source ("story-045 review round 2, finding 4" among them), and a 3,613-line
+     test file with 36 of 38 `describe`s named after stories and the same builder in ten test
+     files.
    - **Check and continue:** if a progress file was named, run the `done` (or `blocked`) trail
      command now, before anything else. Review the agent's result briefly (file diff, build
      relevance), tick `- [ ] D…` to `- [x]` in the file and start the next D immediately — no

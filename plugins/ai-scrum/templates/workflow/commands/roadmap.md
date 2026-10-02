@@ -57,8 +57,8 @@ paragraph in the roadmap.
      row mentions.
    - `<sprints>/` — open sprints (`sprint.md` outside `done/`) and the most recent review
      under `done/`.
-   - `<concepts>/` — concepts without a line in the roadmap; concepts whose stories are all
-     done (→ they belong in `<systems>/`).
+   - `<concepts>/` — concepts without a line in the roadmap; concepts whose phase has every
+     milestone `done` in the roadmap (→ they belong in `<systems>/`).
 3. Correct every deviation directly in the roadmap:
    - A milestone whose stories are all `done` is **`done`** with the date of its last
      sprint — acceptance happened inside the sprint through the tests, there is no separate
@@ -76,8 +76,9 @@ paragraph in the roadmap.
      in the report either way.
    - An entry in the profile's `e2e-quarantine` list older than two sprints (its `since`)
      becomes a story draft the same way.
-   - Every concept whose phase or milestones are all `done` moves to `<systems>/` now
-     (`git mv`, update the status line), named in the report.
+   - Every concept whose phase has every milestone `done` in the roadmap (its stories done is
+     how a milestone becomes `done`, step 3) moves to `<systems>/` now (`git mv`, update the
+     status line), named in the report.
    - A systems doc older than its module's last story commit is listed in the report as
      stale — best effort.
 5. Compact to the budgets: every cell or line that exceeds its budget is cut back to the one
