@@ -279,7 +279,7 @@ it('modules do not import each other', () => expectNoCrossModuleImport(files('sr
 it('the shell sees only the modules index and registry', () =>
   expectImportsInto(files('src/main/!(modules)/**'), 'src/main/modules/', ['index', 'registry']))
 it('the renderer shell sees only the modules index', () =>
-  expectImportsInto(files('src/renderer/src/{components,views}/**'), 'src/renderer/src/modules/', ['index']))
+  expectImportsInto(files('src/renderer/src/!(modules)/**'), 'src/renderer/src/modules/', ['index']))
 it('renderer modules reach each other only through public.ts', () =>
   expectNoCrossModuleImport(files('src/renderer/src/modules/**'), ALLOWLIST, { except: 'public' }))
 
