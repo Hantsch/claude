@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 1.1.0 — 2026-10-02
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - New `/common:architecture-review`: a whole-codebase review that writes a dated report and one
   draft story per confirmed cluster of findings; meant for a phase end, not for every sprint.
 
