@@ -10,9 +10,9 @@ description: "Architecture, state and reuse rules for the React renderer of an E
 The renderer of an Electron app is a React tree with no server, no router worth the name and one
 data source: the main process, reached through a typed bridge. Web frontend rules about pages,
 routes and server-state libraries do not bind here, so the duplication they would prevent arrives
-unopposed - the same read-on-mount hook in thirty files, a dozen name dialogs that differ in two
-i18n keys, one component that grew to 2,500 lines because nothing said where its parts belong.
-These rules say where they belong.
+unopposed - the same read-on-mount effect 36 times in 26 files, name dialogs that differ in two
+i18n keys, one component that kept growing because nothing said where its parts belong. These rules
+say where they belong.
 
 **Precedence:** project-specific overrides (paths, store library, test runner) belong in the host
 repo's `CLAUDE.md` and take precedence over this skill. Colours, focus states and target sizes are
@@ -27,7 +27,8 @@ src/renderer/src/
   components/shell/          shell chrome (title bar, nav rail, status strip)
   components/ui/             the UI kit - every primitive below lives here
   store/                     the shell's global store: boot state, route, mirror of shell-owned main data
-  lib/                       shell-level React-free helpers + the shared query/mutation hooks
+  hooks/                     the shell's shared React hooks: useModuleQuery, useModuleMutation (see 2.)
+  lib/                       shell-level React-free helpers
   test/                      shared test support: fixture builders, bridge stub, renderWithProviders
   i18n/                      bundle setup; locale files, one per module where the project splits them
   modules/
@@ -35,7 +36,7 @@ src/renderer/src/
     <module>/
       index.ts               registers the module's slots with the registry - nothing else
       public.ts              what other modules may import from this one; absent = nothing
-      client.ts              the typed client over the module bus (see typed-ipc)
+      client.ts              named wrappers, one per handler, over the typed bus client (see typed-ipc)
       <Module>View.tsx       the view that owns the module's route; tabs beside it
       components/            presentational and row-level components
       dialogs/               modals, each on NameDialog / ConfirmDialog / Modal
@@ -48,17 +49,24 @@ src/renderer/src/
 (testable with no DOM); state and effects to `hooks/`; a modal to `dialogs/`; everything else that
 renders to `components/`. The view and its tabs are the only components at a module's root. A
 component that imports from `react` does not belong in `lib/`; a hook that renders does not belong
-in `hooks/`.
+in `hooks/`. The same split holds at the shell level: the shared `useModuleQuery` /
+`useModuleMutation` live in the shell's `hooks/`, and the shell's `lib/` stays React-free.
 
-**Two hard import rules**, checkable by a lint rule or the project's layering test:
+**Two hard import rules**, asserted by the project's layering test - the one tree-walking test
+`electron-arch` describes covers the renderer tree as well, so the renderer does not get a second
+one (a linter may mirror the rules so they show while typing):
 
 - **The shell never imports a module's internals.** It reaches a module only through the registry
   in `modules/index.ts` - the module hands over its `View`, its settings section and its dialogs
   there, and the shell mounts what it is given without knowing what it is. A shell file importing
   `modules/<x>/components/...` is a finding.
 - **A module never imports another module except through its `public.ts`.** No `public.ts` means
-  nothing is shared on purpose. Code two modules need moves down to `src/shared/` (pure) or
-  `src/renderer/src/lib/` (renderer-level), never sideways.
+  nothing is shared on purpose. Code two modules need moves down to `src/shared/` (pure) or the
+  shell's `lib/` / `hooks/` (renderer-level), never sideways.
+
+Any other cross-module import is an entry on that test's allowlist, naming the story or decision
+that allows it; the test refuses an entry without one, and the allowlist only shrinks - the same
+rule as in the main tree.
 
 ## 2. State: four kinds, one rule each
 
@@ -71,7 +79,7 @@ in `hooks/`.
 
 The shell store holds shell state: boot, route, the mirror of what main pushes for the shell. A
 module's list does not go there - the review that motivated this skill found one global store with
-twenty-five actions and every module's data in it.
+every module's data in it.
 
 **Main-owned data is read through one hook.** It owns cancellation, StrictMode double-mount,
 subscription and reload once, so no component does. Its contract - not an implementation:
@@ -120,10 +128,9 @@ choice, because the next keyboard or focus fix would then be twelve edits instea
 | `Toast` | the one non-modal failure and confirmation surface (see 6.) |
 | `ErrorBoundary` | the only boundary class, with `fallback`, `resetKeys` and `scope`; a module mounts it with its own `scope` and `fallback`, never a copy of the class |
 
-`NameDialog` exists because twelve copies of it drifted: one submitted twice on Enter, one gated
-the button but not the key. `Tabs` exists because three hand-rolled strips had `role="tablist"` in
-none. The kit's primitives have unit tests of their own; a consumer tests its behaviour, not the
-primitive's.
+`NameDialog` exists because its copies drifted: one submitted twice on Enter, one gated the button
+but not the key. `Tabs` exists because the hand-rolled strips had `role="tablist"` in none. The
+kit's primitives have unit tests of their own; a consumer tests its behaviour, not the primitive's.
 
 ## 4. The rule of three, across the whole tree
 
@@ -147,7 +154,7 @@ pointer is a trailing `(story 042)` at most, never a deliverable or review-round
   lives in `hooks/`; derivations in `lib/`. A view with a 400-line `return` is a view doing its
   components' job.
 - **Past ~400 lines or ~12 state atoms, split.** Not a style threshold: at that size a component is
-  holding more than one concern, its tests need a 150-line preamble to mount it, and a fix to one
+  holding more than one concern, its tests need a 120-280-line preamble to mount it, and a fix to one
   row path misses the other. Split along the seams that already exist - the row, the drag state,
   the dialogs, the derived-rows pipeline.
 - **Reset on identity change via `key`, not an effect.** `<Detail key={selected.id} />` resets
@@ -194,7 +201,7 @@ the surface in 6., not in the handler. A hardcoded user-facing string in JSX is 
   bridge stub (`stubBridge({ 'x:y': () => ok(value) })`) that fails on an unexpected channel, and
   `renderWithProviders(ui, { store?, locale? })`. A test file that declares its own fixture builder
   or `window.<bridge>` stub while the shared one exists is a finding - seven suites each carrying
-  150-280 lines of private preamble is what this rule prevents.
+  120-280 lines of private preamble is what this rule prevents.
 - **`@testing-library/react` only.** One mounting idiom; no second renderer, no snapshot tests of
   whole views.
 - **`describe` and `it` name behaviour**, never a story or deliverable: `describe('NameDialog')` /
@@ -228,7 +235,7 @@ the surface in 6., not in the handler. A hardcoded user-facing string in JSX is 
 | Component and file | PascalCase | `WatchlistRow.tsx` |
 | View | `<Module>View` at the module root | `ServersView.tsx` |
 | Hook and file | `use` + camelCase | `hooks/useWatchlist.ts` |
-| Module client | `client.ts`, verbs named after the handler | `readWatchlist`, `addWatchlistEntry` |
+| Module client | `client.ts`, one named wrapper per handler, verb named after it; components import the wrappers and never call the bus with a handler string | `readWatchlist`, `addWatchlistEntry` |
 | Module store | `store.ts`, exported as `use<Module><Thing>` | `useConfigProfiles` |
 | Context | `<Thing>Provider` + `use<Thing>Context` | `ProfileDraftProvider`, `useProfileDraftContext` |
 | React-free helper | camelCase file under `lib/` | `lib/bindConflicts.ts` |
@@ -237,8 +244,8 @@ the surface in 6., not in the handler. A hardcoded user-facing string in JSX is 
 
 ## Review checklist
 
-- [ ] Every new file sits in the folder the placement rule names; `lib/` imports no `react`
-- [ ] The shell reaches modules only through `modules/index.ts`; no module imports another outside `public.ts`
+- [ ] Every new file sits in the folder the placement rule names; `lib/` imports no `react`; the shared query/mutation hooks sit in the shell's `hooks/`
+- [ ] The shell reaches modules only through `modules/index.ts`; no module imports another outside `public.ts`; any exception is an allowlist entry in the layering test naming its story or decision
 - [ ] Main-owned data is read through the shared query hook; mutations through the mutation hook; no `let cancelled = false`
 - [ ] State kind matches the table in 2.: query hook / module store / context / component state
 - [ ] Dialogs, confirms, name prompts and tab strips come from `components/ui/`; one `ErrorBoundary` class

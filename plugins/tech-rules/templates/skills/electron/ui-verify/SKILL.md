@@ -257,9 +257,10 @@ The seed script is where a project's shape shows most, so keep it honest:
   threshold that fails on everything gets disabled within a week, which is worse than not having one.
 - If the project has its own numeric floor - minimum hit area, contrast ratio - check it alongside
   axe by reading the value out of the stylesheet rather than hardcoding it in the script, so the gate
-  and the design tokens cannot drift apart. A mouse-driven desktop app with no tap-target token has
-  no such floor, and inventing one in the harness is a design decision the harness does not own. An app that records
-  its own floor as one project-wide deviation (see `design-tokens`) has one: read it from there.
+  and the design tokens cannot drift apart. A mouse-and-keyboard-only desktop app records one
+  project-wide deviation naming its own floor (see `design-tokens`); the gate reads that value from
+  the stylesheet, not from the deviation row. Inventing a floor in the harness is a design decision
+  the harness does not own.
 - Write the report as JSON next to the screenshots. It is evidence for a review, not console output
   that scrolls away.
 
@@ -357,5 +358,5 @@ a count or position is the criterion, the story names it and owns that flow.
 - [ ] Stale images renamed, not silently kept; a partial run says it is partial
 - [ ] Unreachable screens reported, not skipped quietly
 - [ ] Exit codes distinguish clean / harness failure / accessibility findings
-- [ ] `serious`/`critical` fail the run; the project's own numeric floor, if it has one (a desktop
-      app's single recorded deviation included), read from the stylesheet
+- [ ] `serious`/`critical` fail the run; the project's own numeric floor (for a desktop app, the one
+      its single recorded deviation names) read from the stylesheet

@@ -54,8 +54,10 @@ sit in the context of every session, and when the listing overflows its budget C
 truncating them — which strips exactly the trigger sentences the rules are matched on. An Electron
 app with a React renderer gets `electron` plus `react` **minus `frontend-guidelines`**
 (`design-tokens` stays): `renderer-guidelines` replaces it, and loading both doubles the context
-cost while the two contradict each other (Atomic Design pages/templates vs shell + modules). A .NET
-backend gets neither.
+cost while the two contradict each other (Atomic Design pages/templates vs shell + modules). Setup
+installs each group once per repository, not per app root, so this holds only when every detected
+React root is also an Electron root: a React web app without Electron keeps `frontend-guidelines`,
+both install, and the report names that reason. A .NET backend gets neither.
 
 ## Phase 1 — Survey (always, also in `check`)
 
@@ -76,7 +78,8 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
      the older per-stack plugins);
    - **orphaned** — the lock lists it but its group is no longer detected (the stack is gone).
    - **superseded** — a managed `frontend-guidelines` copy (marker or lock entry) in a project where
-     `electron` is detected: `renderer-guidelines` replaces it. Handled like orphaned in Phase 3.
+     `electron` is detected and every detected React root is also an Electron root:
+     `renderer-guidelines` replaces it. Handled like orphaned in Phase 3.
    No git available → every existing file is **modified/unknown**.
 5. **Name collisions and shadows**, all three cheap and all three silent failures otherwise:
    - A `.claude/skills/<name>/` or `.claude/commands/<name>.md` that is the project's own, not a
@@ -138,9 +141,11 @@ confirmed subdirectory. Copy each file **verbatim**, with exactly one substituti
 from Phase 1. Never adapt a rule to the project — a deviation belongs in the project's
 `CLAUDE.md` (see Phase 4), never in an edited copy of the rule.
 
-**One exclusion:** when `electron` is a confirmed group, skip `react/frontend-guidelines` even
-though it sits in a confirmed group — `renderer-guidelines` replaces it. Groups are read from disk,
-so without this line both would install. `design-tokens` and the rest of `react` install as usual.
+**One exclusion:** when `electron` is a confirmed group and every detected React root is also an
+Electron root, skip `react/frontend-guidelines` even though it sits in a confirmed group —
+`renderer-guidelines` replaces it. Groups are read from disk, so without this line both would
+install. `design-tokens` and the rest of `react` install as usual. If any React root lacks Electron,
+install both and name that reason in the Phase 6 report.
 
 Per file, decide by its class from Phase 1:
 

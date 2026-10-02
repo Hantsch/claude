@@ -209,9 +209,10 @@ Handler names are `noun.verb`; the module id is the namespace. Where a schema al
 be `z.infer<typeof thatSchema>` - the map is still what both halves derive from.
 
 **Main derives from the map.** `defineModule<H>(id, schemas)` wraps the untyped `ModuleSetup` the shell
-hands a module (`handle(type, schema, handler)`, `emit(type, payload)`) in a typed one that registers
-the schema itself. A handler without a schema, with the wrong payload type or with the wrong result
-type is a compile error at the `handle` call:
+hands a module in a typed one that registers the schema itself. The setup object carries more than
+IPC - persisted-section access and `onDispose`, see `electron-arch` - but `defineModule` uses only
+`handle(type, schema, handler)` and `emit(type, payload)`. A handler without a schema, with the wrong
+payload type or with the wrong result type is a compile error at the `handle` call:
 
 ```ts
 type Req<H extends ModuleContract, K extends keyof H['invoke']> = H['invoke'][K]['req']
@@ -243,8 +244,10 @@ handle('slide.openUrl', (url) => openSlideUrl(url)) // url: string, from the sch
 feed.onChange((next) => emit('news.changed', next))
 ```
 
-**The renderer derives from the same map.** `createModuleClient<H>(id)` is the module's whole client;
-components call it, never the bus:
+**The renderer derives from the same map.** `createModuleClient<H>(id)` is the typed bus access; the
+module's `client.ts` builds one and exports a named wrapper per handler. Components import the
+wrappers and never call `call()` with a handler string - `client.ts` is the only renderer file in
+which a handler name appears:
 
 ```ts
 /** The registry wraps a plain value, so every call resolves to exactly one Outcome. */
@@ -267,8 +270,12 @@ export function createModuleClient<H extends ModuleContract>(moduleId: ModuleId)
   }
 }
 
-export const newsClient = createModuleClient<NewsModule>('news')
-const feed = await newsClient.call('news.get')          // Outcome<NewsFeed>, inferred
+// modules/news/client.ts - one wrapper per handler, named after it
+const client = createModuleClient<NewsModule>('news')
+export const readNews = () => client.call('news.get')                          // Outcome<NewsFeed>, inferred
+export const refreshNews = () => client.call('news.refresh')                   // Outcome<NewsFeed>
+export const openSlideUrl = (url: string) => client.call('slide.openUrl', url) // Outcome<null>
+export const onNewsChanged = (listener: (feed: NewsFeed) => void) => client.on('news.changed', listener)
 ```
 
 Two casts, both inside this one function, next to the wire type they narrow - where §3's preload keeps
@@ -300,8 +307,9 @@ over the module list and checks for each module that
 
 - registered handlers equal `Object.keys(schemas)` in both directions (the registry exposes
   `handlerTypes(moduleId)`) - a declared handler never registered fails, as does one nobody declared
-- every handler name appears in the module's renderer client source, or in an explicit flow-only
-  allowlist entry with its reason - a handler nobody calls is dead code wearing a contract
+- every handler name appears in the module's `client.ts` - the named wrappers are the only place a
+  handler string may appear in the renderer, so that one file is the whole scan - or in an explicit
+  flow-only allowlist entry with its reason; a handler nobody calls is dead code wearing a contract
 - no handler body matches §5's placeholder pattern
 
 **Module ids come from the manifest list.** A hand-kept `ModuleId` union repeated by the manifest list
@@ -334,7 +342,8 @@ The `module:invoke` payload schema uses `moduleIdSchema`; a new module is addres
 2. Add its schema to the module's schema map - the mapped type tells you if you forget.
 3. Register it in the module's main half through the typed `handle()` from `defineModule` - the
    result type is checked against the map; there is no way to register without the schema.
-4. Call it from the module's renderer client, built with `createModuleClient`. No generic at the call site.
+4. Add a named wrapper for it to the module's `client.ts` (built on `createModuleClient`) and import
+   that from components. No generic and no handler string at the call site.
 5. Run the module's coverage test.
 
 ## Review checklist
@@ -349,7 +358,7 @@ The `module:invoke` payload schema uses `moduleIdSchema`; a new module is addres
 - [ ] No placeholder handler, and no helper that builds one
 - [ ] Coverage test passes: no missing channels, no extras, no placeholders
 - [ ] No raw `ipcRenderer` use and no hardcoded channel string in the renderer
-- [ ] A bus handler is typed from its module's contract map; no `callModule<T>` generic or cast at a call site
+- [ ] A bus handler is typed from its module's contract map; no `callModule<T>` generic or cast at a call site; handler strings appear only in `client.ts`'s named wrappers
 - [ ] One `Outcome` envelope, never nested: the registry passes a handler's `Outcome` through; no flattener or `.value.ok` in a client
-- [ ] Per-module coverage test passes: registered set equals the schema map both ways, every handler has a caller or an allowlist entry
+- [ ] Per-module coverage test passes: registered set equals the schema map both ways, every handler has a wrapper in `client.ts` or an allowlist entry
 - [ ] Module ids derive from the manifest list; the envelope schema uses the derived enum

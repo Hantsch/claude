@@ -215,8 +215,8 @@ rules decide whether what it holds survives thirty sprints of modules:
   ```
 
 - **A failed write is retried once, then surfaced to the user - never only logged.** After a failed
-  rename (Windows `EPERM` under antivirus or a sync client) the cache already holds the new value,
-  so reads report success and `settle()` resolves normally; `.catch(log.error)` on the write chain
+  rename the cache already holds the new value, so reads report success and `settle()` resolves
+  normally; `.catch(log.error)` on the write chain
   lets a whole session vanish with nobody told. Retry once after a short delay, then report through
   the store (`onPersistError`) so the shell shows one notice per session, and have `settle()`
   return whether it succeeded so the quit path can log it.
@@ -255,14 +255,18 @@ exist; if a route is planned but empty, say so in the UI, not in a handler.
 Every rule above about who may import what is checkable, and prose that is not checked decays: in
 one project the shell channels and the pure layer, which had tests, held for thirty sprints; module
 boundaries, state ownership and lifecycle, which had only prose, did not. So the check has a shape -
-**one test file in the node project** that walks the tree, resolves every import specifier and
-asserts one layer rule per `it`:
+**one test file in the node project** that walks both trees, main and renderer, resolves every
+import specifier and asserts one layer rule per `it`:
 
 - `shared/**` imports no `node:*` or `electron` and mentions no DOM type
 - `renderer/**` imports no `electron` or `node:*`
-- `modules/<a>/**` imports nothing from `modules/<b>/` except entries on an allowlist
+- `main/modules/<a>/**` imports nothing from `main/modules/<b>/` except entries on an allowlist
 - shell files under `main/` import only the modules' `index`/`registry` from the modules tree
 - no `electron` import and no `process.env` read under `modules/`
+- the renderer shell (`components/**`, `views/**`) imports nothing from `renderer/.../modules/**`
+  except the module index; `renderer/.../modules/<a>` imports `modules/<b>` only through
+  `modules/<b>/public.ts`; any other cross-module import is an allowlist entry (`renderer-guidelines`
+  states these two rules and points here instead of keeping a test of its own)
 - optionally, soft size caps (a module `index.ts` above N lines fails, with the number in the message)
 
 ```ts
@@ -274,8 +278,12 @@ it('modules never read process.env', () => expectNoToken(files('src/main/modules
 it('modules do not import each other', () => expectNoCrossModuleImport(files('src/main/modules/**'), ALLOWLIST))
 it('the shell sees only the modules index and registry', () =>
   expectImportsInto(files('src/main/!(modules)/**'), 'src/main/modules/', ['index', 'registry']))
+it('the renderer shell sees only the modules index', () =>
+  expectImportsInto(files('src/renderer/src/{components,views}/**'), 'src/renderer/src/modules/', ['index']))
+it('renderer modules reach each other only through public.ts', () =>
+  expectNoCrossModuleImport(files('src/renderer/src/modules/**'), ALLOWLIST, { except: 'public' }))
 
-/** Every entry names the decision that allows it; the next test fails on one that does not. */
+/** Every entry names the story or decision that allows it; the next test fails on one that does not. */
 const ALLOWLIST = [
   { from: 'editor', to: 'library/thumbnails', decision: 'story 042: one thumbnail cache; hoisting is story 051' },
 ]
@@ -284,12 +292,12 @@ it('the allowlist carries a reason per entry', () =>
 ```
 
 Why one tree-walking test and not a purity test per folder: a per-file test reads its own folder
-with `node:fs`, so with two TypeScript projects each needs its own `tsconfig.web.json` exclude (one
-project had four tests and four excludes); a guard inside a module is invisible from elsewhere and
-goes red at a gate because the implementer could not find it; one file at the root is the one place
-a rule is added, and a new module is covered on the day it is created. The allowlist only shrinks -
-a new entry is a decision recorded in a story, not a convenience - and the test, not a reviewer's
-memory, refuses an entry without one.
+with `node:fs`, so with two TypeScript projects each per-folder purity test needs its own
+`tsconfig.web.json` exclude; a guard inside a module is invisible from elsewhere and goes red at a
+gate because the implementer could not find it; one file at the root is the one place a rule is
+added, and a new module is covered on the day it is created. The allowlist only shrinks - a new
+entry carries a story or decision reference (`story 042`, `ADR-7`), not a convenience - and the
+test, not a reviewer's memory, refuses an entry without one. One allowlist serves both trees.
 
 A linter can mirror the import rules so they show while typing: `oxlint` is independent of the
 TypeScript version (no `typescript-eslint` peer dependency to wait for) and its
@@ -315,5 +323,5 @@ test stays the gate - it checks the allowlist's reasons and shell-side rules a l
 - [ ] Every slice change goes through its section mutator; no `get()` -> `await` -> write-back of the snapshot
 - [ ] `before-quit` calls `preventDefault()` once, releases processes, awaits dispose-all plus every store's `settle()` under a bounded timeout, then quits
 - [ ] Everything `setup` starts has an `onDispose`; no module-level `let` kept to make a static `dispose()` reachable
-- [ ] The layering test exists, covers every rule in Layers (including no `electron` import and no `process.env` read under `modules/`), and its allowlist has no entry without a story reference
+- [ ] The layering test exists, covers every rule in Layers (including no `electron` import and no `process.env` read under `modules/`) and the renderer's two import rules (shell sees only the module index; modules only through `public.ts`), and its allowlist has no entry without a story or decision reference
 - [ ] No handler that only throws "not implemented"
