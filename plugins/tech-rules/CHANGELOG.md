@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.3.0 — 2026-10-02
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `electron-arch`: a module owns its persisted section (`section({ key, parse, defaults })`,
   unknown keys kept, the shell file holds shell state only), slices change through a mutator
   only, and quit is awaited (`preventDefault()` once, release processes, dispose-all plus every
