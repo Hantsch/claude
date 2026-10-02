@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.5.0 — 2026-10-02
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - Refine names a helper to reuse; a shape that already exists twice is extracted first, never
   copied a third time.
 - Deliverable agents reuse the named helper, stop on a copied shape (`PARTIAL: shared shape`), and
