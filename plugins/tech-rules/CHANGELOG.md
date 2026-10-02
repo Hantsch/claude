@@ -21,19 +21,16 @@ is empty, so no version ever ships without notes.
   tree-walking test (shared purity, renderer free of `electron`/`node:`, no cross-module import
   outside a story-referenced allowlist, no `electron`/`process.env` under `modules/`), with
   `oxlint` as an optional mirror.
-
 - New skill `electron/renderer-guidelines`: shell + modules layout, import boundaries, one
   query/mutation hook for main-owned data, mandatory desktop primitives (`NameDialog`,
   `ConfirmDialog`, `Tabs`, one `ErrorBoundary`), the rule of three across the tree, component
   size and effect limits, failure surfaces, shared test support.
 - Setup installs `renderer-guidelines` for Electron projects and skips `react/frontend-guidelines`
   there (an installed copy is offered for removal); `design-tokens` stays.
-
 - `typed-ipc` gains "The module bus is a contract too": per-module contract map,
   `defineModule`/`createModuleClient`, one `Outcome` envelope (never nested), a per-module
   coverage test, manifest-derived module ids, and the parallel "Adding a module handler"
   procedure.
-
 - `ui-verify` says what a flow may assert, adds an expected-failure list (quarantine) for
   `flows`, tests the fixture against the app's real state loader, and keeps shared steps in
   `lib/`.
@@ -42,7 +39,6 @@ is empty, so no version ever ships without notes.
   stylesheet.
 - The managed CLAUDE.md block asks for one deviation row per rule deviated from, never one per
   control.
-
 - **`ui-verify`: the invisible run covers every window, not just the main one.** The harness
   flags, offscreen position and throttling switch come from one shared module that every
   `BrowserWindow` uses - an overlay or secondary window that bypasses it is the one that pops up.
