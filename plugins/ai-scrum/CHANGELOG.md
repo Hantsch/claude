@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.5.1 — 2026-10-08
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `/sprint`'s regression gate runs the long suite once: after a gate fix, the fix agent's
   narrow re-run (failing tests, short suites, `e2e-story` on the fix) is the confirmation, and
   `e2e-all` is not launched again. Measured over six sprints, the confirmation re-run was ~45 %
