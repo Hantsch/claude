@@ -12,6 +12,26 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `/sprint`'s regression gate runs the long suite once: after a gate fix, the fix agent's
+  narrow re-run (failing tests, short suites, `e2e-story` on the fix) is the confirmation, and
+  `e2e-all` is not launched again. Measured over six sprints, the confirmation re-run was ~45 %
+  of all gate flow time and never caught a regression a fix had introduced. `/build --full`
+  drops its full re-run after a fix the same way.
+- `/build`'s narrow gate owns its reds: a red or `INCONCLUSIVE` test is this story's to fix or
+  to block on, never "pre-existing, not ours" — only the sprint gate's attribution agent checks
+  the branch base. A stale test or flow left by an earlier story of the same sprint is fixed in
+  the story that finds it.
+- New optional profile key `e2e-story-slices` with a `{shard}` placeholder in `e2e-story`: a
+  story-sized e2e selection that could exceed the ten-minute call ceiling runs as n sequential
+  slices instead of ending inconclusive. `/ai-scrum:setup` offers it only when the runner can
+  slice; `1` (or a missing key) keeps one call.
+- `/refine`'s AC → test mapping gets rules against padding: one test may prove several
+  criteria, wiring criteria ("is registered", "the constant is") get no test of their own, test
+  names carry the behaviour and never a story or AC id, and a story adds at most one new e2e
+  flow per user-facing path, with a reason for a third.
+- `/build`'s review reports a redundant test — same path already proven, a pinned constant or
+  locale string, a mock's own return asserted, a wiring check — as a finding with a delete-or-
+  merge recommendation, so the suite can shrink as well as grow.
 - README documents who runs what: the agent graph of a sprint with each agent's tier, what it
   gets and what it returns, the phase pipeline, and the chain of agents that makes up a story's
   acceptance. It also corrects the file counts and stops quoting a fixed version in the marker.

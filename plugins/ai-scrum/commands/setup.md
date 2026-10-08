@@ -116,7 +116,11 @@ Cover, in this order of importance:
    answer left open becomes `none`. Do not offer `e2e-story` while `e2e` is `none`. When the
    flows live in `e2e-all` and `e2e` is a screen pass (screenshots + axe), offer `e2e-story`
    together with it and say why: without it `/build` falls back to the full `e2e`, which runs
-   none of the flows a story's criteria are mapped to. A fourth,
+   none of the flows a story's criteria are mapped to. `e2e-story-slices` (default `1`) is
+   offered only when `e2e-story` is set and its runner can slice (a `--shard=i/n` or
+   equivalent flag you can see in the runner or its usage line): suggest the n at which one
+   slice of a full selection stays under ten minutes, and the `{shard}` placeholder for the
+   `e2e-story` value; otherwise write `1` without asking. A fourth,
    optional key, `e2e-cleanup`: offer it only when `e2e` or `e2e-all` starts a desktop app or a
    server (Electron, a dev server, an emulator) — a leftover instance from a killed run is what
    makes the next run fail with "already running". Suggest the process name you can see

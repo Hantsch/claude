@@ -37,6 +37,7 @@ e2e: <functional tests that drive the real app, e.g. npm run test:e2e | dotnet t
 
 test-story: none <!-- e.g. npx vitest run --changed HEAD | npx jest --onlyChanged | pytest -q --picked | none -->
 e2e-story: none <!-- e.g. npx playwright test {files} | npm run ui:flow -- {test} | dotnet test --filter "FullyQualifiedName~{test}" | pytest -q "{file}::{test}" | none -->
+e2e-story-slices: 1 <!-- 1 = one call; n > 1 only when e2e-story carries {shard} and one call could exceed ten minutes — /build then runs {shard} = 1/n … n/n in sequence -->
 e2e-all: none <!-- e.g. npm run ui:flows | npx playwright test --project=flows | none -->
 e2e-cleanup: none <!-- e.g. taskkill /F /IM electron.exe | pkill -f electron | none — stops what a crashed or killed e2e run leaves behind; /sprint runs it before relaunching a suite. It kills your own running instance too. -->
 <!--
@@ -58,6 +59,12 @@ e2e-cleanup: none <!-- e.g. taskkill /F /IM electron.exe | pkill -f electron | n
                space-separated, one run; `{file}` / `{test}` = one run per mapped line,
                with its file and its test name. Fallback when missing or `none`: the full
                `e2e`, as before. Ignored while `e2e` is `none`.
+  e2e-story-slices = how many calls /build splits one `e2e-story` run into. 1 (the default,
+               also when the key is missing) is one call. Set n > 1 and put `{shard}` into
+               `e2e-story` (e.g. `--shard={shard}`) when a story's selection can take longer
+               than ten minutes, the ceiling of a single tool call; /build then runs
+               `{shard}` = 1/n … n/n in sequence and reads the outputs as one run. Rule of
+               thumb: n = worst-case minutes of a full selection divided by 8, rounded up.
   e2e-all    = every acceptance flow, where they are a suite of their own next to `e2e`
                (e.g. `e2e` = screenshots + axe, `e2e-all` = all user flows). Runs only
                in the sprint's regression gate, never per story. `none` = `e2e` already
