@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.6.0 — 2026-10-27
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `/refine`: a criterion about speed is proven by a test that counts what the code does (bytes,
   files, calls), never by a wall-clock assertion in `test`; a wall-clock budget is never an
   `## Acceptance Tests` line - a deliverable may name one for the advisory perf lane, once the
