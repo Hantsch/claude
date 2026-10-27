@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 1.2.0 — 2026-10-27
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `/common:architecture-review` decides where tests run: the tests-and-tooling dimension is now
   three reviewers (lanes and gates, suite value, runtime and flakiness) that review against the
   project's `test-gates` rules (tech-rules) without running a suite themselves. After
