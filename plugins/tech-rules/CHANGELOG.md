@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.4.0 — 2026-10-27
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `test-gates` (group `all`, installed in every project): which test runs in which lane - PR
   (core functionality, 6 min on the CI runner), release (smoke only, and the PR lane too unless
   the release branch provably only takes PRs with a green PR lane), release prep (everything,
