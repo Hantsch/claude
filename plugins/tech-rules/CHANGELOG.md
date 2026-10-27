@@ -12,6 +12,35 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `test-gates` (group `all`, installed in every project): which test runs in which lane - PR
+  (core functionality, 6 min on the CI runner), release (smoke only, and the PR lane too unless
+  the release branch provably only takes PRs with a green PR lane), release prep (everything,
+  locally) and perf (advisory, never blocks) - and what a test in a blocking lane may do: no
+  wall-clock assertions (cost is counted instead), timeouts only as hang detectors and never
+  lowered per test, clock/zone/locale and long-form temp paths from the config, hermetic, no
+  retries. The lane map as a `## Test lanes` table in `CLAUDE.md` with a command per lane, one
+  runtime version file read by CI, how the perf lane warns (`PERF-BUDGET` marker lines, a
+  `::warning` annotation), flaky / brittle / pointless tests and the quarantine, the procedure for
+  a test that is red on CI and green locally, and what a project can add to enforce it (a lint
+  rule for the common shape, guard tests, a pre-push hook) - none of which setup installs.
+- `test-review` (group `all`, user-invoked): `/test-review [all|staged|branch [<base>]|<path>]`,
+  the test engineer - measures the PR lane's runner, sweeps the suite for wall-clock, timeout,
+  clock, path, sleep and history evidence, has one agent per ~4k test lines classify every test
+  (function, perf, env, brittle, wiring, duplicate) and its lane, and writes
+  `<docs>/reviews/<date>-test-review.md`. Read-only.
+- `release-prep` (group `all`, user-invoked): `/release-prep [<release branch>]` runs everything
+  the project can run before a release - every lane, all e2e flows, other platforms, perf,
+  packaging, the release dry run - in a throwaway worktree of the merge result with a clean
+  install, under CI-like conditions (`CI=true`, no publish credentials, an 8.3 temp path on
+  Windows, the runtime version checked), fastest first, each distinct command once, re-runs a
+  failing test once alone to tell red from flaky, and writes `<docs>/releases/<date>-release-prep.md`
+  with a `GO` / `GO with warnings` / `NO-GO` verdict. Changes nothing in the repository.
+- `setup`: the `CLAUDE.md` block gets a `/test-gates` row and one line on `/test-review` and
+  `/release-prep`; the report says whether the project has a `## Test lanes` table.
+- `ui-verify`: the offscreen check waits for ten animation frames before the central wait timeout
+  instead of "within two seconds", and the mixed-DPI re-placement polls the window position
+  instead of sleeping ~200 ms - both in line with `test-gates`.
+
 ## 2.3.0 — 2026-10-02
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

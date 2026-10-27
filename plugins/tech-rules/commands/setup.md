@@ -39,7 +39,7 @@ touch `.gitignore`, and does not commit.
 
 | Group | Skills | Install when |
 | --- | --- | --- |
-| `all` | `karpathy` | always |
+| `all` | `karpathy`, `test-gates`, `test-review`, `release-prep` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or any `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` — unless `react-native` or `expo` sits in the same file: the rules assume a DOM and Tailwind, so that is a *looks wrong* case for Phase 2, not a detection |
 | `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
@@ -207,9 +207,13 @@ no plugin needed. Installed and updated with `/tech-rules:setup` (plugin `tech-r
 | Read before | Skill |
 | --- | --- |
 | any code change | `/karpathy` |
+| writing or moving a test, touching a test config or a CI workflow | `/test-gates` |
 | touching `<frontend path>` | `/frontend-guidelines`, `/design-tokens` |
 | touching `<backend path>` | `/backend-guidelines`, `/composition-root`, `/csharp-unittest` |
 | main / preload / renderer, IPC, `webPreferences` | `/electron-arch`, `/typed-ipc` |
+
+`/test-review` reviews the test suite and writes a report; `/release-prep` runs every test lane
+before a release. Which command is which lane is this project's `## Test lanes` table.
 
 Do not edit a skill to make it fit this project. A deviation is recorded **here**, with its
 reason, and wins over the skill — one row per rule deviated from, listing the places, never one
@@ -247,6 +251,10 @@ Short and complete:
   of the rules, they do not enforce them. Real enforcement is a lint rule, a test, or a
   `PostToolUse` hook in `.claude/settings.json`. If the project has a lint or typecheck script,
   offer the hook as a snippet the user can paste — you do not write that file.
+- **Test lanes.** Whether `CLAUDE.md` has a `## Test lanes` table (the lane map `test-gates`
+  describes). Setup never writes it: without one, say that `/test-review` proposes it and
+  `/common:architecture-review tests` decides it - the latter needs the per-user plugin
+  `common@hantsch` (`claude plugin install common@hantsch --scope user`).
 - **Commit reminder:** `.claude/skills/`, `.claude/tech-rules.lock` and the `CLAUDE.md` block only
   reach the team once they are committed — name the paths, do not commit them yourself.
 - Next step: nothing to run. The skills are live in this session; check with `/skills`.
