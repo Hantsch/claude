@@ -11,7 +11,7 @@ answers, and three commands that are useful in every repository.
 | `output-styles/kis.md` | style **KIS** | Keep it simple: small words, short sentences, only what is necessary. At most 2 options when a decision is needed. |
 | `commands/premortem.md` | `/common:premortem` | Assume the plan failed, work backward to causes, early warning signs and preventions. Reads the actual plan first and checks it against the repository. |
 | `commands/secrets-scan.md` | `/common:secrets-scan` | Scan staged changes, the tree or history for credentials, connection strings and secrets leaking through logs. |
-| `commands/architecture-review.md` | `/common:architecture-review` | Whole-codebase review: one reviewer per dimension, findings merged and verified, a dated report plus one draft story per confirmed cluster. |
+| `commands/architecture-review.md` | `/common:architecture-review` | Whole-codebase review: one reviewer per dimension, findings merged and verified, a dated report plus one draft story per confirmed cluster. Decides which tests run in which lane; `tests` as the scope reviews only the test suite. |
 
 ### Where the karpathy rules went
 
@@ -75,6 +75,12 @@ public.
 
 `/common:architecture-review` is for a phase end or an overgrown follow-up list, not every sprint;
 it enforces nothing and only writes a report and `draft` stories for `/refine` to re-measure.
+`/common:architecture-review tests` is the small run for the test suite alone: it decides which
+tests belong in the PR lane, the release smoke, release prep or the perf lane (the lanes of
+tech-rules' `test-gates`), aiming to bring the blocking lanes within their budgets (6 minutes on
+the CI runner unless the project's lane map says otherwise), and cuts the moves into stories - the
+lanes change only when those stories are built. Run it when a lane is over budget or after
+`/test-review`.
 
 ## Adding your own style
 

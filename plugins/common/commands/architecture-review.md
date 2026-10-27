@@ -1,6 +1,6 @@
 ---
-description: Whole-codebase architecture review - one reviewer per dimension, findings merged and verified, a dated report and one draft story per confirmed cluster.
-argument-hint: [scope]  (optional: a path or module name to narrow the review)
+description: Whole-codebase architecture review - one reviewer per dimension, findings merged and verified, a dated report and one draft story per confirmed cluster. With the scope `tests` it reviews only the test suite and decides which tests run in which lane.
+argument-hint: [scope]  (optional: a path or module name to narrow the review, or `tests`)
 model: opus
 effort: high
 ---
@@ -23,6 +23,9 @@ code changes only when a story is refined and built. What it does not see: runti
 performance under load, and any file no reviewer opened.
 
 `$ARGUMENTS`, if set, narrows the review to a path or a module name. Empty means the whole repo.
+The literal `tests` is the test-only review: only the tests-and-tooling dimension, split as
+described in `## Tests - the lane decision`, and nothing else. Use it when a lane is over its time
+budget, when releases fail on tests that found no defect, or after `/test-review` wrote a report.
 
 ## Mechanics
 
@@ -66,12 +69,14 @@ performance under load, and any file no reviewer opened.
    - services and core logic (ownership, lifetime, dependency direction);
    - one per module or feature area - split one of more than ~15k lines, merge tiny ones;
    - UI state and conventions, where there is a UI;
-   - tests and tooling (suite shape, shared support, CI, gates, flakiness);
+   - tests and tooling (suite shape, shared support, CI, gates, flakiness, and the lane
+     decision in `## Tests - the lane decision`);
    - docs and process (docs against the code, decision records, follow-up hygiene);
    - cross-module duplication (the same shape hand-written in several places);
    - robustness and error handling (failure paths, shutdown, persistence, timeouts).
    Typically 8-14 reviewers. With a scope: only the dimensions that intersect it, plus
-   duplication and robustness restricted to it.
+   duplication and robustness restricted to it. With the scope `tests`: the three test reviewers
+   of `## Tests - the lane decision` and nothing else.
 4. Next free story id: the highest id under `requirements-path`, its `done/` folder and any done
    index, plus one, formatted per `story-id-format`.
 5. Show the plan in one block and ask once whether to proceed: the dimensions with what each
@@ -100,6 +105,44 @@ rules, and the output file. The rules, verbatim:
   `files`, `evidence` (the counted facts), `problem` (what it costs and whom), `recommendation`
   (the smallest change that removes the cause), `effort` - then an assessment of 3-6 sentences,
   what is good first. Return only the path, the count per severity and the assessment.
+
+## Tests - the lane decision
+
+The architect decides where each test runs - in the PR lane, the release smoke, release prep or
+the perf lane - and keeps those lanes fast and trustworthy. The tests-and-tooling dimension is
+therefore three reviewers (`model: "sonnet"`, sent with the others), each with the brief below on
+top of the Phase 1 rules. The rules are the project's `test-gates` skill
+(`.claude/skills/test-gates/SKILL.md`, installed by tech-rules) - the reviewers read it and this
+command keeps no copy of it. A project without it gets one finding saying so, and the lane review
+is limited to what the workflows, scripts and timings show. The budgets come from the
+`## Test lanes` table in `CLAUDE.md`; without a table, from `test-gates`.
+
+- **Lanes and gates** - the lane map against what the CI workflows and scripts really run, and the
+  test files no command runs; whether the release lane may skip the PR lane (the protection
+  condition in `test-gates`); the runtime version file and whether every workflow reads it;
+  whether the release lane is a smoke test or a second full run; which platform blocks.
+- **Suite value** - tests in a blocking lane that measure speed or depend on the environment;
+  brittle, pointless and duplicate tests; the e2e flows by product promise - which are core
+  journeys for the PR lane or the smoke, which belong to release prep only; a core function the
+  README or `CLAUDE.md` promises that no test in the PR lane covers.
+- **Runtime and flakiness** - the PR lane's minutes as `test-gates` defines them (CI median via
+  `gh run list` if available; otherwise the newest test-review or release-prep report), the 20
+  slowest tests, test files with a history of test or CI fix commits, the age of every quarantine
+  entry. **No reviewer runs a suite** - it would compete with a dozen others for the machine. No
+  CI data and no report means `not measured - run /test-review first`, said in the finding. This
+  reviewer's output ends with a duration table `| Tests | Lane | Seconds | Source |` for the merge.
+
+The newest `<reviews>/*-test-review.md` and `<docs>/releases/*-release-prep.md`, if present, are
+where these reviewers start; each finding says what it reused.
+
+Their findings merge and verify like any other. The **decided lane map** comes after
+verification, in Phase 4: `<work>/4-lanes.md` holds the `## Test lanes` table as it should be,
+and one row per test file or group that moves - `| Tests | From | To | Why | Seconds saved |
+Finding |`. Every move cites a finding that survived Phase 3 (or an unverified one, marked
+`reviewer-only`), its seconds come from the duration table, and the moves are chosen so that the
+PR lane and the release lane fit their budgets. A move to `delete` names the test that keeps the
+coverage. The decision lands in the report and in stories; `CLAUDE.md` and the suite change only
+when such a story is built.
 
 ## Phase 2 - merge
 
@@ -135,6 +178,11 @@ stands.
 
 ## Phase 4 - report and stories
 
+**Decide the lanes first** (when the tests dimension ran): write `<work>/4-lanes.md` as described
+in `## Tests - the lane decision`, from `2-findings.md`, `3-verify.md` and the runtime reviewer's
+duration table. Like every phase file, it is the resume marker: a run that stops after it starts
+again at the stories.
+
 **Cut the stories.** A cluster is the set of findings one change removes; a finding may feed two
 stories. A cluster becomes a story when at least one of its findings stands and was judged worth
 doing, or is an unverified high or medium. A story fits one refine (S or M; L only when it
@@ -152,6 +200,10 @@ is listed under "left out on purpose", with the reason.
    that should go before everything else.
 3. **Story map.** `| # | Story | Findings | Prio | Effort | After |`, in build order within each
    priority, followed by a suggested cut into sprints that are each demonstrable on their own.
+3b. **Test lanes** (when the tests dimension ran): the decided lane map from `4-lanes.md`, the
+   moves table, each lane's minutes before and after, and the story that carries each move. Moves
+   of one kind form one story - "speed checks out of the PR lane", "delete the pointless tests",
+   "a release smoke lane" - not one story per test file.
 4. **Findings.** `| Id | Sev | Finding | Check | Story |`, one line per finding. Check is
    `refuter` (survived the refuter), `judged` (value judge only), `refuted`, or `reviewer-only`;
    a legend says so. Then the left-out list.

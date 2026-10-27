@@ -12,6 +12,14 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `/common:architecture-review` decides where tests run: the tests-and-tooling dimension is now
+  three reviewers (lanes and gates, suite value, runtime and flakiness) that review against the
+  project's `test-gates` rules (tech-rules) without running a suite themselves. After
+  verification, Phase 4 writes a decided lane map - one row per test group that moves, each citing
+  a verified finding and its seconds - chosen to fit the lanes' budgets, and the report gets a
+  `Test lanes` section whose moves become stories. `/common:architecture-review tests` runs only
+  that part.
+
 ## 1.1.0 — 2026-10-02
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
