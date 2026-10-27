@@ -12,6 +12,13 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `/refine`: a criterion about speed is proven by a test that counts what the code does (bytes,
+  files, calls), never by a wall-clock assertion in `test`; a wall-clock budget is never an
+  `## Acceptance Tests` line - a deliverable may name one for the advisory perf lane, once the
+  project's config excludes that lane from `test`. A new flow is not a release smoke test - the
+  lane map decides that.
+- `/build`: deliverable agents are told that a test in `test` never asserts elapsed time, lowers a
+  timeout or reads the real clock or zone, and the code review reports such a test as a finding.
 - `/sprint`'s regression gate runs the long suite once: after a gate fix, the fix agent's
   narrow re-run (failing tests, short suites, `e2e-story` on the fix) is the confirmation, and
   `e2e-all` is not launched again. Measured over six sprints, the confirmation re-run was ~45 %
