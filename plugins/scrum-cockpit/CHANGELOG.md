@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 1.1.0 — 2026-10-28
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - The pane is now a stack of cards that follows the sprint's phase. A heading card shows the phase,
   the current milestone, a step bar (Clarify, Refine, Build, Gate, Review) and the sprint's progress,
   as a ring where the surface can draw one.
