@@ -1,0 +1,171 @@
+/* Shared chrome for the scrum-cockpit prototypes: a VS Code frame and a
+   terminal frame. Each variant styles only its own pane content. */
+
+:root {
+  --claude: #d97757;
+  --ok: #4eba65;
+  --warn: #e5b33b;
+  --err: #ff6b80;
+  --sug: #b1b9f9;
+  --plan: #48968c;
+  --auto: #af87ff;
+  --ide: #4782c8;
+  --dim: #8a8a8a;
+  --text: #d4d4d4;
+
+  --vs-bg: #1f1f1f;
+  --vs-pane: #181818;
+  --vs-border: #2b2b2b;
+  --vs-btn: #0e7ac4;
+  --vs-btn-hover: #1a8ad8;
+  --vs-font: "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --t-bg: #0c0c0c;
+  --t-font: "Cascadia Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0a0a0b;
+  color: var(--text);
+  font-family: var(--vs-font);
+}
+
+/* --- page --- */
+
+.page { max-width: 1680px; margin: 0 auto; padding: 24px 28px 60px; }
+
+.nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.nav a {
+  color: #bbb; text-decoration: none; font-size: 13px;
+  padding: 5px 12px; border-radius: 999px; border: 1px solid #333;
+}
+.nav a:hover { border-color: #666; color: #fff; }
+.nav a.on { background: var(--claude); border-color: var(--claude); color: #fff; }
+
+.intro h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; }
+.intro h1 small { color: var(--dim); font-weight: 400; font-size: 15px; margin-left: 8px; }
+.intro p { margin: 4px 0; color: #aaa; max-width: 1100px; line-height: 1.5; font-size: 14px; }
+.intro .uses { font-size: 12.5px; color: #888; }
+.intro .uses code { background: #1d1d1d; border: 1px solid #2c2c2c; border-radius: 4px; padding: 0 5px; color: #ccc; }
+
+.surfaces {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  margin-top: 20px;
+  align-items: start;
+}
+@media (max-width: 1350px) { .surfaces { grid-template-columns: 1fr; } }
+
+.surface-label {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: #777; margin: 0 0 8px 2px;
+}
+
+/* --- VS Code frame --- */
+
+.vscode {
+  border: 1px solid #333; border-radius: 10px; overflow: hidden;
+  background: var(--vs-bg); box-shadow: 0 20px 50px rgba(0,0,0,.5);
+  font-size: 13px;
+}
+.vscode .tabs {
+  display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 10px;
+  background: #181818; border-bottom: 1px solid var(--vs-border); color: #999;
+}
+.vscode .tabs span { padding: 4px 9px; border-radius: 5px; }
+.vscode .tabs span.on { background: #2a2a2a; color: #eee; }
+.vscode .body { display: grid; grid-template-columns: 36% 64%; height: 820px; }
+.vscode .chat {
+  display: flex; flex-direction: column; border-right: 1px solid var(--vs-border);
+  min-width: 0;
+}
+.vscode .chat .title { padding: 10px 14px; border-bottom: 1px solid var(--vs-border); font-weight: 600; color: #ddd; }
+.vscode .chat .log { flex: 1; min-height: 0; padding: 14px; color: #aaa; overflow: hidden; line-height: 1.5; }
+.vscode .chat .log .me { background: #2a2a2a; border-radius: 8px; padding: 8px 10px; color: #ddd; margin-bottom: 12px; }
+.vscode .chat .log .tool { font-size: 12px; color: #888; margin: 6px 0; }
+.vscode .chat .log .tool b { color: #bbb; font-weight: 600; }
+.vscode .band-slot { padding: 0 10px 6px; }
+.vscode .input {
+  margin: 0 10px 12px; border: 1px solid #3a3a3a; border-radius: 8px;
+  padding: 10px 12px; color: #777; background: #242424; height: 64px;
+}
+.vscode .pane { display: flex; flex-direction: column; background: var(--vs-pane); min-width: 0; }
+.vscode .pane-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--vs-border); font-weight: 600; color: #ddd;
+}
+.vscode .pane-head .x { color: #888; font-weight: 400; }
+.vscode .pane-sub { padding: 6px 14px 0; font-size: 11.5px; color: #777; }
+.vscode .pane-body { padding: 10px 14px 16px; overflow: auto; flex: 1; line-height: 1.45; }
+
+/* the engine's native button in the webview */
+.vbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--vs-btn); color: #fff; border: 0; border-radius: 3px;
+  padding: 3px 9px; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.vbtn:hover { background: var(--vs-btn-hover); }
+.vbtn.secondary { background: #3a3d41; }
+.vbtn.secondary:hover { background: #45494e; }
+.vbtn.plain { background: transparent; color: #9cdcfe; padding: 0; }
+.vbtn .meta { opacity: .75; font-size: 11.5px; }
+
+/* --- Terminal frame --- */
+
+.term {
+  border: 1px solid #333; border-radius: 10px; overflow: hidden;
+  background: var(--t-bg); box-shadow: 0 20px 50px rgba(0,0,0,.5);
+}
+.term .bar {
+  height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 12px;
+  background: #1b1b1b; border-bottom: 1px solid #2a2a2a; color: #888; font-size: 12px;
+}
+.term .bar i { width: 11px; height: 11px; border-radius: 50%; background: #444; display: inline-block; }
+.term .bar i:nth-child(1) { background: #ff5f57; }
+.term .bar i:nth-child(2) { background: #febc2e; }
+.term .bar i:nth-child(3) { background: #28c840; }
+.term .bar span { margin-left: 10px; }
+.term .screen { display: flex; height: 820px; font-family: var(--t-font); font-size: 12.5px; }
+.term pre {
+  margin: 0; font-family: var(--t-font); font-size: 12.5px; line-height: 1.32;
+  color: var(--text); white-space: pre; overflow: hidden;
+}
+.term .left { width: calc(56ch + 20px); flex: none; display: flex; flex-direction: column; padding: 8px 10px; }
+.term .left .log { flex: 1; }
+.term .right { width: calc(54ch + 20px); flex: none; border-left: 1px solid #333; padding: 8px 10px; }
+/* one cell per glyph, even where a symbol falls back to another font */
+.term .g { display: inline-block; width: 1ch; text-align: center; overflow: visible; }
+
+/* terminal colors (Claude Code dark theme keys) */
+.cl { color: var(--claude); }
+.ok { color: var(--ok); }
+.wa { color: var(--warn); }
+.er { color: var(--err); }
+.su { color: var(--sug); }
+.pm { color: var(--plan); }
+.au { color: var(--auto); }
+.ide { color: var(--ide); }
+.dm { color: #7a7a7a; }
+.b { font-weight: 700; }
+.u { text-decoration: underline; }
+.inv { background: var(--text); color: #111; }
+.bgc { background: var(--claude); color: #111; }
+.bgok { background: var(--ok); color: #111; }
+.bgsu { background: var(--sug); color: #111; }
+.bgdk { background: #262626; }
+.bgdk2 { background: #1a1a1a; }
+
+/* a terminal Button: `[ label ]`, hover inverts as the engine does */
+.tb { cursor: pointer; }
+.tb:hover { background: var(--text); color: #111; }
+
+.note {
+  margin-top: 26px; border: 1px solid #2c2c2c; border-radius: 8px; padding: 12px 16px;
+  font-size: 13px; color: #aaa; line-height: 1.55; background: #121212;
+}
+.note b { color: #ddd; }
+.note ul { margin: 6px 0 0; padding-left: 20px; }

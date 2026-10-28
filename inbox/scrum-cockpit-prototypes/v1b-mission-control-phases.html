@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · 1b · Mission Control, by phase</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* the v1 card language */
+  .v1 .card { border: 1px solid #2f2f2f; border-radius: 8px; background: #1d1d1d; padding: 10px 12px; margin-bottom: 10px; }
+  .v1 .card.hero { border-color: #5a3a2c; background: linear-gradient(135deg, #2a1d17 0%, #1d1d1d 60%); }
+  .v1 .card.focus { border-color: #7a4a35; box-shadow: 0 0 0 1px #3a2318 inset; }
+  .v1 .card.warn { border-color: #5c4a1c; background: #221d10; }
+  .v1 .card-h {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 6px;
+  }
+  .v1 .chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #2a2a2a; color: #bbb; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+  .v1 .chip.ok { background: #183320; color: var(--ok); }
+  .v1 .chip.run { background: #3a2318; color: var(--claude); }
+  .v1 .chip.warn { background: #3a3014; color: var(--warn); }
+  .v1 .hero-row { display: flex; gap: 14px; align-items: center; }
+  .v1 .hero h2 { margin: 0; font-size: 18px; font-weight: 600; color: #eee; }
+  .v1 .hero .ms { color: var(--claude); font-weight: 600; margin-top: 2px; font-size: 12.5px; }
+  .v1 .foot { color: #777; font-size: 11.5px; margin-top: 10px; }
+  .v1 .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .v1 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .v1 .mono { font-family: var(--t-font); font-size: 11.5px; }
+  .v1 .dim { color: #888; }
+
+  /* the sprint's phases */
+  .v1 .stepper { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 11.5px; }
+  .v1 .stepper span { padding: 2px 8px; border-radius: 999px; background: #262626; color: #777; white-space: nowrap; }
+  .v1 .stepper span.done { background: #17291c; color: var(--ok); }
+  .v1 .stepper span.now { background: var(--claude); color: #1a1a1a; font-weight: 600; }
+  .v1 .stepper i { flex: 1; height: 1px; background: #3a3a3a; min-width: 6px; }
+  .v1 .stepper i.done { background: #2d5a37; }
+
+  .v1 .bar { height: 6px; border-radius: 3px; background: #2c2c2c; overflow: hidden; display: flex; }
+  .v1 .bar i { display: block; height: 100%; }
+
+  /* refinement: one row per story still refining, its agent merged in */
+  .v1 .rrow { display: grid; grid-template-columns: 12px 30px minmax(0, 1fr) 54px 30px; column-gap: 7px; row-gap: 0; align-items: center; padding: 3px 0; line-height: 1.35; }
+  .v1 .rrow + .rrow { border-top: 1px solid #252525; }
+  .v1 .rrow .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ddd; }
+  .v1 .rrow .a { grid-column: 3 / 6; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #8b93c9; }
+  .v1 .rrow .id { color: #999; }
+  .v1 .rrow .time { text-align: right; color: #aaa; font-size: 12px; }
+  .v1 .rrow.quiet .a { color: var(--warn); }
+  .v1 .el { height: 4px; border-radius: 2px; background: #2c2c2c; position: relative; }
+  .v1 .el i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--claude); border-radius: 2px; opacity: .85; }
+  .v1 .el b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: #777; }
+  .v1 .more { color: #888; font-size: 12px; padding: 5px 0 2px 19px; border-top: 1px solid #252525; }
+  .v1 .idchips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; font-size: 12px; color: #888; }
+  .v1 .idchips span { padding: 0 6px; border-radius: 4px; background: #17291c; color: var(--ok); font-family: var(--t-font); font-size: 11.5px; }
+
+  /* agents as a summary when every agent is one story's refine */
+  .v1 .dots { display: flex; gap: 3px; flex-wrap: wrap; margin: 2px 0 6px; }
+  .v1 .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--claude); }
+  .v1 .dots i.ok { background: var(--ok); opacity: .7; }
+  .v1 .dots i.wa { background: var(--warn); }
+
+  /* build: one story in focus */
+  .v1 .focus h3 { margin: 0; font-size: 16px; font-weight: 600; color: #eee; }
+  .v1 .focus h3 b { color: #999; font-weight: 500; margin-right: 6px; }
+  .v1 .stages { display: flex; align-items: center; gap: 3px; margin: 10px 0 6px; flex-wrap: wrap; }
+  .v1 .stages span { font-size: 11px; padding: 2px 7px; border-radius: 4px; background: #262626; color: #777; font-family: var(--t-font); }
+  .v1 .stages span.done { background: #17291c; color: var(--ok); }
+  .v1 .stages span.now { background: #3a2318; color: var(--claude); outline: 1px solid var(--claude); }
+  .v1 .stages em { color: #555; font-style: normal; margin: 0 2px; }
+  .v1 .tree { margin-top: 10px; border-top: 1px solid #2a2a2a; padding-top: 8px; }
+  .v1 .ag { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; padding: 3px 0; align-items: start; }
+  .v1 .ag.sub { padding-left: 18px; position: relative; }
+  .v1 .ag.sub::before { content: ""; position: absolute; left: 6px; top: -4px; width: 9px; height: 13px; border-left: 1px solid #555; border-bottom: 1px solid #555; }
+  .v1 .ag .who { color: #ddd; }
+  .v1 .ag .who span { color: #888; font-size: 12px; margin-left: 4px; }
+  .v1 .ag .act { font-family: var(--t-font); font-size: 11.5px; color: #9aa4d9; }
+  .v1 .ag .time { font-size: 12px; color: #888; text-align: right; white-space: nowrap; }
+  .v1 .alive { font-size: 11.5px; color: #888; margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+  .v1 .alive .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px #1e3a25; }
+  .v1 .queue { display: flex; flex-wrap: wrap; gap: 4px; }
+  .v1 .queue span { font-family: var(--t-font); font-size: 11.5px; padding: 2px 6px; border-radius: 4px; background: #242424; color: #777; }
+  .v1 .queue span.ok { background: #17291c; color: var(--ok); }
+  .v1 .queue span.now { background: var(--claude); color: #1a1a1a; font-weight: 700; }
+  .v1 .pulse-dot { color: var(--claude); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .v1-band {
+    display: flex; align-items: center; gap: 7px; font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden;
+    border: 1px solid #3c2a22; background: #201814; border-radius: 6px; padding: 4px 8px;
+  }
+  .v1-band .mini { width: 50px; height: 5px; border-radius: 3px; background: #333; overflow: hidden; flex: none; }
+  .v1-band .mini i { display: block; height: 100%; background: var(--claude); }
+  .v1-band .sp { flex: 1; }
+
+  /* state switch */
+  .switch { display: flex; gap: 6px; margin: 18px 0 0; align-items: center; }
+  .switch span { color: #888; font-size: 13px; margin-right: 6px; }
+  .switch button {
+    font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #3a3a3a; background: #161616; color: #ccc;
+  }
+  .switch button.on { background: var(--claude); border-color: var(--claude); color: #111; font-weight: 600; }
+  .state { display: none; }
+  .state.on { display: block; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>1b · Mission Control, by phase <small>the pane follows the sprint's shape</small></h1>
+    <p>Same card language as variant 1, but the middle of the pane changes with the phase <code>/sprint</code> is in.
+      <b>Refinement</b> runs every story at once, so the pane shows the stories still refining first, with their agent folded into the row,
+      and counts for everything else. <b>Build</b> runs one story at a time, so that story becomes the focus card: its stage, its
+      deliverables and the at most three agents working on it, while the rest of the sprint shrinks to a row of chips.</p>
+    <p class="uses">Phase, focus story and stage come from <code>progress.md</code>'s trail lines (<code>refine · … · started</code>,
+      <code>026 · D4 … · started</code>, <code>026 · verify</code>, <code>026 · review 1</code>, <code>gate</code>);
+      the agents from <code>agent.spawn</code> / <code>tool.call</code>, matched to a story by the id in their description.</p>
+  </div>
+
+  <div class="switch"><span>Sprint phase:</span>
+    <button data-s="refine" class="on">Refinement · 12 stories in parallel</button>
+    <button data-s="build">Build · story 5 of 12</button>
+  </div>
+
+  <div class="state on" data-state="refine">
+    <div class="surfaces"><div id="vs-refine"></div><div id="t-refine"></div></div>
+  </div>
+  <div class="state" data-state="build">
+    <div class="surfaces"><div id="vs-build"></div><div id="t-build"></div></div>
+  </div>
+
+  <div class="note">
+    <b>Rules that keep it readable at any size</b>
+    <ul>
+      <li><b>Refinement:</b> stories still refining come first, longest-running on top; at most 8 rows, then <i>+N more running</i>.
+        Refined stories collapse to id chips, and the header carries the count (3/12). Each agent is one story's refine, so the agents
+        card shrinks to counts, model and the longest runner instead of repeating the list.</li>
+      <li><b>Quiet agent:</b> no tool call for 3 minutes turns its row amber and puts its id in the agents summary. The sprint
+        command's own rule, a trail silent for 15 minutes, turns the pulse amber with the time.</li>
+      <li><b>Build:</b> exactly one focus card: the story, its stage (D1…Dn → Verify → Review → Done, with the current one outlined),
+        when the step started, and the agents as a tree (builder → deliverable or review agent), never more than three rows.
+        Story times so far give the estimate.</li>
+      <li><b>Sprint:</b> one row of chips (✓ done, ● focus, ○ queued); a blocked story is an amber chip. Hovering a chip could open a card
+        with its time and commit.</li>
+      <li><b>Gate and Review</b> use the same focus card: the suite and the age of its last log line, or the review in progress.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="base.js"></script>
+<script>
+nav('v1b-mission-control-phases.html')
+
+document.querySelectorAll('.switch button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.switch button').forEach(x => x.classList.toggle('on', x === b))
+  document.querySelectorAll('.state').forEach(s => s.classList.toggle('on', s.dataset.state === b.dataset.s))
+}))
+
+const ring = (pct, label, size = 58) => {
+  const r = 23, c = 2 * Math.PI * r
+  return `<svg width="${size}" height="${size}" viewBox="0 0 58 58">
+    <circle cx="29" cy="29" r="${r}" fill="none" stroke="#33302e" stroke-width="6"/>
+    <circle cx="29" cy="29" r="${r}" fill="none" stroke="#d97757" stroke-width="6" stroke-linecap="round"
+      stroke-dasharray="${c * pct} ${c}" transform="rotate(-90 29 29)"/>
+    <text x="29" y="33" text-anchor="middle" font-size="12.5" font-weight="600" fill="#eee" font-family="Segoe UI">${label}</text>
+  </svg>`
+}
+
+const stepper = now => {
+  const steps = ['Clarify', 'Refine', 'Build', 'Gate', 'Review']
+  const at = steps.indexOf(now)
+  return `<div class="stepper">${steps.map((s, i) => {
+    const cls = i < at ? 'done' : i === at ? 'now' : ''
+    return (i ? `<i class="${i <= at ? 'done' : ''}"></i>` : '') + `<span class="${cls}">${i < at ? '✓ ' : ''}${s}</span>`
+  }).join('')}</div>`
+}
+
+const hero = (now, ringPct, ringLabel, sub) => `
+  <div class="card hero">
+    <div class="card-h"><span>Phase 14 · Sprint S14</span><span class="chip ok">ai-scrum 4.6.0 · tech-rules 2.4.0 ✓</span></div>
+    <div class="hero-row">
+      ${ring(ringPct, ringLabel)}
+      <div style="min-width:0">
+        <h2>Abenteuer-Editor</h2>
+        <div class="ms">▶ M15 Kampagnen &amp; Kampf</div>
+        <div class="dim" style="font-size:12px;margin-top:3px">${sub}</div>
+      </div>
+    </div>
+    ${stepper(now)}
+  </div>`
+
+const waiting = `
+  <div class="card warn">
+    <div class="card-h"><span style="color:var(--warn)">⚠ Waiting on you</span><span class="chip warn">2</span></div>
+    <div style="color:#cfc4a0;font-size:12.5px">ContentStorage:SourcePath in appsettings.Development.json · S10 playtest</div>
+  </div>`
+
+const footer = `
+  <div class="actions">
+    <button class="vbtn secondary">Roadmap check <span class="meta">sonnet/medium</span></button>
+    <button class="vbtn secondary">New concept…</button>
+    <button class="vbtn secondary">Refresh</button>
+  </div>
+  <div class="foot">Sprints 1 open · 12 done &nbsp;·&nbsp; Stories 12 open · 71 done</div>`
+
+// --- Refinement ---
+
+const refining = [
+  ['022', 'Kampagnen-Import CLI', 11, 'Write docs/requirements/022-kampagnen-import-cli.md'],
+  ['027', 'Kampf-Encounter Editor', 10, 'Grep "EncounterType"'],
+  ['024', 'Szenen-Graph Validierung', 9, 'quiet 4m · last Read SceneGraph.cs', true],
+  ['023', 'Kampagnen-Übersicht', 8, 'Read src/Web/Pages/Campaigns.razor'],
+  ['026', 'Paar-Challenges Datenmodell', 8, 'Read src/Data/AppDb.cs'],
+  ['028', 'Suchindex Abenteuer', 7, 'Glob **/Search*.cs'],
+  ['025', 'Bild-Upload Codex', 6, 'Read src/Media/ImageStore.cs'],
+  ['030', 'Rechte & Rollen im Editor', 6, 'Grep "Authorize"'],
+  ['029', 'Export als PDF', 4, 'Read docs/concepts/14-abenteuer-editor.md'],
+]
+const shown = refining.slice(0, 8)
+
+mountVSCode(document.getElementById('vs-refine'), {
+  chat: `<div class="title">Sprint S14</div>
+    <div class="log">
+      <div class="me">/sprint S14</div>
+      <div>Refine (parallel, ~10 min) → Build 12 stories (one after another, 10–20 min each) → Regression gate → Review · progress: docs/sprints/S14/progress.md</div>
+      <div class="tool" style="margin-top:10px"><b>Refine</b> 022 … 033 (12) · started 10:02 · watch docs/sprints/S14/progress.md · Esc + /sprint S14 resumes</div>
+      <div class="tool"><b>Task</b> ×12 refine · opus/high</div>
+    </div>`,
+  band: `<div class="v1-band"><span style="color:var(--claude)">✻</span><b style="color:#ddd">S14 Refine</b>
+    <span class="mini"><i style="width:25%"></i></span><span>3/12</span><span class="pulse-dot">●</span><span>9 agents · 11m</span>
+    <span class="sp"></span><button class="vbtn">Overview</button></div>`,
+  pane: `<div class="v1">
+    ${hero('Refine', 0.25, '3/12', 'Refining all 12 stories at once · started 10:02 · ~10 min')}
+
+    <div class="card focus">
+      <div class="card-h"><span>Refinement</span><span class="chip run">3/12 refined</span></div>
+      <div class="bar" style="margin-bottom:8px"><i style="width:25%;background:var(--ok)"></i><i style="width:75%;background:repeating-linear-gradient(90deg,#5a3424 0 6px,#4a2c20 6px 12px)"></i></div>
+      ${shown.map(([id, t, m, a, q]) => `
+        <div class="rrow${q ? ' quiet' : ''}">
+          <span class="${q ? '' : 'pulse-dot'}" style="color:${q ? 'var(--warn)' : ''}">●</span>
+          <span class="id mono">${id}</span>
+          <span class="t">${t}</span>
+          <span class="el"><i style="width:${Math.min(100, m / 15 * 100)}%;${q ? 'background:var(--warn)' : ''}"></i><b style="left:${10 / 15 * 100}%"></b></span>
+          <span class="time">${m}m</span>
+          <span class="a mono">→ ${a}</span>
+        </div>`).join('')}
+      <div class="more">+1 more running · 029 Export als PDF (4m)</div>
+      <div class="idchips">✓ refined <span>031</span><span>032</span><span>033</span><span style="background:none;color:#666;font-family:var(--vs-font)">3–5 min each</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>Agents</span><span class="chip run">9 running · 3 done</span></div>
+      <div class="dots">${'<i></i>'.repeat(2)}<i class="wa"></i>${'<i></i>'.repeat(6)}${'<i class="ok"></i>'.repeat(3)}</div>
+      <div class="row" style="font-size:12.5px"><span>refine · <span class="dim">opus/high</span></span><span class="dim">longest 022 · 11m</span></div>
+      <div class="row" style="font-size:12.5px;margin-top:2px"><span style="color:var(--warn)">quiet: 024 (no tool call for 4m)</span><span class="dim">main · waiting</span></div>
+    </div>
+
+    ${waiting}
+    ${footer}
+  </div>`,
+})
+
+// --- Build ---
+
+mountVSCode(document.getElementById('vs-build'), {
+  chat: `<div class="title">Sprint S14</div>
+    <div class="log">
+      <div class="me">/sprint S14</div>
+      <div class="tool">022 done · 12 min · 4be1c09 · 1/12</div>
+      <div class="tool">023 done · 18 min · 9a0d2e1 · 2/12</div>
+      <div class="tool">024 done · 9 min · c71f3aa · 3/12</div>
+      <div class="tool">025 done · 15 min · 0a99dce · 4/12</div>
+      <div style="margin-top:10px">Build 026 (5/12) · started 10:30 · 025 took 15 min · watch docs/sprints/S14/progress.md · Esc + /sprint S14 resumes</div>
+      <div class="tool"><b>Task</b> builder · Story 026</div>
+    </div>`,
+  band: `<div class="v1-band"><span style="color:var(--claude)">✻</span><b style="color:#ddd">S14 Build 4/12</b>
+    <span>·</span><span>026 <span style="color:var(--claude)">D4/5</span></span><span class="pulse-dot">●</span><span>2 agents · 14m</span>
+    <span class="sp"></span><button class="vbtn">Overview</button></div>`,
+  pane: `<div class="v1">
+    ${hero('Build', 4 / 12, '4/12', 'Building one story after another · 4 done · ~13 min each')}
+
+    <div class="card focus">
+      <div class="card-h"><span>Now building · story 5 of 12</span><span class="chip run">14m · avg 13m</span></div>
+      <h3><b>026</b>Paar-Challenges Datenmodell</h3>
+      <div class="stages">
+        <span class="done">D1</span><span class="done">D2</span><span class="done">D3</span><span class="now">D4</span><span>D5</span>
+        <em>→</em><span>Verify</span><em>→</em><span>Review</span><em>→</em><span>Done</span>
+      </div>
+      <div style="font-size:12.5px"><span style="color:var(--claude)">Implement</span> · D4 Migration &amp; Repository <span class="dim">· started 10:41, 3m ago</span></div>
+      <div class="tree">
+        <div class="ag"><span class="pulse-dot">●</span>
+          <div><div class="who">builder<span>sonnet/high</span></div><div class="act dim">→ waiting for D4</div></div>
+          <div class="time">14m · 31 tools</div></div>
+        <div class="ag sub"><span class="pulse-dot">●</span>
+          <div><div class="who">D4 agent<span>sonnet/medium</span></div><div class="act">→ Edit src/Data/Migrations/0026_CoupleChallenges.cs</div></div>
+          <div class="time">3m · 9 tools</div></div>
+      </div>
+      <div class="alive"><span class="pulse"></span>trail 10:41 · 026 · D4 Migration &amp; Repository · started</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>Sprint S14 · Kampagnen &amp; Kampf</span><span class="chip">4/12 · ~1h 45m left</span></div>
+      <div class="queue">
+        <span class="ok">✓ 022</span><span class="ok">✓ 023</span><span class="ok">✓ 024</span><span class="ok">✓ 025</span>
+        <span class="now">● 026</span><span>027</span><span>028</span><span>029</span><span>030</span><span>031</span><span>032</span><span>033</span>
+      </div>
+      <div class="dim" style="font-size:12px;margin-top:7px">last: 025 Bild-Upload Codex · 15 min · 0a99dce &nbsp;·&nbsp; next: 027 Kampf-Encounter Editor</div>
+    </div>
+
+    ${waiting}
+    ${footer}
+  </div>`,
+})
+
+// --- Terminal ---
+
+const { L, box, bar, btn, spread, fit } = T
+const W = TERM_PANE
+const IN = W - 4
+
+const tStepper = now => {
+  const steps = ['Clarify', 'Refine', 'Build', 'Gate', 'Review']
+  const at = steps.indexOf(now)
+  const out = []
+  steps.forEach((s, i) => {
+    if (i) out.push([' ━ ', i <= at ? 'ok' : 'dm'])
+    out.push(i < at ? [`✓ ${s}`, 'ok'] : i === at ? [`● ${s}`, 'cl b'] : [`○ ${s}`, 'dm'])
+  })
+  return out
+}
+
+const tHero = (now, done, total, unit) => box([
+  L(['Phase 14 · ', 'dm'], ['Abenteuer-Editor', 'b'], ['  ▶ ', 'cl'], ['M15', 'cl'], [' · S14', 'dm']),
+  tStepper(now),
+  L(bar(done, total, 30, now === 'Refine' ? 'ok' : 'cl'), [`  ${done}/${total} ${unit}`, '']),
+], { w: W, cls: 'cl', title: L(['✻ Scrum', 'cl b']), right: L(['4.6.0 ✓', 'ok']) })
+
+const tWaiting = box([
+  L(['· ', 'wa'], 'ContentStorage:SourcePath · S10 playtest'),
+], { w: W, cls: 'wa', title: L(['⚠ Waiting on you', 'wa b']) })
+
+const tFooter = [
+  L(btn('Roadmap check'), ' ', btn('New concept…'), ' ', btn('Refresh')),
+  L(),
+  L(['Sprints 1 open · 12 done   Stories 12 open · 71 done', 'dm']),
+]
+
+const rRow = ([id, t, m, a, q]) => [
+  L([q ? '● ' : '● ', q ? 'wa' : 'cl'], [id + ' ', 'dm'], fit(L(t), 25), ' ',
+    bar(Math.min(m, 15), 15, 8, q ? 'wa' : 'cl', 'dm', '·'), [String(m).padStart(4) + 'm', 'dm']),
+  L(['      ', ''], fit(L([`→ ${a}`, q ? 'wa' : 'su']), IN - 6)),
+]
+
+const refinePane = [
+  ...tHero('Refine', 3, 12, 'refined'),
+  ...box([
+    ...shown.flatMap(rRow),
+    L(['+1 more running · 029 Export als PDF (4m)', 'dm']),
+    L(['✓ refined ', 'ok'], ['031 032 033', 'ok'], ['   3–5 min each', 'dm']),
+  ], { w: W, cls: 'cl', title: L(['Refinement', 'b']), right: L(['3/12 refined', 'cl']) }),
+  ...box([
+    L(['●●', 'cl'], ['●', 'wa'], ['●●●●●●', 'cl'], ['●●●', 'ok'], ['  refine · opus/high', 'dm']),
+    spread(L(['quiet: 024 (4m)', 'wa']), L(['longest 022 · 11m', 'dm']), IN),
+  ], { w: W, title: L(['Agents', 'b']), right: L(['9 running · 3 done', 'cl']) }),
+  ...tWaiting,
+  ...tFooter,
+]
+
+const buildPane = [
+  ...tHero('Build', 4, 12, 'stories'),
+  ...box([
+    spread(L(['026 ', 'dm'], ['Paar-Challenges Datenmodell', 'b']), L(['14m', 'cl']), IN),
+    L(['✓D1 ', 'ok'], ['✓D2 ', 'ok'], ['✓D3 ', 'ok'], ['●D4', 'cl b'], [' ○D5', 'dm'], [' → ', 'dm'], ['Verify', 'dm'], [' → ', 'dm'], ['Review', 'dm']),
+    L(['Implement', 'cl'], ' · D4 Migration & Repository', [' · 3m', 'dm']),
+    L(),
+    spread(L(['● ', 'cl'], 'builder'), L(['sonnet/high    14m  31 tools', 'dm']), IN),
+    spread(L(['└ ', 'dm'], ['● ', 'cl'], 'D4 agent'), L(['sonnet/medium   3m   9 tools', 'dm']), IN),
+    L(['    → ', 'dm'], ['Edit src/Data/Migrations/0026_Couple…', 'su']),
+    L(),
+    spread(L(['● ', 'ok'], ['trail 10:41 · D4 started', 'dm']), L(['avg story 13m', 'dm']), IN),
+  ], { w: W, cls: 'cl', title: L(['Now building', 'cl b']), right: L(['story 5 of 12', 'cl']) }),
+  ...box([
+    L(['✓022 ✓023 ✓024 ✓025 ', 'ok'], ['●026', 'cl b'], [' 027 028 029', 'dm']),
+    L(['030 031 032 033', 'dm']),
+    L(['last: 025 · 15 min · 0a99dce', 'dm']),
+  ], { w: W, title: L(['Sprint S14', 'b'], [' Kampagnen & Kampf', 'dm']), right: L(['~1h 45m left', 'dm']) }),
+  ...tWaiting,
+  ...tFooter,
+]
+
+mountTerminal(document.getElementById('t-refine'), {
+  pane: refinePane,
+  log: [
+    L(['> ', 'dm'], '/sprint S14'),
+    L(),
+    L(['● ', 'cl'], 'Refine (parallel, ~10 min) → Build 12 stories'),
+    L('  (one after another, 10–20 min each) → Regression'),
+    L('  gate → Review · progress: docs/sprints/S14/…'),
+    L(),
+    L(['● ', 'cl'], 'Refine 022 … 033 (12) · started 10:02'),
+    L(['  ⎿ ', 'dm'], ['watch docs/sprints/S14/progress.md', 'dm']),
+    L(['  ⎿ ', 'dm'], ['Esc + /sprint S14 resumes', 'dm']),
+    L(),
+    L(['● ', 'cl'], ['12 Task agents', 'b'], ' launched (refine · opus/high)'),
+    L(['  ⎿ ', 'dm'], ['3 done · 9 running', 'dm']),
+    L(),
+    L(['✻ ', 'cl'], ['Waiting for refine agents… ', 'cl'], ['(11m 40s)', 'dm']),
+  ],
+  band: [
+    L(['✻ ', 'cl'], ['S14 Refine', 'b'], ' ', bar(3, 12, 8, 'ok'), [' 3/12', 'dm'], ['  ● ', 'cl'], ['9 agents · 11m ', 'dm'], btn('Overview')),
+  ],
+})
+
+mountTerminal(document.getElementById('t-build'), {
+  pane: buildPane,
+  log: [
+    L(['> ', 'dm'], '/sprint S14'),
+    L(),
+    L(['● ', 'cl'], '022 done · 12 min · 4be1c09 · 1/12'),
+    L(['● ', 'cl'], '023 done · 18 min · 9a0d2e1 · 2/12'),
+    L(['● ', 'cl'], '024 done · 9 min · c71f3aa · 3/12'),
+    L(['● ', 'cl'], '025 done · 15 min · 0a99dce · 4/12'),
+    L(),
+    L(['● ', 'cl'], 'Build 026 (5/12) · started 10:30'),
+    L(['  ⎿ ', 'dm'], ['025 took 15 min · watch docs/sprints/S14/…', 'dm']),
+    L(['  ⎿ ', 'dm'], ['Esc + /sprint S14 resumes', 'dm']),
+    L(),
+    L(['● ', 'cl'], ['Task', 'b'], '(builder · Story 026)'),
+    L(),
+    L(['✻ ', 'cl'], ['Building 026… ', 'cl'], ['(14m 02s · ↓ 21.4k tokens)', 'dm']),
+  ],
+  band: [
+    L(['✻ ', 'cl'], ['S14 Build', 'b'], [' 4/12', 'dm'], [' · 026 ', ''], ['D4/5', 'cl'], ['  ● ', 'cl'], ['2 agents · 14m ', 'dm'], btn('Overview')),
+  ],
+})
+</script>
+</body>
+</html>

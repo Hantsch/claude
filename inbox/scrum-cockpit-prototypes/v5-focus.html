@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · 5 · Focus</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* VS Code pane: no cards, type and whitespace carry the structure */
+  .v5 { padding: 6px 4px; }
+  .v5 section { margin-bottom: 30px; }
+  .v5 .lbl {
+    font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: #6f6f6f; margin-bottom: 10px;
+  }
+  .v5 .title { font-size: 24px; font-weight: 600; color: #eee; letter-spacing: -.01em; line-height: 1.2; }
+  .v5 .caption { font-size: 12px; color: #888; margin-top: 3px; }
+  .v5 .line { display: flex; align-items: center; gap: 10px; margin: 14px 0 16px; }
+  .v5 .line .track { flex: 1; height: 2px; background: #2e2e2e; border-radius: 1px; overflow: hidden; }
+  .v5 .line .track i { display: block; width: 60%; height: 100%; background: #d4d4d4; }
+  .v5 .line span { font-size: 11.5px; color: #888; font-variant-numeric: tabular-nums; }
+  .v5 .live { display: grid; grid-template-columns: 14px auto 1fr auto; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .v5 .live .who { color: #ccc; }
+  .v5 .live .act { font-family: var(--t-font); font-size: 11.5px; color: #7d7d7d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v5 .live .t { font-size: 11.5px; color: #777; font-variant-numeric: tabular-nums; }
+  .v5 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--claude); display: inline-block; animation: v5pulse 1.6s ease-in-out infinite; }
+  .v5 .live:nth-child(2) .dot { animation-delay: .5s; }
+  @keyframes v5pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(217,119,87,.5); } 50% { opacity: .45; box-shadow: 0 0 0 5px rgba(217,119,87,0); } }
+
+  .v5 .move-h { font-size: 17px; font-weight: 600; color: #eee; }
+  .v5 .move-p { color: #999; margin: 4px 0 12px; max-width: 420px; }
+  .v5 .move-p code { font-family: var(--t-font); font-size: 11.5px; color: #bbb; }
+  .v5 .cta { background: var(--claude); padding: 6px 14px; font-size: 13px; border-radius: 4px; }
+  .v5 .cta:hover { background: #e58a6b; }
+  .v5 .also { font-size: 12px; color: #777; margin-top: 10px; }
+
+  .v5 .later .row { padding: 5px 0; border-top: 1px solid #232323; cursor: default; }
+  .v5 .later .row:last-child { border-bottom: 1px solid #232323; }
+  .v5 .later .head { display: grid; grid-template-columns: 96px 1fr 14px; gap: 8px; color: #aaa; }
+  .v5 .later .head b { font-weight: 500; color: #ccc; }
+  .v5 .later .head .sum { color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v5 .later .head .chev { color: #555; transition: transform .15s; }
+  .v5 .later .more { display: none; padding: 6px 0 2px 104px; font-size: 12.5px; color: #999; }
+  .v5 .later .row:hover .more { display: block; }
+  .v5 .later .row:hover .chev { transform: rotate(90deg); color: #aaa; }
+  .v5 .later .more div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 1px 0; }
+  .v5 .later .more .n { color: #666; font-variant-numeric: tabular-nums; }
+  .v5 .later .more .done { color: #666; text-decoration: line-through; }
+  .v5 .hint { font-size: 11px; color: #5f5f5f; margin-top: 8px; }
+  .v5 .quiet { display: flex; gap: 14px; margin-top: 18px; }
+  .v5 .quiet .vbtn.plain { color: #8a8a8a; font-size: 12px; }
+  .v5 .quiet .vbtn.plain:hover { color: #ddd; }
+
+  .v5-band { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #888; white-space: nowrap; padding: 2px 4px; }
+  .v5-band .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--claude); animation: v5pulse 1.6s ease-in-out infinite; }
+  .v5-band b { color: #bbb; font-weight: 500; }
+  .v5-band .sp { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>5 · Focus <small>what matters now, nothing else at full volume</small></h1>
+    <p>Three quiet blocks instead of seven sections: <b>Now</b> (what is running, one thin progress line, the live agents),
+      <b>Your move</b> (the one thing only you can do, with the pane's only colored button) and <b>Later</b> (milestones, stories,
+      roadmap and versions folded into one-liners that open under the pointer). No frames — size, weight and whitespace do the work,
+      and the accent color is reserved for the action and the live dots.</p>
+    <p class="uses">Uses: <code>Text size="title" / "heading" / "caption"</code>, <code>weight</code>, <code>dimColor</code>,
+      <code>Box display="none" hover={{ display: 'flex' }}</code> (hover reveal), <code>Button variant="primary"</code>,
+      <code>Button plain dimColor</code> — no borders, no Svg needed.</p>
+  </div>
+
+  <div class="surfaces">
+    <div id="vscode"></div>
+    <div id="term"></div>
+  </div>
+
+  <div class="note">
+    <b>Trade-off:</b> the calmest and the fastest to read at a glance, but it decides for you what “your move” is — the
+    ranking (waiting-on-you before an unplanned milestone before a loose story) has to be right, and the full story list is one
+    hover away instead of always visible. In the terminal a hover only works with mouse support on; the keyboard fallback is a
+    hotkey per line.
+  </div>
+</div>
+
+<script src="base.js"></script>
+<script>
+nav('v5-focus.html')
+
+mountVSCode(document.getElementById('vscode'), {
+  band: `<div class="v5-band"><span class="dot"></span><b>S13</b><span>· 2 agents working · your move: SourcePath</span>
+    <span class="sp"></span><button class="vbtn plain">Open</button></div>`,
+  pane: `<div class="v5">
+    <section>
+      <div class="lbl">Now</div>
+      <div class="title">Sprint S13 is running</div>
+      <div class="caption">Test-Harness &amp; Import · M14.3 · Phase 14 Abenteuer-Editor</div>
+      <div class="line"><div class="track"><i></i></div><span>9/15 deliverables</span></div>
+      <div class="live"><span class="dot"></span><span class="who">builder · 019</span>
+        <span class="act">Edit tests/e2e/editor.spec.ts</span><span class="t">6m</span></div>
+      <div class="live"><span class="dot"></span><span class="who">reviewer · 020</span>
+        <span class="act">Read src/Import/ImportCli.cs</span><span class="t">2m</span></div>
+    </section>
+
+    <section>
+      <div class="lbl">Your move</div>
+      <div class="move-h">Set ContentStorage:SourcePath</div>
+      <div class="move-p">in <code>appsettings.Development.json</code> — the import CLI reads the Maskenball from there,
+        so 018 cannot be checked end to end until it is set.</div>
+      <button class="vbtn cta">Set SourcePath…</button>
+      <div class="also">Also waiting on you: the S10 playtest</div>
+    </section>
+
+    <section class="later">
+      <div class="lbl">Later</div>
+      <div class="row"><div class="head"><b>Milestones</b><span class="sum">M14.3 now · M14.4 needs a sprint</span><span class="chev">›</span></div>
+        <div class="more">
+          <div><span class="done">M14.1 Seitenleiste</span><span class="n">S11</span></div>
+          <div><span class="done">M14.2 Prototyp-Abgleich</span><span class="n">S12</span></div>
+          <div><span>M14.3 Test-Harness</span><span class="n">S13</span></div>
+          <div><span>M14.4 Kampagnen-Import</span><button class="vbtn plain">Plan · sonnet/medium</button></div>
+        </div></div>
+      <div class="row"><div class="head"><b>Stories</b><span class="sum">1 done · 1 build · 1 review · 1 ready</span><span class="chev">›</span></div>
+        <div class="more">
+          <div><span class="done">018 Import-CLI Maskenball</span><span class="n">3/3 done</span></div>
+          <div><span>019 Playwright-Harness und erste Flows</span><span class="n">2/5 build</span></div>
+          <div><span>020 Import-Validierung</span><span class="n">4/4 review</span></div>
+          <div><span>021 Seed-Daten für E2E</span><span class="n">0/3 ready</span></div>
+        </div></div>
+      <div class="row"><div class="head"><b>Agents</b><span class="sum">refiner · 021 finished 4m · 23 tools</span><span class="chev">›</span></div>
+        <div class="more">
+          <div><span>✓ refiner · Story 021 · opus/high</span><span class="n">4m · 23 tools</span></div>
+        </div></div>
+      <div class="row"><div class="head"><b>Roadmap</b><span class="sum">7 follow-ups · Post-MVP scope</span><span class="chev">›</span></div>
+        <div class="more">
+          <div><span>Post-MVP scope (campaigns, couple challenges, combat…)</span><span></span></div>
+          <div><span>Test infrastructure: 019 Playwright</span><span></span></div>
+          <div><span>7 follow-ups in the roadmap</span><button class="vbtn plain">Roadmap check</button></div>
+        </div></div>
+      <div class="row"><div class="head"><b>Plugins</b><span class="sum">ai-scrum 4.6.0 · tech-rules 2.4.0 · current</span><span class="chev">›</span></div>
+        <div class="more">
+          <div><span>ai-scrum: project 4.6.0 · installed 4.6.0</span><span class="n">latest 4.6.0</span></div>
+          <div><span>tech-rules: project 2.4.0 · installed 2.4.0</span><span class="n">latest 2.4.0</span></div>
+        </div></div>
+      <div class="hint">Hover a line to open it · sprints 1 open · 11 done · stories 4 open · 67 done</div>
+      <div class="quiet">
+        <button class="vbtn plain">Roadmap check</button>
+        <button class="vbtn plain">New concept…</button>
+        <button class="vbtn plain">Refresh</button>
+      </div>
+    </section>
+  </div>`,
+})
+
+const { L, btn, spread, fit } = T
+const W = TERM_PANE
+
+const label = text => L([text.split('').join(' '), 'dm'])
+const fold = (name, summary, isOpen) =>
+  L([isOpen ? '⌄ ' : '› ', 'dm'], [name.padEnd(12), isOpen ? 'b' : ''], [summary, 'dm'])
+const sub = (left, right, isDone) =>
+  spread(L('   ', fit(L([left, isDone ? 'dm' : '']), 34)), L([right, 'dm']), W)
+const live = (who, act, time) =>
+  spread(L(['● ', 'cl'], who.padEnd(16), [act, 'dm']), L([time, 'dm']), W)
+
+const pane = [
+  L(),
+  label('NOW'),
+  L(),
+  L(['Sprint S13 is running', 'b']),
+  L(['Test-Harness & Import · M14.3 · Abenteuer-Editor', 'dm']),
+  L(),
+  L(['━'.repeat(26), ''], ['─'.repeat(18), 'dm'], ['  9/15', 'dm']),
+  L(),
+  live('builder · 019', 'Edit tests/e2e/editor.spec.ts', '6m'),
+  live('reviewer · 020', 'Read src/Import/ImportCli.cs', '2m'),
+  L(),
+  L(),
+  label('YOUR MOVE'),
+  L(),
+  L(['Set ContentStorage:SourcePath', 'b']),
+  L(['in appsettings.Development.json — the import CLI', 'dm']),
+  L(['reads the Maskenball from there.', 'dm']),
+  L(),
+  L(btn('Set SourcePath…', 'cl b')),
+  L(),
+  L(['also waiting on you: S10 playtest', 'dm']),
+  L(),
+  L(),
+  label('LATER'),
+  L(),
+  fold('Milestones', 'M14.3 now · M14.4 needs a sprint'),
+  spread(fold('Stories', '1 done · 1 build · 1 review', true), L(['(hover)', 'dm']), W),
+  sub('018 Import-CLI Maskenball', '3/3 done', true),
+  sub('019 Playwright-Harness und erste Flows', '2/5 build'),
+  sub('020 Import-Validierung', '4/4 review'),
+  sub('021 Seed-Daten für E2E', '0/3 ready'),
+  fold('Agents', 'refiner · 021 done · 4m · 23 tools'),
+  fold('Roadmap', '7 follow-ups · Post-MVP scope'),
+  fold('Plugins', 'ai-scrum 4.6.0 · tech-rules 2.4.0 ✓'),
+  L(),
+  L(['Roadmap check', 'tb dm'], '   ', ['New concept…', 'tb dm'], '   ', ['Refresh', 'tb dm']),
+  L(['sprints 1 open · 11 done · stories 4 open · 67 done', 'dm']),
+].map(l => fit(l, W))
+
+const band = [
+  L(['● ', 'cl'], ['S13 · 2 agents busy · your move: SourcePath ', 'dm'], btn('Open')),
+].map(l => fit(l, 56))
+
+mountTerminal(document.getElementById('term'), { pane, band })
+</script>
+</body>
+</html>

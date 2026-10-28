@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · 3 · Board</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* VS Code pane: the active sprint as a four-column board */
+  .v3 .head {
+    border: 1px solid #2f2f2f; border-radius: 8px; background: #1d1d1d; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .v3 .head-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .v3 .head h2 { margin: 0; font-size: 17px; font-weight: 600; color: #eee; }
+  .v3 .head h2 span { color: #888; font-weight: 400; font-size: 13px; margin-right: 6px; }
+  .v3 .head .ms { color: var(--claude); font-weight: 600; margin-top: 3px; font-size: 12.5px; }
+  .v3 .head .ms span { color: #999; font-weight: 400; }
+  .v3 .chip {
+    font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #2a2a2a; color: #bbb; white-space: nowrap;
+  }
+  .v3 .chip.ok { background: #183320; color: var(--ok); }
+  .v3 .chip.warn { background: #3a3014; color: var(--warn); }
+  .v3 .seg { display: flex; gap: 2px; margin-top: 9px; }
+  .v3 .seg i { flex: 1; height: 6px; border-radius: 2px; background: #2c2c2c; }
+  .v3 .seg i.d { background: var(--ok); }
+  .v3 .seg i.r { background: var(--sug); }
+  .v3 .seg i.b { background: var(--claude); }
+  .v3 .legend { display: flex; gap: 12px; font-size: 11px; color: #888; margin-top: 5px; }
+  .v3 .legend b { font-weight: 600; color: #ccc; }
+  .v3 .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+
+  .v3 .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .v3 .col { background: #1b1b1b; border-radius: 7px; padding: 6px; border-top: 2px solid #444; min-height: 250px; }
+  .v3 .col.build { border-top-color: var(--claude); background: #1f1a17; }
+  .v3 .col.review { border-top-color: var(--sug); background: #1a1b22; }
+  .v3 .col.done { border-top-color: var(--ok); }
+  .v3 .col-h {
+    display: flex; justify-content: space-between; font-size: 10.5px; letter-spacing: .08em;
+    text-transform: uppercase; color: #8a8a8a; padding: 0 2px 6px;
+  }
+  .v3 .col-h b { color: #ccc; font-weight: 600; letter-spacing: 0; }
+  .v3 .card {
+    background: #252525; border: 1px solid #333; border-radius: 6px; padding: 7px 8px; font-size: 12px;
+  }
+  .v3 .card:hover { border-color: #555; }
+  .v3 .card .id { font-size: 10.5px; color: #888; font-family: var(--t-font); }
+  .v3 .card .t {
+    color: #e2e2e2; line-height: 1.3; margin-top: 1px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .v3 .card.done .t { color: #888; }
+  .v3 .dots { display: flex; gap: 3px; margin-top: 6px; align-items: center; }
+  .v3 .dots i { width: 7px; height: 7px; border-radius: 50%; background: #3a3a3a; }
+  .v3 .dots i.on { background: var(--claude); }
+  .v3 .review .dots i.on { background: var(--sug); }
+  .v3 .done .dots i.on { background: var(--ok); }
+  .v3 .dots span { font-size: 10.5px; color: #888; margin-left: 4px; }
+  .v3 .agent { margin-top: 7px; padding-top: 7px; border-top: 1px dashed #3a3a3a; }
+  .v3 .agent .who { display: flex; align-items: center; gap: 6px; }
+  .v3 .avatar {
+    position: relative; width: 18px; height: 18px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #111; background: var(--claude);
+  }
+  .v3 .review .avatar { background: var(--sug); }
+  .v3 .avatar::after {
+    content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--claude);
+    animation: v3pulse 1.6s ease-out infinite;
+  }
+  .v3 .review .avatar::after { border-color: var(--sug); }
+  @keyframes v3pulse { 0% { opacity: .8; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.45); } }
+  .v3 .agent .role { color: #ddd; font-size: 11.5px; line-height: 1.2; }
+  .v3 .agent .role span { display: block; color: #888; font-size: 10.5px; }
+  .v3 .agent .act {
+    font-family: var(--t-font); font-size: 10.5px; color: #9aa4d9; margin-top: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .v3 .past { margin-top: 7px; font-size: 10.5px; color: #7d9a83; }
+
+  .v3 .strip {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 12.5px;
+  }
+  .v3 .strip.warn { background: #221d10; border: 1px solid #5c4a1c; color: #e6d9ae; }
+  .v3 .strip.warn .ic { color: var(--warn); }
+  .v3 .strip.next { background: #1d1d1d; border: 1px solid #2f2f2f; justify-content: space-between; }
+  .v3 .strip .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v3 .open { color: #888; font-size: 12px; margin: 6px 2px 10px; }
+  .v3 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .v3 .foot { color: #777; font-size: 11.5px; margin-top: 10px; }
+
+  .v3-band {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; color: #999; white-space: nowrap;
+    border: 1px solid #333; background: #1c1c1c; border-radius: 6px; padding: 4px 8px;
+  }
+  .v3-band .lane { display: inline-flex; align-items: center; gap: 4px; }
+  .v3-band .lane b { color: #ddd; font-weight: 600; }
+  .v3-band .lane i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+  .v3-band .sep { color: #444; }
+  .v3-band .sp { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>3 · Board <small>the sprint as a mini kanban</small></h1>
+    <p>The active sprint is drawn as four lanes — Ready, Build, Review, Done — with one card per story. A card shows its deliverables as dots,
+      and the agent working on it sits on the card itself: role, model, elapsed time and the live tool call. Where a story stands and who
+      is on it reads in one glance; what waits on you and what comes next follow as slim strips under the board.</p>
+    <p class="uses">Uses: <code>Box flexDirection="row"</code> lanes, <code>borderStyle="single" borderColor</code> per lane,
+      <code>backgroundColor</code>, <code>Box hover</code> on cards — terminal folds the four lanes into a 2×2 grid.</p>
+  </div>
+
+  <div class="surfaces">
+    <div id="vscode"></div>
+    <div id="term"></div>
+  </div>
+
+  <div class="note">
+    <b>Trade-off:</b> the clearest picture of a running sprint and of who works on what, but it only shows the sprint — milestones beyond
+    the current one shrink to a single “Next” strip, and a sprint with more than three stories in one lane makes that lane tall
+    (in the terminal, where 54 cells allow only two lanes side by side, even more so).
+  </div>
+</div>
+
+<script src="base.js"></script>
+<script>
+nav('v3-board.html')
+
+const dots = (on, total) =>
+  `<div class="dots">${Array.from({ length: total }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}<span>${on}/${total}</span></div>`
+
+const seg = (cls, n) => Array.from({ length: n }, () => `<i class="${cls}"></i>`).join('')
+
+mountVSCode(document.getElementById('vscode'), {
+  band: `<div class="v3-band">
+    <span class="lane"><i style="background:#555"></i>Ready <b>1</b></span><span class="sep">│</span>
+    <span class="lane"><i style="background:var(--claude)"></i>Build <b>1</b></span><span class="sep">│</span>
+    <span class="lane"><i style="background:var(--sug)"></i>Review <b>1</b></span><span class="sep">│</span>
+    <span class="lane"><i style="background:var(--ok)"></i>Done <b>1</b></span>
+    <span style="color:var(--claude);margin-left:4px">●</span><span>2</span>
+    <span class="sp"></span><button class="vbtn">Board</button></div>`,
+  pane: `<div class="v3">
+    <div class="head">
+      <div class="head-top">
+        <h2><span>Phase 14</span>Abenteuer-Editor</h2>
+        <span class="chip ok">ai-scrum 4.6.0 · tech-rules 2.4.0 ✓</span>
+      </div>
+      <div class="ms">▶ M14.3 Test-Harness <span>· Sprint S13 — Test-Harness &amp; Import</span></div>
+      <div class="seg">${seg('d', 3)}${seg('r', 4)}${seg('b', 2)}${seg('', 6)}</div>
+      <div class="legend">
+        <span><b>9/15</b> deliverables · 60%</span>
+        <span><i style="background:var(--ok)"></i>done 3</span>
+        <span><i style="background:var(--sug)"></i>in review 4</span>
+        <span><i style="background:var(--claude)"></i>built 2</span>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="col">
+        <div class="col-h"><span>Ready</span><b>1</b></div>
+        <div class="card">
+          <div class="id">021</div>
+          <div class="t">Seed-Daten für E2E</div>
+          ${dots(0, 3)}
+          <div class="past">✓ refined · opus/high · 4m · 23 tools</div>
+        </div>
+      </div>
+
+      <div class="col build">
+        <div class="col-h"><span style="color:var(--claude)">Build</span><b>1</b></div>
+        <div class="card">
+          <div class="id">019</div>
+          <div class="t">Playwright-Harness und erste Flows</div>
+          ${dots(2, 5)}
+          <div class="agent">
+            <div class="who"><span class="avatar">B</span>
+              <div class="role">builder · 6m<span>sonnet/high · 14 tools</span></div></div>
+            <div class="act">→ Edit editor.spec.ts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col review">
+        <div class="col-h"><span style="color:var(--sug)">Review</span><b>1</b></div>
+        <div class="card">
+          <div class="id">020</div>
+          <div class="t">Import-Validierung</div>
+          ${dots(4, 4)}
+          <div class="agent">
+            <div class="who"><span class="avatar">R</span>
+              <div class="role">reviewer · 2m<span>opus/high · 5 tools</span></div></div>
+            <div class="act">→ Read ImportCli.cs</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col done">
+        <div class="col-h"><span style="color:var(--ok)">Done</span><b>1</b></div>
+        <div class="card done">
+          <div class="id">018</div>
+          <div class="t">Import-CLI Maskenball</div>
+          ${dots(3, 3)}
+        </div>
+      </div>
+    </div>
+
+    <div class="strip warn"><span class="ic">⚠</span>
+      <span class="grow">Waiting on you: ContentStorage:SourcePath in appsettings.Development.json</span></div>
+    <div class="strip warn"><span class="ic">⚠</span><span class="grow">Waiting on you: S10 playtest</span></div>
+    <div class="strip next">
+      <span class="grow"><b style="color:#ccc">Next</b> &nbsp;○ M14.4 Kampagnen-Import <span style="color:#888">has no sprint</span></span>
+      <button class="vbtn">Plan <span class="meta">sonnet/medium</span></button>
+    </div>
+    <div class="open">Open: Post-MVP scope (campaigns, couple challenges, combat…) · <span class="chip">7 follow-ups</span></div>
+
+    <div class="actions">
+      <button class="vbtn">Roadmap check <span class="meta">sonnet/medium</span></button>
+      <button class="vbtn secondary">New concept…</button>
+      <button class="vbtn secondary">Refresh</button>
+    </div>
+    <div class="foot">Sprints 1 open · 11 done &nbsp;·&nbsp; Stories 4 open · 67 done</div>
+  </div>`,
+})
+
+const { L, box, bar, btn, spread, fit, cols } = T
+const W = TERM_PANE
+const LANE = 26 // two lanes and a gap: 26 + 1 + 26 = 53
+const IN = LANE - 4
+
+const tdots = (on, total, cls) => L(['●'.repeat(on), cls], ['○'.repeat(total - on), 'dm'], [`  ${on}/${total}`, 'dm'])
+const title = (id, text, cls = '') => L([id + ' ', 'dm'], fit(L([text, cls]), IN - 4))
+const pad = (lines, n) => [...lines, ...Array.from({ length: n - lines.length }, () => L())]
+
+const ready = box(pad([
+  title('021', 'Seed-Daten für E2E'),
+  tdots(0, 3, 'dm'),
+  L(['✓ ', 'ok'], ['refined · 4m', 'dm']),
+  L(['  opus/high · 23 tools', 'dm']),
+], 5), { w: LANE, style: 'single', title: L(['Ready', 'b']), right: L(['1', 'dm']) })
+
+const build = box(pad([
+  title('019', 'Playwright-Harness und erste Flows'),
+  tdots(2, 5, 'cl'),
+  L(['◉ ', 'cl'], ['builder', 'b'], [' · 6m', 'dm']),
+  L(['  sonnet/high', 'dm']),
+  L(['└ ', 'dm'], ['Edit editor.spec.ts', 'su']),
+], 5), { w: LANE, style: 'single', cls: 'cl', title: L(['Build', 'cl b']), right: L(['● working', 'cl']) })
+
+const review = box(pad([
+  title('020', 'Import-Validierung'),
+  tdots(4, 4, 'su'),
+  L(['◉ ', 'su'], ['reviewer', 'b'], [' · 2m', 'dm']),
+  L(['  opus/high', 'dm']),
+  L(['└ ', 'dm'], ['Read ImportCli.cs', 'su']),
+], 5), { w: LANE, style: 'single', cls: 'su', title: L(['Review', 'su b']), right: L(['● working', 'su']) })
+
+const done = box(pad([
+  title('018', 'Import-CLI Maskenball', 'dm'),
+  tdots(3, 3, 'ok'),
+], 5), { w: LANE, style: 'single', cls: 'ok', title: L(['Done', 'ok b']), right: L(['1', 'dm']) })
+
+const pane = [
+  ...box([
+    L(['Phase 14 · ', 'dm'], ['Abenteuer-Editor', 'b']),
+    L(['▶ ', 'cl'], ['M14.3 Test-Harness', 'cl b'], ['  · S13 Test-Harness & Import', 'dm']),
+    // two cells per deliverable: done, in review, built, open
+    L(['█'.repeat(6), 'ok'], ['█'.repeat(8), 'su'], ['█'.repeat(4), 'cl'], ['░'.repeat(12), 'dm'],
+      ['  9/15 ', ''], ['60%', 'cl b']),
+  ], { w: W, cls: 'cl', title: L(['✻ Scrum', 'cl b']), right: L(['4.6.0 ✓', 'ok']) }),
+  ...cols([ready, build]),
+  ...cols([review, done]),
+  L(['⚠ ', 'wa'], ['Waiting on you', 'wa b']),
+  fit(L(['  · ', 'wa'], 'ContentStorage:SourcePath in appsettings.Development.json'), W),
+  L(['  · ', 'wa'], 'S10 playtest'),
+  L(),
+  spread(L(['Next ', 'b'], ['○ ', 'dm'], 'M14.4 ', ['no sprint', 'dm']), btn('Plan · sonnet/medium'), W),
+  fit(L(['Open: Post-MVP scope (campaigns…) · 7 follow-ups', 'dm']), W),
+  L(),
+  L(btn('Roadmap check · sonnet/medium', 'cl'), ' ', btn('Refresh')),
+  L(btn('New concept…')),
+  L(),
+  L(['Sprints 1 open · 11 done   Stories 4 open · 67 done', 'dm']),
+]
+
+const band = [
+  L(['Ready ', 'dm'], ['1', 'b'], [' │ ', 'dm'], ['Build ', 'cl'], ['1', 'b'], [' │ ', 'dm'],
+    ['Review ', 'su'], ['1', 'b'], [' │ ', 'dm'], ['Done ', 'ok'], ['1', 'b'], ['  ● ', 'cl'], ['2 ', ''], btn('Board')),
+]
+
+mountTerminal(document.getElementById('term'), { pane, band })
+</script>
+</body>
+</html>

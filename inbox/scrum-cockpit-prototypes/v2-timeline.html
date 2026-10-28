@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · 2 · Timeline</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* VS Code pane: one vertical rail, milestones as nodes, the current one expanded */
+  .v2 .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .v2 .top h2 { margin: 0; font-size: 18px; font-weight: 600; color: #eee; }
+  .v2 .top h2 small { color: #888; font-weight: 400; font-size: 12px; margin-right: 6px; }
+  .v2 .chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #183320; color: var(--ok); white-space: nowrap; }
+  .v2 .chip.run { background: #3a2318; color: var(--claude); }
+  .v2 .chip.rev { background: #232846; color: var(--sug); }
+  .v2 .chip.dim { background: #2a2a2a; color: #aaa; }
+
+  .v2 .m { display: grid; grid-template-columns: 30px 1fr; position: relative; padding-bottom: 16px; }
+  .v2 .m::before {
+    content: ''; position: absolute; left: 14px; top: 20px; bottom: 0; width: 2px; background: #333;
+  }
+  .v2 .m.done::before { background: var(--ok); opacity: .7; }
+  .v2 .m.cur::before { background: linear-gradient(var(--claude), #333); }
+  .v2 .m.last::before { display: none; }
+  .v2 .dot {
+    width: 16px; height: 16px; border-radius: 50%; margin: 2px 0 0 7px; position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; color: #111; font-weight: 700;
+  }
+  .v2 .done .dot { background: var(--ok); }
+  .v2 .cur .dot { background: var(--claude); box-shadow: 0 0 0 4px rgba(217,119,87,.22), 0 0 16px rgba(217,119,87,.7); }
+  .v2 .future .dot { background: var(--vs-pane); border: 2px solid #555; }
+  .v2 .mh { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 20px; }
+  .v2 .mh .name { color: #ddd; }
+  .v2 .mh .name b { color: #888; font-weight: 500; margin-right: 6px; }
+  .v2 .done .mh .name { color: #8a8a8a; }
+  .v2 .cur .mh .name { color: var(--claude); font-size: 15px; font-weight: 600; }
+  .v2 .cur .mh .name b { color: var(--claude); opacity: .8; }
+  .v2 .meta { color: #888; font-size: 12px; }
+
+  .v2 .flag {
+    margin: 8px 0 4px; border-left: 3px solid var(--warn); background: #221d10; border-radius: 0 6px 6px 0;
+    padding: 6px 10px; color: #d8cba0; font-size: 12.5px;
+  }
+  .v2 .flag b { color: var(--warn); font-weight: 600; }
+
+  .v2 .sprint { margin-top: 8px; border: 1px solid #2f2f2f; border-radius: 8px; background: #1d1d1d; padding: 8px 10px 4px; }
+  .v2 .sprint-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .v2 .sprint-h span:first-child { font-weight: 600; color: #ddd; }
+  .v2 .sprint-h span:first-child i { font-style: normal; color: #888; font-weight: 400; }
+  .v2 .prog { height: 4px; background: #2c2c2c; border-radius: 2px; margin: 4px 0 8px; overflow: hidden; }
+  .v2 .prog i { display: block; width: 60%; height: 100%; background: var(--claude); }
+
+  .v2 .tree { position: relative; margin-left: 6px; }
+  .v2 .br { position: relative; padding: 3px 0 3px 18px; }
+  .v2 .br::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid #444; }
+  .v2 .br:last-child::before { bottom: auto; height: 13px; }
+  .v2 .br::after { content: ''; position: absolute; left: 0; top: 13px; width: 12px; border-top: 1px solid #444; }
+  .v2 .story { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; }
+  .v2 .story .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v2 .story .t b { color: #888; font-weight: 500; margin-right: 4px; }
+  .v2 .story.isdone .t { color: #777; text-decoration: line-through; }
+  .v2 .story .d { color: #888; font-size: 12px; font-variant-numeric: tabular-nums; margin-right: 6px; }
+
+  .v2 .agent {
+    margin: 4px 0 2px 22px; padding: 5px 9px; border-radius: 6px; background: #241a15; border: 1px solid #4a3024;
+    font-size: 12.5px; position: relative;
+  }
+  .v2 .agent::before { content: ''; position: absolute; left: -12px; top: -6px; width: 10px; height: 18px; border-left: 1px dashed #6a4535; border-bottom: 1px dashed #6a4535; border-radius: 0 0 0 6px; }
+  .v2 .agent .who { display: flex; justify-content: space-between; color: #ddd; }
+  .v2 .agent .who span { color: #999; }
+  .v2 .agent .act { font-family: var(--t-font); font-size: 11.5px; color: #9aa4d9; margin-top: 2px; }
+  .v2 .agent.idle { background: transparent; border-color: #2c2c2c; color: #888; }
+  .v2 .agent.idle .who { color: #888; }
+  .v2 .pulse { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--claude); margin-right: 6px; animation: v2p 1.4s ease-in-out infinite; }
+  @keyframes v2p { 50% { opacity: .25; } }
+
+  .v2 .after { color: #888; font-size: 12px; margin: 2px 0 12px 30px; }
+  .v2 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .v2 .foot { color: #777; font-size: 11.5px; margin-top: 10px; }
+
+  .v2-band {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; white-space: nowrap;
+    border: 1px solid #333; background: #1c1c1c; border-radius: 6px; padding: 4px 8px;
+  }
+  .v2-band .sp { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>2 · Timeline <small>one rail from the last milestone to the next</small></h1>
+    <p>The roadmap becomes a vertical rail: done milestones in green, the current one glowing in Claude orange and expanded in place,
+      future ones hollow. Under the current node the sprint branches into its stories, and every running agent hangs under the story
+      it works on — who works on what is read off the shape, not off a list. What waits on you is a flag pinned to the current node.</p>
+    <p class="uses">Uses: <code>Box borderStyle</code> / <code>borderColor</code> for the rail and branches, <code>Text color</code>,
+      <code>backgroundColor</code> for the agent chips, <code>Text size="heading"</code> — VS Code draws the rail as CSS lines, the terminal as
+      <code>┃ ├─ └─</code> cells.</p>
+  </div>
+
+  <div class="surfaces">
+    <div id="vscode"></div>
+    <div id="term"></div>
+  </div>
+
+  <div class="note">
+    <b>Trade-off:</b> the strongest sense of "where are we" and the clearest link between agents and stories, but the tree is deep:
+    with five or more stories and agents it grows long, and done milestones further back must be folded to keep the rail short.
+  </div>
+</div>
+
+<script src="base.js"></script>
+<script>
+nav('v2-timeline.html')
+
+const miniRail = `<svg width="64" height="12" viewBox="0 0 64 12">
+  <line x1="6" y1="6" x2="24" y2="6" stroke="#4eba65" stroke-width="2"/>
+  <line x1="24" y1="6" x2="42" y2="6" stroke="#d97757" stroke-width="2"/>
+  <line x1="42" y1="6" x2="58" y2="6" stroke="#444" stroke-width="2"/>
+  <circle cx="6" cy="6" r="4" fill="#4eba65"/><circle cx="24" cy="6" r="4" fill="#4eba65"/>
+  <circle cx="42" cy="6" r="5" fill="#d97757"/><circle cx="58" cy="6" r="3.5" fill="#1c1c1c" stroke="#666" stroke-width="1.5"/>
+</svg>`
+
+mountVSCode(document.getElementById('vscode'), {
+  band: `<div class="v2-band">${miniRail}<b style="color:var(--claude)">M14.3</b><span>S13 · 9/15</span>
+    <span><span class="pulse" style="margin-right:4px"></span>2 agents</span><span class="sp"></span>
+    <button class="vbtn">Overview</button><button class="vbtn plain">Hide</button></div>`,
+  pane: `<div class="v2">
+    <div class="top">
+      <h2><small>Phase 14</small>Abenteuer-Editor</h2>
+      <span class="chip">ai-scrum 4.6.0 · tech-rules 2.4.0 ✓</span>
+    </div>
+
+    <div class="m done"><div class="dot">✓</div>
+      <div class="mh"><span class="name"><b>M14.1</b>Seitenleiste</span><span class="meta">S11 · done</span></div></div>
+    <div class="m done"><div class="dot">✓</div>
+      <div class="mh"><span class="name"><b>M14.2</b>Prototyp-Abgleich</span><span class="meta">S12 · done</span></div></div>
+
+    <div class="m cur"><div class="dot"></div>
+      <div>
+        <div class="mh"><span class="name"><b>M14.3</b>Test-Harness</span><span class="chip run">S13 · 9/15 · 60%</span></div>
+
+        <div class="flag"><b>⚑ Waiting on you</b> · ContentStorage:SourcePath in appsettings.Development.json · S10 playtest</div>
+
+        <div class="sprint">
+          <div class="sprint-h"><span>Sprint S13 <i>Test-Harness &amp; Import</i></span><span class="chip run">in progress</span></div>
+          <div class="prog"><i></i></div>
+          <div class="tree">
+            <div class="br"><div class="story isdone"><span style="color:var(--ok)">✓</span><span class="t"><b>018</b>Import-CLI Maskenball</span><span><span class="d">3/3</span><span class="chip">done</span></span></div></div>
+            <div class="br"><div class="story"><span style="color:var(--claude)">●</span><span class="t"><b>019</b>Playwright-Harness und erste Flows</span><span><span class="d">2/5</span><span class="chip run">build</span></span></div>
+              <div class="agent"><div class="who"><span style="color:#ddd"><span class="pulse"></span>builder</span><span>sonnet/high · 6m · 14 tools</span></div>
+                <div class="act">→ Edit tests/e2e/editor.spec.ts</div></div></div>
+            <div class="br"><div class="story"><span style="color:var(--sug)">◐</span><span class="t"><b>020</b>Import-Validierung</span><span><span class="d">4/4</span><span class="chip rev">review</span></span></div>
+              <div class="agent"><div class="who"><span style="color:#ddd"><span class="pulse"></span>reviewer</span><span>opus/high · 2m · 5 tools</span></div>
+                <div class="act">→ Read src/Import/ImportCli.cs</div></div></div>
+            <div class="br"><div class="story"><span style="color:#666">○</span><span class="t"><b>021</b>Seed-Daten für E2E</span><span><span class="d">0/3</span><span class="chip dim">ready</span></span></div>
+              <div class="agent idle"><div class="who"><span><span style="color:var(--ok);margin-right:6px">✓</span>refiner</span><span>opus/high · 4m · 23 tools</span></div></div></div>
+          </div>
+          <div class="trail" style="font-family:var(--t-font);font-size:11.5px;color:#888;margin:6px 0 4px">trail · 019 D2 — harness boots the app on :5173</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="m future last"><div class="dot"></div>
+      <div class="mh"><span class="name"><b>M14.4</b>Kampagnen-Import</span><button class="vbtn">Plan <span class="meta" style="color:#fff;opacity:.75">sonnet/medium</span></button></div>
+      <div></div><div class="meta" style="margin-top:2px">no sprint yet</div></div>
+
+    <div class="after">7 follow-ups · Open: Post-MVP scope (campaigns, couple challenges, combat…)</div>
+
+    <div class="actions">
+      <button class="vbtn">Roadmap check <span class="meta" style="color:#fff;opacity:.75">sonnet/medium</span></button>
+      <button class="vbtn secondary">New concept…</button>
+      <button class="vbtn secondary">Refresh</button>
+    </div>
+    <div class="foot">Sprints 1 open · 11 done &nbsp;·&nbsp; Stories 4 open · 67 done</div>
+  </div>`,
+})
+
+const { L, bar, btn, spread, fit } = T
+const W = TERM_PANE
+
+// The rail column: three cells, the line in the segment's color.
+const rail = cls => [['┃  ', cls]]
+const thin = cls => [['│  ', cls]]
+
+const storyRow = (branch, mark, markCls, id, title, d, total, state, stateCls, isDone) =>
+  spread(
+    L(rail('cl'), [branch, 'dm'], [mark + ' ', markCls], [id + ' ', 'dm'], fit(L([title, isDone ? 'dm' : '']), 22)),
+    L([`${d}/${total} `, 'dm'], [state, stateCls]),
+    W,
+  )
+
+const agentRow = (stem, mark, markCls, who, setting, time) =>
+  spread(L(rail('cl'), [stem, 'dm'], ['╰', 'dm'], [mark + ' ', markCls], [who, mark === '✓' ? 'dm' : '']), L([`${setting}  ${time}`, 'dm']), W)
+
+const actRow = (stem, text) => L(rail('cl'), [stem, 'dm'], ['  → ', 'dm'], fit(L([text, 'su']), W - 13))
+
+const pane = [
+  spread(L(['✻ ', 'cl'], ['Phase 14 ', 'dm'], ['Abenteuer-Editor', 'b']), L(['4.6.0 ✓', 'ok']), W),
+  L(),
+  spread(L(['✓  ', 'ok'], ['M14.1 ', 'dm'], ['Seitenleiste', 'dm']), L(['S11 done', 'ok']), W),
+  L(rail('ok')),
+  spread(L(['✓  ', 'ok'], ['M14.2 ', 'dm'], ['Prototyp-Abgleich', 'dm']), L(['S12 done', 'ok']), W),
+  L(rail('ok')),
+  spread(L(['●  ', 'cl b'], ['M14.3 Test-Harness', 'cl b']), L(bar(9, 15, 8), [' 9/15 ', 'dm'], ['60%', 'cl b']), W),
+  L(rail('cl'), ['⚑ Waiting on you', 'wa b']),
+  L(rail('cl'), ['  · ', 'wa'], fit(L('ContentStorage:SourcePath in appsettings.Dev.json'), W - 7)),
+  L(rail('cl'), ['  · ', 'wa'], 'S10 playtest'),
+  L(rail('cl')),
+  spread(L(rail('cl'), ['└─ ', 'dm'], ['Sprint S13 ', 'b'], ['Test-Harness & Import', 'dm']), L(['in progress', 'cl']), W),
+  storyRow('   ├─ ', '✓', 'ok', '018', 'Import-CLI Maskenball', 3, 3, 'done', 'ok', true),
+  storyRow('   ├─ ', '●', 'cl', '019', 'Playwright-Harness und erste Flows', 2, 5, 'build', 'cl'),
+  agentRow('   │  ', '●', 'cl', 'builder', 'sonnet/high', ' 6m'),
+  actRow('   │  ', 'Edit tests/e2e/editor.spec.ts'),
+  storyRow('   ├─ ', '◐', 'su', '020', 'Import-Validierung', 4, 4, 'review', 'su'),
+  agentRow('   │  ', '●', 'cl', 'reviewer', 'opus/high  ', ' 2m'),
+  actRow('   │  ', 'Read src/Import/ImportCli.cs'),
+  storyRow('   └─ ', '○', 'dm', '021', 'Seed-Daten für E2E', 0, 3, 'ready', 'dm'),
+  agentRow('      ', '✓', 'ok', 'refiner', 'opus/high  ', ' 4m'),
+  L(rail('cl'), ['   trail: 019 D2 — harness boots the app :5173', 'dm']),
+  L(thin('dm')),
+  spread(L(['○  ', 'dm'], ['M14.4 ', 'dm'], 'Kampagnen-Import'), btn('Plan · sonnet/medium'), W),
+  L(['╵  ', 'dm'], ['no sprint yet', 'dm']),
+  L(),
+  L(['   7 follow-ups · ', 'dm'], fit(L(['Open: Post-MVP scope (campaigns, …)', 'dm']), W - 18)),
+  L(),
+  L(btn('Roadmap check · sonnet/medium', 'cl'), ' ', btn('Refresh')),
+  L(btn('New concept…')),
+  L(),
+  L(['Sprints 1 open · 11 done   Stories 4 open · 67 done', 'dm']),
+]
+
+const band = [
+  L(['✓━✓', 'ok'], ['━●', 'cl'], ['━○', 'dm'], ' ', ['M14.3', 'cl b'], [' · S13 ', 'dm'], bar(9, 15, 6),
+    [' 9/15', 'dm'], ['  ● ', 'cl'], ['2 agents ', 'dm'], btn('Overview')),
+]
+
+mountTerminal(document.getElementById('term'), { pane, band })
+</script>
+</body>
+</html>

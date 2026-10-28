@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · prototypes</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 22px; }
+  .tile {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid #2c2c2c; border-radius: 10px; padding: 16px 18px; background: #141414;
+  }
+  .tile:hover { border-color: var(--claude); }
+  .tile h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; color: #eee; }
+  .tile h3 span { color: var(--claude); margin-right: 6px; }
+  .tile p { margin: 6px 0 0; color: #a5a5a5; font-size: 13.5px; line-height: 1.5; }
+  .tile .best { color: #8a8a8a; font-size: 12.5px; margin-top: 10px; }
+  table { border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 14px 6px 0; border-bottom: 1px solid #262626; vertical-align: top; }
+  th { color: #888; font-weight: 500; }
+  td code { background: #1d1d1d; border: 1px solid #2c2c2c; border-radius: 4px; padding: 0 5px; color: #ccc; font-size: 12px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 34px 0 4px; color: #ddd; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>Scrum cockpit · five directions</h1>
+    <p>Each page shows the same project state — sprint S13 running, two agents at work, two things waiting on you — drawn twice:
+      in the VS Code extension's pane and in the terminal's fullscreen pane, with the band above the prompt in both.
+      Only elements and props the mod engine offers on that surface are used, so whichever you pick can be built as drawn.</p>
+  </div>
+
+  <div class="grid">
+    <a class="tile" href="v1-mission-control.html"><h3><span>1</span>Mission Control</h3>
+      <p>One framed card per concern: a hero for the milestone with a progress ring, the sprint as a story table, agents, a waiting-on-you card in amber.</p>
+      <div class="best">Closest to today, just structured. Familiar, easy to scan.</div></a>
+    <a class="tile" href="v2-timeline.html"><h3><span>2</span>Timeline</h3>
+      <p>A vertical rail of milestones; the current one opens into its sprint, its stories, and the agents hanging under the story they work on.</p>
+      <div class="best">Best for "where are we and who does what".</div></a>
+    <a class="tile" href="v3-board.html"><h3><span>3</span>Board</h3>
+      <p>A mini kanban of the running sprint — Ready, Build, Review, Done — with the working agent as a badge on its card.</p>
+      <div class="best">Best while a sprint runs; thin between sprints.</div></a>
+    <a class="tile" href="v4-dashboard.html"><h3><span>4</span>Dashboard</h3>
+      <p>Metrics first: KPI tiles, a burndown, velocity per sprint, story status, then a dense agent table.</p>
+      <div class="best">The "fanciest"; needs history ai-scrum does not record yet.</div></a>
+    <a class="tile" href="v5-focus.html"><h3><span>5</span>Focus</h3>
+      <p>Calm and typographic: what is happening now, the one thing that is your move, everything else folded into lines that open on hover.</p>
+      <div class="best">Least noise; the rest is a hover away.</div></a>
+  </div>
+
+  <h2>What the engine can draw, per surface</h2>
+  <table>
+    <tr><th></th><th>VS Code pane</th><th>Terminal pane / band</th></tr>
+    <tr><td>Layout</td><td colspan="2"><code>Box</code> flex rows/columns, gap, padding, <code>borderStyle</code> (round, single, double, bold), <code>borderColor</code>, <code>backgroundColor</code></td></tr>
+    <tr><td>Text</td><td><code>size</code> caption → title, <code>weight</code>, <code>mono</code>, colors</td><td>one size; bold, dim, italic, underline, inverse, colors</td></tr>
+    <tr><td>Graphics</td><td><code>Svg</code> — rings, charts, rails; <code>isInteractive</code> adds hover and SMIL animation</td><td>block and braille glyphs; <code>Raster</code> (pixel-ish cell art) and <code>Client</code> (own animated drawing) — not used here</td></tr>
+    <tr><td>Interaction</td><td colspan="2"><code>Button</code> (primary/secondary, hotkey), <code>hover</code> styles and hover-revealed cards, <code>Link</code>, <code>Markdown</code></td></tr>
+    <tr><td>Color</td><td colspan="2">theme keys (<code>claude</code>, <code>success</code>, <code>warning</code>, <code>suggestion</code>…) follow the user's theme; hex works but ignores it</td></tr>
+  </table>
+  <p class="intro" style="color:#888;font-size:13px;margin-top:14px">Sample data, modelled on the Abenteuer-Editor project. Variants can be mixed: e.g. the band of one with the pane of another.</p>
+</div>
+<script src="base.js"></script>
+<script>nav('index.html')</script>
+</body>
+</html>

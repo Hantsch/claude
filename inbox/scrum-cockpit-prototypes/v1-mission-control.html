@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrum cockpit · 1 · Mission Control</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* VS Code pane: bordered cards, an accent edge per state */
+  .v1 .card {
+    border: 1px solid #2f2f2f; border-radius: 8px; background: #1d1d1d;
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .v1 .card.hero { border-color: #5a3a2c; background: linear-gradient(135deg, #2a1d17 0%, #1d1d1d 60%); }
+  .v1 .card.warn { border-color: #5c4a1c; background: #221d10; }
+  .v1 .card-h {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 6px;
+  }
+  .v1 .chip {
+    font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #2a2a2a; color: #bbb;
+    text-transform: none; letter-spacing: 0;
+  }
+  .v1 .chip.ok { background: #183320; color: var(--ok); }
+  .v1 .chip.run { background: #3a2318; color: var(--claude); }
+  .v1 .chip.rev { background: #232846; color: var(--sug); }
+  .v1 .chip.warn { background: #3a3014; color: var(--warn); }
+  .v1 .hero-row { display: flex; gap: 14px; align-items: center; }
+  .v1 .hero h2 { margin: 0; font-size: 19px; font-weight: 600; color: #eee; }
+  .v1 .hero .ms { color: var(--claude); font-weight: 600; margin-top: 2px; }
+  .v1 .hero .sub { color: #999; font-size: 12px; margin-top: 4px; }
+  .v1 .story { display: grid; grid-template-columns: 18px 1fr 70px 64px; gap: 8px; align-items: center; padding: 4px 0; }
+  .v1 .story + .story { border-top: 1px solid #262626; }
+  .v1 .story .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v1 .story .t b { color: #999; font-weight: 500; margin-right: 4px; }
+  .v1 .story.done .t { color: #777; text-decoration: line-through; }
+  .v1 .d { height: 5px; border-radius: 3px; background: #2c2c2c; overflow: hidden; }
+  .v1 .d i { display: block; height: 100%; background: var(--claude); border-radius: 3px; }
+  .v1 .d.ok i { background: var(--ok); }
+  .v1 .trail { font-size: 11.5px; color: #888; margin-top: 6px; font-family: var(--t-font); }
+  .v1 .agent { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; padding: 5px 0; align-items: start; }
+  .v1 .agent + .agent { border-top: 1px solid #262626; }
+  .v1 .agent .who { color: #ddd; }
+  .v1 .agent .who span { color: #888; font-size: 12px; }
+  .v1 .agent .act { font-family: var(--t-font); font-size: 11.5px; color: #9aa4d9; margin-top: 1px; }
+  .v1 .agent .time { font-size: 12px; color: #888; text-align: right; }
+  .v1 .agent.done { color: #777; }
+  .v1 .agent.done .who { color: #888; }
+  .v1 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .v1 .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .v1 .foot { color: #777; font-size: 11.5px; margin-top: 10px; }
+  .v1 ul { margin: 0; padding-left: 16px; color: #cfc4a0; }
+
+  .v1-band {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa;
+    border: 1px solid #3c2a22; background: #201814; border-radius: 6px; padding: 4px 8px; white-space: nowrap;
+  }
+  .v1-band .mini { width: 70px; height: 5px; border-radius: 3px; background: #333; overflow: hidden; }
+  .v1-band .mini i { display: block; width: 60%; height: 100%; background: var(--claude); }
+  .v1-band .sp { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="nav"></div>
+  <div class="intro">
+    <h1>1 · Mission Control <small>cards, one per concern</small></h1>
+    <p>Every section becomes its own framed card with a colored edge for its state: the current milestone as a hero with a progress ring,
+      the sprint as a story table with deliverable bars, agents with their live activity, and anything that waits on you in amber.
+      Closest to the current layout, just with structure and color.</p>
+    <p class="uses">Uses: <code>Box borderStyle="round" borderColor</code>, <code>backgroundColor</code>, <code>Text size="heading"</code>,
+      <code>Svg</code> (ring, VS Code only) — terminal draws the bar in eighth blocks.</p>
+  </div>
+
+  <div class="surfaces">
+    <div id="vscode"></div>
+    <div id="term"></div>
+  </div>
+
+  <div class="note">
+    <b>Trade-off:</b> the most familiar and the easiest to scan, but the borders cost two rows per card — in a short terminal the
+    agents card is pushed below the fold once a sprint has more than six stories.
+  </div>
+</div>
+
+<script src="base.js"></script>
+<script>
+nav('v1-mission-control.html')
+
+const ring = (pct, size = 64) => {
+  const r = 26, c = 2 * Math.PI * r
+  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="#33302e" stroke-width="7"/>
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="#d97757" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${c * pct} ${c}" transform="rotate(-90 32 32)"/>
+    <text x="32" y="37" text-anchor="middle" font-size="15" font-weight="600" fill="#eee" font-family="Segoe UI">${Math.round(pct * 100)}%</text>
+  </svg>`
+}
+
+mountVSCode(document.getElementById('vscode'), {
+  band: `<div class="v1-band"><span style="color:var(--claude)">✻</span><b style="color:#ddd">S13</b>
+    <span class="mini"><i></i></span><span>9/15</span><span style="color:var(--claude)">●</span><span>2 agents</span>
+    <span class="sp"></span><button class="vbtn">Overview</button><button class="vbtn plain">Hide</button></div>`,
+  pane: `<div class="v1">
+    <div class="card hero">
+      <div class="card-h"><span>Phase 14</span><span class="chip ok">ai-scrum 4.6.0 · tech-rules 2.4.0 ✓</span></div>
+      <div class="hero-row">
+        ${ring(0.6)}
+        <div>
+          <h2>Abenteuer-Editor</h2>
+          <div class="ms">▶ M14.3 Test-Harness</div>
+          <div class="sub">Sprint S13 · 9 of 15 deliverables · 1 of 4 stories done</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>Sprint S13 — Test-Harness &amp; Import</span><span class="chip run">in progress</span></div>
+      <div class="story done"><span style="color:var(--ok)">✓</span><span class="t"><b>018</b>Import-CLI Maskenball</span><span class="d ok"><i style="width:100%"></i></span><span class="chip ok">done</span></div>
+      <div class="story"><span style="color:var(--claude)">●</span><span class="t"><b>019</b>Playwright-Harness und erste Flows</span><span class="d"><i style="width:40%"></i></span><span class="chip run">build</span></div>
+      <div class="story"><span style="color:var(--sug)">◐</span><span class="t"><b>020</b>Import-Validierung</span><span class="d"><i style="width:100%;background:var(--sug)"></i></span><span class="chip rev">review</span></div>
+      <div class="story"><span style="color:#666">○</span><span class="t"><b>021</b>Seed-Daten für E2E</span><span class="d"><i style="width:0"></i></span><span class="chip">ready</span></div>
+      <div class="trail">trail · 019 D2 — harness boots the app on :5173</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>Agents</span><span class="chip run">2 running</span></div>
+      <div class="agent"><span style="color:var(--claude)">●</span>
+        <div><div class="who">builder · Story 019 <span>sonnet/high</span></div><div class="act">→ Edit tests/e2e/editor.spec.ts</div></div>
+        <div class="time">6m<br>14 tools</div></div>
+      <div class="agent"><span style="color:var(--claude)">●</span>
+        <div><div class="who">reviewer · Story 020 <span>opus/high</span></div><div class="act">→ Read src/Import/ImportCli.cs</div></div>
+        <div class="time">2m<br>5 tools</div></div>
+      <div class="agent done"><span style="color:var(--ok)">✓</span>
+        <div><div class="who">refiner · Story 021 <span>opus/high</span></div></div>
+        <div class="time">4m · 23 tools</div></div>
+    </div>
+
+    <div class="card warn">
+      <div class="card-h"><span style="color:var(--warn)">⚠ Waiting on you</span><span class="chip warn">2</span></div>
+      <ul><li>ContentStorage:SourcePath in appsettings.Development.json</li><li>S10 playtest</li></ul>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>Next</span><span class="chip">7 follow-ups</span></div>
+      <div class="row"><span>○ M14.4 Kampagnen-Import has no sprint</span><button class="vbtn">Plan <span class="meta">sonnet/medium</span></button></div>
+      <div style="color:#888;font-size:12px;margin-top:6px">Open: Post-MVP scope (campaigns, couple challenges, combat…)</div>
+    </div>
+
+    <div class="actions">
+      <button class="vbtn">Roadmap check <span class="meta">sonnet/medium</span></button>
+      <button class="vbtn secondary">New concept…</button>
+      <button class="vbtn secondary">Refresh</button>
+    </div>
+    <div class="foot">Sprints 1 open · 11 done &nbsp;·&nbsp; Stories 4 open · 67 done</div>
+  </div>`,
+})
+
+const { L, box, bar, btn, spread, fit } = T
+const W = TERM_PANE
+
+const storyRow = (mark, markCls, id, title, d, total, state, stateCls, isDone) =>
+  L([mark + ' ', markCls], [id + ' ', 'dm'], fit(L([title, isDone ? 'dm' : '']), 21), ' ',
+    total ? bar(d, total, 6, isDone ? 'ok' : stateCls === 'su' ? 'su' : 'cl') : [['      ', '']],
+    [` ${d}/${total}`.padEnd(5), 'dm'], ' ', [state, stateCls])
+
+const pane = [
+  ...box([
+    L(['Phase 14 · ', 'dm'], ['Abenteuer-Editor', 'b']),
+    L(['▶ ', 'cl'], ['M14.3 Test-Harness', 'cl b'], ['  · sprint S13', 'dm']),
+    L(bar(9, 15, 28), ['  9/15 ', ''], ['60%', 'cl b']),
+  ], { w: W, cls: 'cl', title: L(['✻ Scrum', 'cl b']), right: L(['4.6.0 ✓', 'ok']) }),
+  ...box([
+    storyRow('✓', 'ok', '018', 'Import-CLI Maskenball', 3, 3, 'done', 'ok', true),
+    storyRow('●', 'cl', '019', 'Playwright-Harness und erste Flows', 2, 5, 'build', 'cl'),
+    storyRow('◐', 'su', '020', 'Import-Validierung', 4, 4, 'review', 'su'),
+    storyRow('○', 'dm', '021', 'Seed-Daten für E2E', 0, 3, 'ready', 'dm'),
+    L(['trail: 019 D2 — harness boots the app on :5173', 'dm']),
+  ], { w: W, title: L(['Sprint S13', 'b'], [' Test-Harness & Import', 'dm']), right: L(['in progress', 'cl']) }),
+  ...box([
+    spread(L(['● ', 'cl'], 'builder · 019'), L(['sonnet/high  6m  14 tools', 'dm']), W - 4),
+    L(['  └ ', 'dm'], ['Edit tests/e2e/editor.spec.ts', 'su']),
+    spread(L(['● ', 'cl'], 'reviewer · 020'), L(['opus/high    2m   5 tools', 'dm']), W - 4),
+    L(['  └ ', 'dm'], ['Read src/Import/ImportCli.cs', 'su']),
+    spread(L(['✓ ', 'ok'], ['refiner · 021', 'dm']), L(['opus/high    4m  23 tools', 'dm']), W - 4),
+  ], { w: W, title: L(['Agents', 'b']), right: L(['2 running', 'cl']) }),
+  ...box([
+    L(['· ', 'wa'], 'ContentStorage:SourcePath in appsettings.Development.json'),
+    L(['· ', 'wa'], 'S10 playtest'),
+  ], { w: W, cls: 'wa', title: L(['⚠ Waiting on you', 'wa b']) }),
+  ...box([
+    spread(L(['○ ', 'dm'], 'M14.4 Kampagnen-Import'), btn('Plan · sonnet/medium'), W - 4),
+    L(['Open: Post-MVP scope (campaigns, couple challenges…)', 'dm']),
+  ], { w: W, title: L(['Next', 'b']), right: L(['7 follow-ups', 'dm']) }),
+  L(btn('Roadmap check · sonnet/medium', 'cl'), ' ', btn('Refresh')),
+  L(btn('New concept…')),
+  L(),
+  L(['Sprints 1 open · 11 done   Stories 4 open · 67 done', 'dm']),
+]
+
+const band = [
+  L(['✻ ', 'cl'], ['S13', 'b'], ' ', bar(9, 15, 10), [' 9/15', 'dm'], ['  ● ', 'cl'], ['2 agents ', 'dm'], btn('Overview'), ' ', btn('Hide', 'dm')),
+]
+
+mountTerminal(document.getElementById('term'), { pane, band })
+</script>
+</body>
+</html>
