@@ -17,6 +17,9 @@ plugins/<name>/
   agents/*.md                     subagent definitions
   skills/<name>/SKILL.md          skills, matched against a task by their description
   output-styles/*.md              output styles, offered in the user's /config picker
+  hooks/hooks.json                a mod: names its hooks module under "modules"
+  hooks/*.tsx  types/index.d.ts   the module (TypeScript, no build step) and its state contract
+  tests/*.test.tsx                the mod's tests, run by `claude plugin test`
   templates/*                     files the plugin writes into a consuming project
   templates/workflow/             managed payload: the project's OWN commands/agents
     commands/*.md  agents/*.md
@@ -28,7 +31,7 @@ scripts/*.ps1                     validate, plan-release, release, ci-release
 inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
-Three plugins, in two shapes:
+Four plugins, in three shapes:
 
 - **Installers:** [ai-scrum](plugins/ai-scrum/) — a spec-driven Scrum workflow whose state *and
   whose commands* live in the consuming repository — and [tech-rules](plugins/tech-rules/), which
@@ -37,6 +40,12 @@ Three plugins, in two shapes:
 - **Direct-ship:** [common](plugins/common/) — output styles plus `premortem`, `secrets-scan` and `architecture-review`.
   Its content stays in the plugin, so `/plugin update` is the whole update story. That fits
   because these are tools for the person at the keyboard, not rules a repository has to enforce.
+- **Mod:** [scrum-cockpit](plugins/scrum-cockpit/) — a hooks module that changes Claude Code's own
+  interface: a band above the prompt and a pane beside the chat showing a project's ai-scrum state
+  and the running subagents. Direct-ship for the same reason as `common`. It only *reads* what
+  ai-scrum writes (profile, roadmap, sprint and story files, the lock files), so a change to those
+  formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in the terminal and the desktop
+  app's local sessions; the VS Code extension does not load them.
 
 **Why the stack rules are payload and not plugin skills.** A plugin is installed per user, so a
 contributor who never installed it gets none of the rules and nothing says so. Project skills in
@@ -120,7 +129,16 @@ a single push with `git push --no-verify`.
   error, as is a skill folder without `SKILL.md`. `name` is optional but must equal the folder
   name if present. `user-invocable` and `disable-model-invocation` must be `true`/`false` —
   same reason as the output-style flags: a misspelling is silently ignored.
-- **A plugin needs at least one of** `commands/`, `agents/`, `skills/`, `output-styles/`.
+- **A plugin needs at least one of** `commands/`, `agents/`, `skills/`, `output-styles/`, or a
+  hooks module named in `hooks/hooks.json`.
+- **A mod's module must load.** Every path under `modules` in `hooks/hooks.json` must exist and be
+  `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts` or `.cts`, and a `types` file named in
+  `plugin.json` must exist — the validator checks those. What it cannot check is the module itself;
+  run `claude plugin validate plugins/<name>` and `claude plugin test plugins/<name>` locally (CI has
+  no `claude` CLI). The engine's own rules are strict and silent at run time: a function that is
+  handed `$` must be declared at the top of a file, not inside `register`, and a JSX file must not
+  name anything `h`, the factory JSX compiles against. `.claude-plugin/types/` is written by the
+  engine whenever it loads the folder and ignored by its own `.gitignore`; never commit it.
 - **The managed payload is validated like the real thing.** `templates/workflow/commands/*.md`
   and `.../agents/*.md` go through the same frontmatter checks (including agent `name` = file
   name), and `templates/skills/<group>/<skill>/SKILL.md` through the same skill checks (folder
@@ -199,6 +217,12 @@ These are load-bearing, not style preferences:
 
 A local path source reads straight from the working tree, so command edits take effect without a
 commit. Switch back with `/plugin marketplace remove hantsch` and re-adding `Hantsch/claude`.
+
+A mod is quicker to try from its folder, in a terminal session, with hot reload on every save:
+
+```
+claude --plugin-dir plugins/scrum-cockpit
+```
 
 ## Conventions
 

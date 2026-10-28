@@ -10,12 +10,13 @@ purpose: no token, no auth, no clone needed to install from it.
 | [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
 | [tech-rules](plugins/tech-rules/) | Installs the house rules for a project's stack into the repository itself: `/tech-rules:setup` detects .NET, React and Electron, writes the matching skills to `.claude/skills/`, keeps a pointer block in `CLAUDE.md` and updates both later. Every project also gets the test rules (`test-gates`) plus `/test-review` and `/release-prep`. | [CHANGELOG](plugins/tech-rules/CHANGELOG.md) |
 | [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, and the `/common:premortem`, `/common:secrets-scan` and `/common:architecture-review` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
+| [scrum-cockpit](plugins/scrum-cockpit/) | A mod for projects that run ai-scrum: milestone, sprint, stories and the running subagents beside the chat, a hint when ai-scrum or tech-rules is out of date, and buttons that start the next command with its own model and effort. Terminal and desktop app; the VS Code extension does not load mods. | [CHANGELOG](plugins/scrum-cockpit/CHANGELOG.md) |
 
-Two of the three are **installers**: what they ship ends up in the consuming repository, so a
+Two of the four are **installers**: what they ship ends up in the consuming repository, so a
 contributor who never installed a plugin still gets the workflow (ai-scrum) and the house rules
-(tech-rules). Only whoever installs or updates them needs the plugin. `common` is the exception —
-output styles and two commands are tools for the person at the keyboard, not repository content, so
-they stay in the plugin.
+(tech-rules). Only whoever installs or updates them needs the plugin. `common` and `scrum-cockpit`
+are the exception — output styles, commands and a view of the project are tools for the person at
+the keyboard, not repository content, so they stay in the plugin.
 
 The former `dotnet`, `react` and `electron` plugins are gone. Their rules are tech-rules' payload,
 unchanged; see [Migrating](plugins/tech-rules/README.md#migrating-from-the-react-dotnet-and-electron-plugins).

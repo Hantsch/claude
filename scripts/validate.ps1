@@ -6,8 +6,8 @@
     Checks that the marketplace manifest and all plugin manifests are valid and in sync,
     that commands, agents, output styles and skills carry usable frontmatter - for a plugin's
     own components and for the managed payload in templates/workflow/ and templates/skills/
-    alike - and that every file a command references (${CLAUDE_PLUGIN_ROOT}/... or
-    templates/...) actually ships.
+    alike - that every hooks module a mod names in hooks/hooks.json exists, and that every file
+    a command references (${CLAUDE_PLUGIN_ROOT}/... or templates/...) actually ships.
 .EXAMPLE
     pwsh -File scripts/validate.ps1
 #>
@@ -197,8 +197,30 @@ foreach ($entry in $marketplace.plugins) {
     $skills = @()
     if (Test-Path $skillDir) { $skills = @(Get-ChildItem -Path $skillDir -Directory) }
 
-    Test-Check -Where $where -Message 'no commands, agents, output styles or skills found' `
-        -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or $skills.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
+    # A mod is a hooks module that hooks/hooks.json names under "modules". Claude Code does not
+    # load a module that is missing or carries a suffix it does not compile, and says so only in
+    # the debug log of whoever installed the plugin, so both are checked here.
+    $hooksJsonPath = Join-Path $pluginDir 'hooks/hooks.json'
+    $hookModules = @()
+    if (Test-Path $hooksJsonPath) {
+        $hooksJson = Read-JsonFile -Path $hooksJsonPath
+        if ($null -ne $hooksJson) {
+            if ($hooksJson.modules) { $hookModules = @($hooksJson.modules) }
+            $hwhere = "$where / hooks/hooks.json"
+            Test-Check -Where $hwhere -Message 'names neither "modules" nor "hooks"' -Condition ($hookModules.Count -gt 0 -or [bool]$hooksJson.hooks)
+            foreach ($module in $hookModules) {
+                Test-Check -Where $hwhere -Message "module '$module' is not a .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts or .cts file" -Condition ($module -match '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$')
+                Test-Check -Where $hwhere -Message "module '$module' does not exist" -Condition (Test-Path (Join-Path (Join-Path $pluginDir 'hooks') $module))
+            }
+        }
+    }
+    # The state contract a mod names in plugin.json; the engine refuses a missing one.
+    if ($manifest.types) {
+        Test-Check -Where $where -Message "plugin.json types '$($manifest.types)' does not exist" -Condition (Test-Path (Join-Path $pluginDir $manifest.types))
+    }
+
+    Test-Check -Where $where -Message 'no commands, agents, output styles, skills or hooks module found' `
+        -Condition ($commands.Count -gt 0 -or $styles.Count -gt 0 -or $skills.Count -gt 0 -or $hookModules.Count -gt 0 -or (Test-Path (Join-Path $pluginDir 'agents')))
 
     foreach ($cmd in $commands) {
         Test-CommandFile -Where "$where / commands/$($cmd.Name)" -Path $cmd.FullName

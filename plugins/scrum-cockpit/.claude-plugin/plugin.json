@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "scrum-cockpit",
+  "description": "A mod for projects that run ai-scrum: shows the milestone, sprint, stories and running subagents beside the chat, says when ai-scrum or tech-rules is out of date, and offers buttons that start the next command with its own model and effort.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Hantsch"
+  },
+  "homepage": "https://github.com/Hantsch/claude/tree/main/plugins/scrum-cockpit",
+  "repository": "https://github.com/Hantsch/claude",
+  "license": "MIT",
+  "keywords": [
+    "mod",
+    "scrum",
+    "sprint",
+    "progress",
+    "subagents"
+  ],
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,403 @@
+import type {
+  Launch,
+  Milestone,
+  ScrumPlugin,
+  Snapshot,
+  Sprint,
+  SprintStory,
+  Story,
+  VersionCheck,
+} from '../types'
+
+// What the scanner needs from the engine, so it runs the same in a test.
+// `read` answers null for a missing file, `list` an empty list for a missing
+// directory.
+export type Reader = {
+  read: (path: string) => Promise<string | null>
+  list: (path: string) => Promise<{ name: string; isDir: boolean }[]>
+  // The Claude Code config directory (~/.claude or CLAUDE_CONFIG_DIR).
+  configDir: string | null
+}
+
+const PLUGINS: ScrumPlugin[] = ['ai-scrum', 'tech-rules']
+const COMMANDS = ['refine', 'build', 'sprint', 'roadmap', 'concept']
+
+const lines = (text: string) => text.split(/\r?\n/)
+
+const stripLinks = (text: string) =>
+  text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/`/g, '')
+
+const isPlaceholder = (text: string) => /^\s*<.*>?\s*$/.test(text) || text.includes('<')
+
+export function frontmatter(text: string): Record<string, string> {
+  const all = lines(text)
+  const out: Record<string, string> = {}
+  if (all[0]?.trim() !== '---') return out
+  for (const line of all.slice(1)) {
+    if (line.trim() === '---') break
+    const m = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)
+    if (m?.[1] !== undefined) out[m[1]] = (m[2] ?? '').replace(/(^|\s+)#.*$/, '').trim()
+  }
+  return out
+}
+
+// The lines under the first `## ` heading that matches, up to the next one.
+export function section(text: string, heading: RegExp): { title: string; body: string[] } | null {
+  const all = lines(text)
+  const start = all.findIndex(l => /^##\s/.test(l) && heading.test(l.replace(/^##\s+/, '')))
+  if (start < 0) return null
+  const rest = all.slice(start + 1)
+  const end = rest.findIndex(l => /^##\s/.test(l))
+  return {
+    title: (all[start] ?? '').replace(/^##\s+/, '').trim(),
+    body: end < 0 ? rest : rest.slice(0, end),
+  }
+}
+
+// The first markdown table in `body`, cells trimmed, separator rows dropped.
+export function table(body: string[]): { header: string[]; rows: string[][] } {
+  const cells = (l: string) =>
+    l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim())
+  const start = body.findIndex(l => l.trim().startsWith('|'))
+  if (start < 0) return { header: [], rows: [] }
+  const block: string[] = []
+  for (const l of body.slice(start)) {
+    if (!l.trim().startsWith('|')) break
+    block.push(l)
+  }
+  const [head, ...rest] = block
+  return {
+    header: head === undefined ? [] : cells(head),
+    rows: rest.filter(l => !/^[\s|:-]+$/.test(l)).map(cells),
+  }
+}
+
+const column = (header: string[], name: RegExp) => header.findIndex(h => name.test(h))
+
+const at = (row: string[], index: number) => (index < 0 ? '' : (row[index] ?? ''))
+
+export function parseRoadmap(text: string) {
+  const current = section(text, /^Current phase/i)
+  const milestones: Milestone[] = []
+  let phase: string | null = null
+  if (current !== null) {
+    const named = current.title.replace(/^Current phase:?\s*/i, '').trim()
+    const firstLine = current.body.find(l => l.trim() !== '' && !l.trim().startsWith('|'))
+    phase = named !== '' ? named : firstLine === undefined ? null : stripLinks(firstLine).trim()
+    const { header, rows } = table(current.body)
+    const name = column(header, /milestone/i)
+    const status = column(header, /status/i)
+    const sprint = column(header, /sprint/i)
+    const note = column(header, /note/i)
+    for (const row of rows) {
+      const id = at(row, 0)
+      if (id === '' || isPlaceholder(id)) continue
+      milestones.push({
+        id,
+        name: stripLinks(at(row, name)),
+        status: stripLinks(at(row, status)).replace(/\*/g, ''),
+        sprints: at(row, sprint).match(/S\d+/g) ?? [],
+        note: stripLinks(at(row, note)),
+      })
+    }
+    // Roadmaps from before ai-scrum 4 give each milestone a heading,
+    // `### M5 — Name — ✔ accepted (date)`, and a `Sprints:` line below it.
+    if (rows.length === 0) {
+      current.body.forEach((l, i) => {
+        const m = /^###\s+(M[\w.]+)\s+[—–-]\s+(.*)$/.exec(l)
+        if (m?.[1] === undefined) return
+        const parts = (m[2] ?? '').split(/\s+[—–]\s+/)
+        const next = current.body.slice(i + 1).findIndex(x => /^###\s/.test(x))
+        const block = current.body.slice(i + 1, next < 0 ? undefined : i + 1 + next)
+        const sprintLine = block.find(x => /^Sprints?:/i.test(x)) ?? ''
+        milestones.push({
+          id: m[1],
+          name: stripLinks(parts[0] ?? ''),
+          status: stripLinks(parts.slice(1).join(' — ')) || 'planned',
+          sprints: sprintLine.match(/S\d+/g)?.filter((s, j, all) => all.indexOf(s) === j) ?? [],
+          note: '',
+        })
+      })
+    }
+  }
+  const standing = (section(text, /^Where we stand/i)?.body ?? [])
+    .map(l => stripLinks(l).replace(/^\s*[-*]\s+/, '').trim())
+    .filter(l => l !== '' && !l.startsWith('<'))
+  const openTopics = table(section(text, /^Open/i)?.body ?? []).rows
+    .map(r => stripLinks(at(r, 0)))
+    .filter(t => t !== '' && !isPlaceholder(t))
+  const followUps = (section(text, /^Follow-ups/i)?.body ?? []).filter(
+    l => /^\s*-\s+/.test(l) && !/^\s*-\s+</.test(l),
+  ).length
+  return { phase, milestones, standing, openTopics, followUps }
+}
+
+export function parseSprint(id: string, text: string, trail: string | null): Sprint {
+  const fm = frontmatter(text)
+  const heading = lines(text).find(l => /^#\s/.test(l)) ?? ''
+  const title = heading.replace(/^#\s+/, '').replace(/^Sprint\s+\S+\s*[—–-]\s*/, '').trim()
+  const stories: SprintStory[] = []
+  for (const l of section(text, /^Stories/i)?.body ?? []) {
+    const m = /^\s*-\s+\[([ xX])\]\s+(\d+)\s*[—–-]?\s*(.*)$/.exec(l)
+    if (m?.[2] !== undefined) {
+      stories.push({ id: m[2], title: stripLinks(m[3] ?? ''), isDone: m[1] !== ' ' })
+    }
+  }
+  return {
+    id: fm['sprint'] || id,
+    title: isPlaceholder(title) ? '' : title,
+    status: fm['status'] || 'planned',
+    milestone: fm['milestone'] ?? '',
+    stories,
+    lastTrail: trail,
+  }
+}
+
+export function parseStory(fileName: string, text: string): Story {
+  const fm = frontmatter(text)
+  let done = 0
+  let total = 0
+  for (const l of section(text, /^Deliverables/i)?.body ?? []) {
+    const m = /^\s*-\s+\[([ xX])\]\s+(?:\*\*)?D\d+(?:\*\*)?\s*[—–-]?\s*(.*)$/.exec(l)
+    if (m === null) continue
+    const rest = (m[2] ?? '').trim()
+    if (rest.startsWith('<') || rest.startsWith('...')) continue
+    total += 1
+    if (m[1] !== ' ') done += 1
+  }
+  return {
+    id: fm['id'] || (/^(\d+)/.exec(fileName)?.[1] ?? fileName),
+    title: fm['title'] || fileName.replace(/\.md$/, ''),
+    status: fm['status'] || 'draft',
+    deliverablesDone: done,
+    deliverablesTotal: total,
+  }
+}
+
+const lastLine = (text: string | null) => {
+  if (text === null) return null
+  const all = lines(text).filter(l => l.trim() !== '')
+  return all[all.length - 1]?.trim() ?? null
+}
+
+const parseJson = (text: string | null): unknown => {
+  if (text === null) return null
+  try {
+    return JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
+  } catch {
+    return null
+  }
+}
+
+const field = (value: unknown, key: string): unknown =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[key] : undefined
+
+const str = (value: unknown) => (typeof value === 'string' ? value : null)
+
+const samePath = (a: string, b: string) =>
+  a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() ===
+  b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split(/[.-]/).map(n => parseInt(n, 10) || 0)
+  const pb = b.split(/[.-]/).map(n => parseInt(n, 10) || 0)
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
+async function versions(r: Reader, root: string): Promise<VersionCheck[]> {
+  const installed = field(
+    parseJson(r.configDir === null ? null : await r.read(`${r.configDir}/plugins/installed_plugins.json`)),
+    'plugins',
+  )
+  const known = parseJson(
+    r.configDir === null ? null : await r.read(`${r.configDir}/plugins/known_marketplaces.json`),
+  )
+  const out: VersionCheck[] = []
+  for (const plugin of PLUGINS) {
+    const lock = parseJson(await r.read(`${root}/.claude/${plugin}.lock`))
+    const check: VersionCheck = {
+      plugin,
+      inProject: str(field(lock, `${plugin}-version`)),
+      installed: null,
+      latest: null,
+      marketplace: null,
+    }
+    // A project or local install for this root wins over the user-wide one,
+    // as it does in Claude Code.
+    const keys = Object.keys(typeof installed === 'object' && installed !== null ? installed : {})
+    for (const key of keys.filter(k => k.startsWith(`${plugin}@`))) {
+      const entries = field(installed, key)
+      if (!Array.isArray(entries)) continue
+      const own = entries.find(
+        en => str(field(en, 'scope')) !== 'user' && samePath(str(field(en, 'projectPath')) ?? '', root),
+      )
+      const user = entries.find(en => str(field(en, 'scope')) === 'user')
+      const pick = own ?? user
+      if (pick === undefined) continue
+      check.installed = str(field(pick, 'version'))
+      check.marketplace = key.slice(plugin.length + 1)
+      if (own !== undefined) break
+    }
+    const location = check.marketplace === null ? null : str(field(field(known, check.marketplace), 'installLocation'))
+    if (location !== null) {
+      const listed = field(parseJson(await r.read(`${location}/.claude-plugin/marketplace.json`)), 'plugins')
+      const entry = Array.isArray(listed) ? listed.find(p => field(p, 'name') === plugin) : undefined
+      check.latest = str(field(entry, 'version'))
+    }
+    out.push(check)
+  }
+  return out
+}
+
+async function profilePaths(r: Reader, root: string) {
+  const profile = (await r.read(`${root}/.claude/ai-scrum.md`)) ?? ''
+  const value = (key: string, fallback: string) => {
+    const m = new RegExp(`^${key}:\\s*(\\S+)`, 'm').exec(profile)
+    return `${root}/${(m?.[1] ?? fallback).replace(/\/+$/, '')}`
+  }
+  return {
+    requirements: value('requirements-path', 'docs/requirements'),
+    sprints: value('sprints-path', 'docs/sprints'),
+    roadmap: value('roadmap-path', 'docs/ROADMAP.md'),
+  }
+}
+
+export async function scan(r: Reader, root: string, now: number): Promise<Snapshot> {
+  const paths = await profilePaths(r, root)
+  const roadmapText = await r.read(paths.roadmap)
+  const roadmap = roadmapText === null ? null : parseRoadmap(roadmapText)
+
+  const sprints: Sprint[] = []
+  const sprintDirs = await r.list(paths.sprints)
+  for (const dir of sprintDirs.filter(d => d.isDir && /^S\d+$/.test(d.name))) {
+    const text = await r.read(`${paths.sprints}/${dir.name}/sprint.md`)
+    if (text === null) continue
+    const status = frontmatter(text)['status'] ?? ''
+    const trail = status === 'done' ? null : lastLine(await r.read(`${paths.sprints}/${dir.name}/progress.md`))
+    sprints.push(parseSprint(dir.name, text, trail))
+  }
+  sprints.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  const doneSprints = (await r.list(`${paths.sprints}/done`)).filter(d => d.isDir).length
+
+  const stories: Story[] = []
+  const storyFiles = await r.list(paths.requirements)
+  for (const file of storyFiles.filter(f => !f.isDir && /^\d+.*\.md$/.test(f.name))) {
+    const text = await r.read(`${paths.requirements}/${file.name}`)
+    if (text !== null) stories.push(parseStory(file.name, text))
+  }
+  stories.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  const doneStories = (await r.list(`${paths.requirements}/done`)).filter(
+    f => !f.isDir && /^\d+.*\.md$/.test(f.name),
+  ).length
+
+  const launch: Record<string, Launch> = {}
+  for (const name of COMMANDS) {
+    const fm = frontmatter((await r.read(`${root}/.claude/commands/${name}.md`)) ?? '')
+    launch[name] = { model: fm['model'] ?? null, effort: fm['effort'] ?? null }
+  }
+
+  const checks = await versions(r, root)
+  const hasLock = checks.some(c => c.plugin === 'ai-scrum' && c.inProject !== null)
+
+  return {
+    root,
+    hasScrum: hasLock || roadmapText !== null || sprintDirs.length > 0,
+    versions: checks,
+    phase: roadmap?.phase ?? null,
+    standing: roadmap?.standing ?? [],
+    milestones: roadmap?.milestones ?? [],
+    sprints,
+    doneSprints,
+    stories,
+    doneStories,
+    openTopics: roadmap?.openTopics ?? [],
+    followUps: roadmap?.followUps ?? 0,
+    launch,
+    readAt: now,
+  }
+}
+
+// --- What the views derive from a snapshot ---
+
+export type UpdateHint = { plugin: ScrumPlugin; text: string; command: string | null }
+
+// Two kinds: the plugin itself is behind the marketplace (only the person can
+// run /plugin), or the project's copy is behind the installed plugin (setup
+// brings it up, so it gets a button).
+export function updateHints(snap: Snapshot): UpdateHint[] {
+  const hints: UpdateHint[] = []
+  for (const v of snap.versions) {
+    if (v.installed !== null && v.latest !== null && compareVersions(v.latest, v.installed) > 0) {
+      hints.push({
+        plugin: v.plugin,
+        text: `${v.plugin} ${v.installed} -> ${v.latest} available: /plugin update, then /reload-plugins`,
+        command: null,
+      })
+    }
+    if (v.inProject !== null && v.installed !== null && compareVersions(v.installed, v.inProject) > 0) {
+      hints.push({
+        plugin: v.plugin,
+        text: `${v.plugin} in this project is ${v.inProject}, plugin is ${v.installed}`,
+        command: `/${v.plugin}:setup`,
+      })
+    }
+    if (v.plugin === 'ai-scrum' && v.inProject === null && v.installed !== null && snap.hasScrum) {
+      hints.push({ plugin: v.plugin, text: 'ai-scrum docs found but no lock file', command: '/ai-scrum:setup' })
+    }
+  }
+  return hints
+}
+
+export const isRunning = (status: string) => /in.progress|▶/i.test(status)
+export const isDone = (status: string) => /\b(done|accepted)\b|✔|✓/i.test(status)
+
+export const activeSprint = (snap: Snapshot) =>
+  snap.sprints.find(s => s.status === 'in-progress') ??
+  snap.sprints.find(s => s.status === 'planned') ??
+  null
+
+// A running sprint names the milestone best: the roadmap row is often only
+// updated at the sprint's end.
+export function currentMilestone(snap: Snapshot): Milestone | null {
+  const running = snap.sprints.find(s => s.status === 'in-progress')
+  const ofSprint =
+    running === undefined
+      ? undefined
+      : snap.milestones.find(
+          m => m.sprints.includes(running.id) || running.milestone.startsWith(`${m.id} `) || running.milestone === m.id,
+        )
+  return (
+    ofSprint ??
+    snap.milestones.find(m => isRunning(m.status)) ??
+    snap.milestones.find(m => !isDone(m.status)) ??
+    null
+  )
+}
+
+// Milestones the roadmap lists as not done that no sprint covers yet.
+export const unplannedMilestones = (snap: Snapshot) =>
+  snap.milestones.filter(m => !isDone(m.status) && !isRunning(m.status) && m.sprints.length === 0)
+
+// Open stories no sprint that is not done lists.
+export function unplannedStories(snap: Snapshot): Story[] {
+  const planned = new Set(
+    snap.sprints.filter(s => s.status !== 'done').flatMap(s => s.stories.map(st => st.id)),
+  )
+  return snap.stories.filter(s => s.status !== 'done' && !planned.has(s.id))
+}
+
+// The command that moves a story on, by its status.
+export function storyCommand(story: Story): { label: string; command: string; name: string } {
+  if (story.status === 'draft') return { label: 'Refine', command: `/refine ${story.id}`, name: 'refine' }
+  return { label: story.status === 'in-progress' ? 'Resume' : 'Build', command: `/build ${story.id}`, name: 'build' }
+}
+
+export const launchLabel = (snap: Snapshot, name: string) => {
+  const l = snap.launch[name]
+  if (l === undefined || l.model === null) return ''
+  return l.effort === null ? l.model : `${l.model}/${l.effort}`
+}
