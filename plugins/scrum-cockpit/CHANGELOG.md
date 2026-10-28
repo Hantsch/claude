@@ -12,6 +12,24 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- The pane is now a stack of cards that follows the sprint's phase. A heading card shows the phase,
+  the current milestone, a step bar (Clarify, Refine, Build, Gate, Review) and the sprint's progress,
+  as a ring where the surface can draw one.
+- During refinement the stories still refining come first, each with its agent's run time and current
+  tool call, at most eight rows, then a count. Refined stories shrink to a list of ids. Agents are
+  counted, with the longest-running one named.
+- During the build one story is in focus: its deliverables, then verify and review, with the current
+  step outlined and its start time. Below it are the agents working on it as a tree (the builder and
+  the agent it spawned), and the age of the last trail line. The rest of the sprint is a row of story
+  chips with an estimate of the time left.
+- An agent with no tool call for three minutes is marked quiet, and a trail silent for fifteen
+  minutes turns amber.
+- "Waiting on …" lines from the roadmap's "Where we stand" get a card of their own.
+- The band names the phase and the focus story's step (`S14 Build 4/12 · 026 D4/5`).
+- Phase, focus story and step are read from the sprint's `progress.md` trail, whose line format
+  ai-scrum's `sprint.md` and `build.md` fix. An agent is matched to a story by the id in its
+  description or prompt, or by the agent that spawned it.
+
 ## 1.0.0 — 2026-10-28
 
 - First release. A band above the prompt with the current milestone, the sprint and its story

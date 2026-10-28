@@ -4,6 +4,7 @@ import type {
   ScrumPlugin,
   Snapshot,
   Sprint,
+  SprintFlow,
   SprintStory,
   Story,
   VersionCheck,
@@ -14,7 +15,7 @@ import type {
 // directory.
 export type Reader = {
   read: (path: string) => Promise<string | null>
-  list: (path: string) => Promise<{ name: string; isDir: boolean }[]>
+  list: (path: string) => Promise<{ name: string; isDir: boolean; mtimeMs?: number }[]>
   // The Claude Code config directory (~/.claude or CLAUDE_CONFIG_DIR).
   configDir: string | null
 }
@@ -132,7 +133,97 @@ export function parseRoadmap(text: string) {
   return { phase, milestones, standing, openTopics, followUps }
 }
 
-export function parseSprint(id: string, text: string, trail: string | null): Sprint {
+// Minutes since an arbitrary epoch, from a trail timestamp (`2026-10-28 10:41`,
+// or a bare `09:52:01`); only differences between two of them mean anything.
+export function clockMinutes(text: string): number | null {
+  const m = /^(?:(\d{4})-(\d{2})-(\d{2})[ T])?(\d{1,2}):(\d{2})/.exec(text.trim())
+  if (m === null) return null
+  const day = m[1] === undefined ? 0 : Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 60_000
+  return day + Number(m[4]) * 60 + Number(m[5])
+}
+
+// The `HH:mm` of a trail timestamp.
+export const clockOf = (text: string | null) => (text === null ? null : (/\d{1,2}:\d{2}/.exec(text)?.[0] ?? text))
+
+// Walks progress.md. Its lines are fixed by ai-scrum's sprint.md and build.md:
+// `- <ts> · refine · 106 107 · started`, `- <ts> · 107 · build · started`,
+// `- <ts> · 107 · D2 <title> · done`, `- <ts> · 107 · verify · started`,
+// `- <ts> · 107 · review 1 · started`, `- <ts> · 107 · story · done`,
+// `- <ts> · gate · e2e-all · started`, and `blocked: <reason>` for an event.
+export function parseTrail(text: string | null, status: string): SprintFlow {
+  const flow: SprintFlow = {
+    phase: status === 'done' ? 'done' : status === 'in-progress' ? 'clarify' : 'planned',
+    refineIds: [],
+    focus: null,
+    stage: null,
+    step: null,
+    stepAt: null,
+    storyMinutes: {},
+  }
+  if (text === null || flow.phase !== 'clarify') return flow
+  const began: Record<string, number> = {}
+  for (const raw of lines(text)) {
+    const parts = raw.replace(/^\s*[-*]\s*/, '').split(/\s+·\s+/)
+    if (parts.length < 3) continue
+    const at = parts[0] ?? ''
+    const subject = parts[1] ?? ''
+    const event = parts[parts.length - 1] ?? ''
+    const what = parts.slice(2, -1).join(' · ')
+    const isStart = event === 'started'
+    if (subject === 'refine') {
+      flow.phase = 'refine'
+      flow.refineIds = what.match(/\d+/g) ?? []
+      continue
+    }
+    if (subject === 'gate') {
+      flow.phase = isStart ? 'gate' : 'review'
+      flow.stage = null
+      flow.step = what
+      flow.stepAt = at
+      continue
+    }
+    if (!/^\d+$/.test(subject)) continue
+    flow.phase = 'build'
+    if (flow.focus !== subject) {
+      flow.focus = subject
+      flow.step = null
+      flow.stepAt = null
+    }
+    if (event.startsWith('blocked')) {
+      flow.stage = 'blocked'
+      flow.step = event.replace(/^blocked:?\s*/, '') || what
+      flow.stepAt = at
+    } else if (what === 'build') {
+      flow.stage = 'implement'
+      flow.stepAt = at
+      const start = clockMinutes(at)
+      if (isStart && start !== null) began[subject] = start
+    } else if (what === 'story') {
+      flow.stage = 'done'
+      flow.step = null
+      const start = began[subject]
+      const end = clockMinutes(at)
+      if (start !== undefined && end !== null && end >= start) flow.storyMinutes[subject] = end - start
+    } else if (/^D\d+/.test(what)) {
+      flow.stage = 'implement'
+      flow.step = what
+      if (isStart) flow.stepAt = at
+    } else if (what === 'verify' || /^review\b/.test(what)) {
+      flow.stage = what === 'verify' ? 'verify' : 'review'
+      flow.step = what === 'verify' ? null : what
+      if (isStart) flow.stepAt = at
+    }
+  }
+  return flow
+}
+
+export function parseSprint(
+  id: string,
+  text: string,
+  trail: string | null,
+  progress: string | null = null,
+  trailAt: number | null = null,
+): Sprint {
   const fm = frontmatter(text)
   const heading = lines(text).find(l => /^#\s/.test(l)) ?? ''
   const title = heading.replace(/^#\s+/, '').replace(/^Sprint\s+\S+\s*[—–-]\s*/, '').trim()
@@ -143,13 +234,16 @@ export function parseSprint(id: string, text: string, trail: string | null): Spr
       stories.push({ id: m[2], title: stripLinks(m[3] ?? ''), isDone: m[1] !== ' ' })
     }
   }
+  const status = fm['status'] || 'planned'
   return {
     id: fm['sprint'] || id,
     title: isPlaceholder(title) ? '' : title,
-    status: fm['status'] || 'planned',
+    status,
     milestone: fm['milestone'] ?? '',
     stories,
     lastTrail: trail,
+    flow: parseTrail(progress, status),
+    trailAt,
   }
 }
 
@@ -277,8 +371,12 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     const text = await r.read(`${paths.sprints}/${dir.name}/sprint.md`)
     if (text === null) continue
     const status = frontmatter(text)['status'] ?? ''
-    const trail = status === 'done' ? null : lastLine(await r.read(`${paths.sprints}/${dir.name}/progress.md`))
-    sprints.push(parseSprint(dir.name, text, trail))
+    const progress = status === 'done' ? null : await r.read(`${paths.sprints}/${dir.name}/progress.md`)
+    const trailAt =
+      progress === null
+        ? null
+        : ((await r.list(`${paths.sprints}/${dir.name}`)).find(f => f.name === 'progress.md')?.mtimeMs ?? null)
+    sprints.push(parseSprint(dir.name, text, lastLine(progress), progress, trailAt))
   }
   sprints.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
   const doneSprints = (await r.list(`${paths.sprints}/done`)).filter(d => d.isDir).length
@@ -298,6 +396,15 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
   for (const name of COMMANDS) {
     const fm = frontmatter((await r.read(`${root}/.claude/commands/${name}.md`)) ?? '')
     launch[name] = { model: fm['model'] ?? null, effort: fm['effort'] ?? null }
+  }
+
+  // A sprint from before the trail rules, already past its refine round:
+  // the first unticked story is the one being built.
+  for (const sprint of sprints) {
+    const isRefined = sprint.stories.every(st => stories.find(s => s.id === st.id)?.status !== 'draft')
+    if (sprint.flow.phase === 'clarify' && sprint.lastTrail === null && sprint.stories.length > 0 && isRefined) {
+      sprint.flow = { ...sprint.flow, phase: 'build', focus: sprint.stories.find(st => !st.isDone)?.id ?? null }
+    }
   }
 
   const checks = await versions(r, root)
@@ -394,6 +501,35 @@ export function unplannedStories(snap: Snapshot): Story[] {
 export function storyCommand(story: Story): { label: string; command: string; name: string } {
   if (story.status === 'draft') return { label: 'Refine', command: `/refine ${story.id}`, name: 'refine' }
   return { label: story.status === 'in-progress' ? 'Resume' : 'Build', command: `/build ${story.id}`, name: 'build' }
+}
+
+// The refine round's stories, split into refined and still refining; a story
+// already moved to done/ counts as refined.
+export function refineProgress(snap: Snapshot, sprint: Sprint) {
+  const ids = sprint.flow.refineIds.length > 0 ? sprint.flow.refineIds : sprint.stories.map(s => s.id)
+  const status = new Map(snap.stories.map(s => [s.id, s.status] as const))
+  const refined = ids.filter(id => (status.get(id) ?? 'done') !== 'draft')
+  return { ids, refined, open: ids.filter(id => !refined.includes(id)) }
+}
+
+// The story ids an agent could be working on: the open sprints' and the open stories.
+export const knownStoryIds = (snap: Snapshot | null) =>
+  snap === null
+    ? []
+    : [...snap.sprints.flatMap(s => s.stories.map(st => st.id)), ...snap.stories.map(s => s.id)]
+
+// The first known story id that `text` names as a number of its own.
+export function storyIdIn(text: string, ids: string[]): string | null {
+  return (text.match(/\d+/g) ?? []).find(n => ids.includes(n)) ?? null
+}
+
+// "Waiting on the user: a; b; c." from "Where we stand", as single items.
+export function waitingItems(standing: string[]): string[] {
+  return standing
+    .filter(l => /^waiting on\b/i.test(l))
+    .flatMap(l => l.replace(/^waiting on[^:]*:\s*/i, '').split(/;\s*/))
+    .map(t => t.trim().replace(/\.$/, ''))
+    .filter(t => t !== '')
 }
 
 export const launchLabel = (snap: Snapshot, name: string) => {

@@ -7,25 +7,30 @@ scrum workflow beside the chat, live, with buttons that start the next step.
 
 **A band above the prompt** — only in a project that has ai-scrum, or where an update is due:
 
-- the current milestone, the sprint and how many of its stories are done, and the subagents that
-  are running with what they are doing right now;
+- the current milestone, the sprint's phase and progress (`S14 Refine 3/12`, or `S14 Build 4/12 ·
+  026 D4/5` with the story in focus and its step), and how many subagents are running;
 - an update hint when the project's ai-scrum or tech-rules copy is older than the installed
   plugin, with an **Update** button that runs `/ai-scrum:setup` or `/tech-rules:setup`, and a
   hint when the installed plugin is older than the marketplace (run `/plugin` and update it
   yourself; a mod cannot);
 - **Overview** opens the pane, **Hide** hides the band for the session.
 
-**`/scrum` opens the pane:**
+**`/scrum` opens the pane**, a stack of cards whose middle follows the phase `/sprint` is in:
 
-| Section | Content | Buttons |
+| Card | Content | Buttons |
 | --- | --- | --- |
-| Versions | project, installed and marketplace version of ai-scrum and tech-rules | Update (setup) |
-| Phase | the roadmap's current phase and its "Where we stand" lines | |
-| Milestones | the open ones and the last finished one; ▶ marks the current one | Plan (`/roadmap plan`) for a milestone no sprint covers |
-| Sprint | the running or next sprint, its stories with status and deliverable count, the last `progress.md` line | Start / Resume (`/sprint SNN`) |
-| Agents | running subagents: task, type, model and effort, run time, the tool call they are on; the last five finished | press a running one to open its transcript |
-| Stories in no sprint | open stories no open sprint lists | Refine (`/refine NNN`) for a draft, Build (`/build NNN`) otherwise |
-| Open | the roadmap's open topics and the number of follow-ups | Roadmap check, New concept…, Refresh |
+| Heading | the roadmap's phase, the current milestone and sprint, the sprint's steps (Clarify → Refine → Build → Gate → Review) and its progress, as a ring where the surface draws one; update hints and the other "Where we stand" lines | Update (setup) |
+| Refinement | every story of the refine round still refining, longest-running first, with its agent's run time and current tool call; at most eight rows, then a count; the refined ones as ids | Resume when nothing runs |
+| Now building | the story in focus: its deliverables, verify and review with the current step outlined and its start time, the agents on it as a tree (builder, then the agent it spawned), the last trail line and its age | Resume when nothing runs |
+| Sprint | in build, gate and review: the stories as a row of chips (✓ done, ● focus), the last finished one and the time left at the average so far | |
+| Planned / clarify / gate / review | what the sprint waits for, its stories | Start / Resume (`/sprint SNN`) |
+| Agents | in refinement, a count, the models and the longest runner; otherwise the running agents no card above shows; the last five finished when no sprint runs | press a running one to open its transcript |
+| Waiting on you | the "Waiting on …" items from "Where we stand" | |
+| Next | milestones no sprint covers, open stories no open sprint lists, open topics, follow-ups | Plan (`/roadmap plan`), Refine (`/refine NNN`) or Build (`/build NNN`) |
+| | | Roadmap check, New concept…, Refresh |
+
+An agent with no tool call for three minutes is drawn amber as *quiet*; a trail that has been silent
+for fifteen minutes turns amber too, the threshold `/sprint` itself uses to tell you.
 
 **Model and effort.** A button runs the project's command exactly as if you typed it, so the
 model and effort are the ones in that command's frontmatter (`.claude/commands/<name>.md`) — the
@@ -39,14 +44,18 @@ after a write to the docs and every 15 seconds while a sprint or an agent runs:
 - `.claude/ai-scrum.md` for `requirements-path`, `sprints-path` and `roadmap-path`;
 - the roadmap's "Where we stand", "Current phase" (its milestone table, or one `### M… — …`
   heading per milestone in roadmaps from before ai-scrum 4), "Open" and "Follow-ups" sections;
-- each open sprint's `sprint.md` frontmatter and story list, and its `progress.md`;
+- each open sprint's `sprint.md` frontmatter and story list, and its `progress.md` trail, from
+  whose lines (`refine · … · started`, `026 · D4 … · started`, `026 · verify`, `026 · review 1`,
+  `026 · story · done`, `gate · …`) come the phase, the story in focus, its step and the story times;
 - each open story's frontmatter and its `## Deliverables` checkboxes;
 - `.claude/ai-scrum.lock` and `.claude/tech-rules.lock` for the project's versions, and Claude
   Code's own `plugins/installed_plugins.json` and the marketplace's cached `marketplace.json` for
   the installed and the latest one. "Latest" is as fresh as the marketplace's last refresh.
 
 The running agents come from the session itself (each subagent's spawn, model requests and tool
-calls), not from files — that is the part the sprint's files cannot show.
+calls), not from files — that is the part the sprint's files cannot show. An agent belongs to the
+story whose id its description names, else its prompt, else to its parent's story: that is how a
+deliverable agent that names no story still lands under the builder that spawned it.
 
 ## Install
 
@@ -56,8 +65,8 @@ From a terminal session:
 claude plugin install scrum-cockpit@hantsch --scope user
 ```
 
-It is active at once, with no reload. Mods run in the Claude Code terminal and in the local
-sessions of the desktop app; the VS Code extension does not load mods at the time of writing.
+It is active at once, with no reload. Mods run in the Claude Code terminal, the local sessions of
+the desktop app and the VS Code extension.
 
 ## What it does not do
 

@@ -6,6 +6,7 @@ import {
   currentMilestone,
   isDone,
   parseRoadmap,
+  parseTrail,
   scan,
   unplannedMilestones,
   unplannedStories,
@@ -157,12 +158,12 @@ const reader: Reader = {
 const posix = (path: string) => path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/')
 
 // The engine beneath the mod, answered from the fixtures above.
-function project(on: On) {
+function project(on: On, overrides: Record<string, string> = {}) {
   mock.clock(on, { now: 1_000_000 })
   mock.env(on, { USERPROFILE: '/home' })
   on('session.root', () => ({ value: '/proj' }))
   on('fs.read', (_, e) => {
-    const text = FILES[posix(e.path)]
+    const text = overrides[posix(e.path)] ?? FILES[posix(e.path)]
     return text === undefined ? { deny: `ENOENT ${e.path}` } : { value: text }
   })
   on('fs.list', (_, e) => {
@@ -267,7 +268,8 @@ test('the pane shows the overview and its buttons start commands, on every surfa
     expect((await ui.find({ type: 'Text', text: /11\.6 Packaging/ }))?.text).toContain('no sprint')
     expect((await ui.find({ key: 'plan-11.6' }))?.text).toBe('Plan · sonnet/medium')
     expect((await ui.find({ key: 'go-280' }))?.text).toBe('Build · sonnet/medium')
-    expect((await ui.find({ type: 'Text', text: /267 Timing/ }))?.text).toContain('D 1/2')
+    expect((await ui.find({ type: 'Text', text: /Now building/ }))?.text).toContain('story 2 of 2')
+    expect((await ui.find({ type: 'Text', text: /^266 / }))?.text).toContain('Release waits for a green CI run')
     expect((await ui.find({ type: 'Text', text: /trail:/ }))?.text).toContain('D1 · done')
 
     await ui.press({ key: 'sprint-resume' })
@@ -291,7 +293,7 @@ test('the band names the milestone and sprint and offers the project update', as
   await pane.unmount()
 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /11\.5/ }))?.text).toContain('S36 in-progress 1/2')
+  expect((await ui.find({ type: 'Text', text: /11\.5/ }))?.text).toContain('S36 Build 1/2 · 266 D1')
   await ui.press({ key: 'update-ai-scrum' })
   expect(submitted).toEqual(['/ai-scrum:setup'])
   await ui.unmount()
@@ -354,4 +356,103 @@ test('a running sprint names the current milestone even when the roadmap still s
   }
 
   expect(currentMilestone(lagging)?.id).toBe('11.5')
+})
+
+test('the trail names the phase, the story in focus and its stage', () => {
+  const trail = (...l: string[]) => l.map(x => `- 2026-10-28 ${x}`).join('\n')
+
+  expect(parseTrail(null, 'planned').phase).toBe('planned')
+  expect(parseTrail(null, 'in-progress').phase).toBe('clarify')
+
+  const refining = parseTrail(trail('10:02 · refine · 022 023 · started'), 'in-progress')
+  expect(refining.phase).toBe('refine')
+  expect(refining.refineIds).toEqual(['022', '023'])
+
+  const building = parseTrail(
+    trail(
+      '10:02 · refine · 022 023 · started',
+      '10:14 · 022 · build · started',
+      '10:20 · 022 · D1 Parser · started',
+      '10:24 · 022 · D1 Parser · done',
+      '10:26 · 022 · story · done',
+      '10:27 · 023 · build · started',
+      '10:29 · 023 · D2 Lane map · started',
+    ),
+    'in-progress',
+  )
+  expect(building.phase).toBe('build')
+  expect(building.focus).toBe('023')
+  expect(building.stage).toBe('implement')
+  expect(building.step).toBe('D2 Lane map')
+  expect(building.stepAt).toBe('2026-10-28 10:29')
+  expect(building.storyMinutes).toEqual({ '022': 12 })
+
+  const reviewing = parseTrail(trail('10:27 · 023 · build · started', '10:40 · 023 · review 1 · started'), 'in-progress')
+  expect(`${reviewing.stage}|${reviewing.step}`).toBe('review|review 1')
+
+  const blocked = parseTrail(trail('10:27 · 023 · verify · blocked: e2e red'), 'in-progress')
+  expect(`${blocked.stage}|${blocked.step}`).toBe('blocked|e2e red')
+
+  const gate = parseTrail(trail('11:00 · gate · e2e-all · started'), 'in-progress')
+  expect(`${gate.phase}|${gate.step}`).toBe('gate|e2e-all')
+  expect(parseTrail(trail('11:00 · gate · e2e-all · started', '11:20 · gate · e2e-all · done'), 'in-progress').phase).toBe('review')
+})
+
+test('refinement lists the stories still refining with their agent, and counts the refined ones', async ($, on) => {
+  project(on, { '/proj/docs/sprints/S36/progress.md': '- 2026-10-28 10:02 · refine · 266 267 · started\n' })
+  on('agent.spawn', () => ({ model: 'claude-opus-5-5', agentId: 'r1' }))
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  const first = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await first.press({ key: 'refresh' })
+  await first.unmount()
+
+  await $.agent.spawn({
+    tool_use_id: 't1',
+    prompt: 'Refine story 266 along refine.md',
+    description: 'Refine 266',
+    subagentType: 'general-purpose',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'claude-opus-5-5',
+    background: false,
+    fork: false,
+  })
+  await $.tool.call({ tool: 'Read', file_path: '/proj/src/release/ci.ts', agentId: 'r1' })
+
+  for (const surface of ['terminal', 'vscode'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    // 267 is no draft any more, 266 still is.
+    expect((await ui.find({ type: 'Text', text: /^\d+\/\d+ refined$/ }))?.text).toBe('1/2 refined')
+    expect((await ui.find({ type: 'Text', text: /→ Read/ }))?.text).toContain('release/ci.ts')
+    expect((await ui.find({ type: 'Text', text: /✓ refined/ }))?.text).toBe('✓ refined 267')
+    // Its agent is a row of the refine card, not repeated in the agents list.
+    expect(await ui.find({ key: 'a-r1' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('in build the story in focus shows its builder and the agent the builder spawned', async ($, on) => {
+  project(on)
+  on('agent.spawn', (_, e) => ({ model: 'claude-sonnet-5-5', agentId: e.description.startsWith('Build') ? 'b1' : 'd1' }))
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  const first = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await first.press({ key: 'refresh' })
+  await first.unmount()
+
+  const spawn = { subagentType: 'general-purpose', provider: { plugin: 'engine', tier: 'core' }, parentModel: 'claude-opus-5-5', background: false, fork: false } as const
+  await $.agent.spawn({ ...spawn, tool_use_id: 't1', prompt: 'Implement story 266 along build.md', description: 'Build 266' })
+  // The deliverable agent names no story: it is the builder's.
+  await $.agent.spawn({ ...spawn, tool_use_id: 't2', prompt: 'D2 of the plan', description: 'D2 release gate', parentAgentId: 'b1' })
+  await $.tool.call({ tool: 'Edit', file_path: '/proj/src/release/gate.ts', old_string: 'a', new_string: 'b', agentId: 'd1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ key: 'a-b1' }))?.text).toContain('Build 266')
+  expect((await ui.find({ key: 'a-d1' }))?.text).toContain('└')
+  expect((await ui.find({ type: 'Text', text: /→ Edit/ }))?.text).toContain('release/gate.ts')
+  // Agents are at work, so no resume button.
+  expect(await ui.find({ key: 'sprint-resume' })).toBeUndefined()
+  await ui.unmount()
 })

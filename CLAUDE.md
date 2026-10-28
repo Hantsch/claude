@@ -43,9 +43,9 @@ Four plugins, in three shapes:
 - **Mod:** [scrum-cockpit](plugins/scrum-cockpit/) — a hooks module that changes Claude Code's own
   interface: a band above the prompt and a pane beside the chat showing a project's ai-scrum state
   and the running subagents. Direct-ship for the same reason as `common`. It only *reads* what
-  ai-scrum writes (profile, roadmap, sprint and story files, the lock files), so a change to those
-  formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in the terminal and the desktop
-  app's local sessions; the VS Code extension does not load them.
+  ai-scrum writes (profile, roadmap, sprint and story files, the `progress.md` trail lines, the lock
+  files), so a change to those formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in
+  the terminal, the desktop app's local sessions and the VS Code extension.
 
 **Why the stack rules are payload and not plugin skills.** A plugin is installed per user, so a
 contributor who never installed it gets none of the rules and nothing says so. Project skills in

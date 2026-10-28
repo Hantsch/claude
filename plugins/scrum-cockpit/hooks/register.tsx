@@ -1,18 +1,22 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { ElementConstructor, EngineInterface, Register, SvgProps, Timer } from 'claude-code'
 
-import type { AgentRow, Snapshot, Story } from '../types'
+import type { AgentRow, Snapshot, Story, StoryStage } from '../types'
 import {
   activeSprint,
+  clockOf,
   currentMilestone,
-  isDone,
   isRunning,
+  knownStoryIds,
   launchLabel,
+  refineProgress,
   scan,
   storyCommand,
+  storyIdIn,
   unplannedMilestones,
   unplannedStories,
   updateHints,
+  waitingItems,
 } from './scan'
 import type { Reader } from './scan'
 
@@ -22,14 +26,44 @@ const MAIN = 'main'
 // Change a tag when the stored shape changes: an older value then reads as
 // the initial one instead of breaking the drawing after a reload.
 const snapshot = atom({ plugin: 'scrum-cockpit', key: 'snapshot' } as const, null, {
-  shape: 'snapshot-1',
+  shape: 'snapshot-2',
 })
 const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
-  shape: 'agents-1',
+  shape: 'agents-2',
 })
 const isBandHidden = atom({ plugin: 'scrum-cockpit', key: 'isBandHidden' } as const, false)
 
 const WATCHED = /docs[\\/]|ROADMAP|sprint|requirement|\.claude[\\/](ai-scrum|tech-rules|commands)/i
+
+// An agent with no tool call for this long is marked quiet; a trail silent
+// for SILENT_MS is the sprint command's own "say it" threshold.
+const QUIET_MS = 3 * 60_000
+const SILENT_MS = 15 * 60_000
+// Refine runs every story at once: this many rows, then a count.
+const REFINE_ROWS = 8
+// A story in build has its builder and one deliverable or review agent.
+const FOCUS_AGENTS = 3
+// What a refine round is expected to take, the scale of a row's bar.
+const REFINE_SCALE_MS = 15 * 60_000
+
+const PHASES = ['clarify', 'refine', 'build', 'gate', 'review'] as const
+const PHASE_LABEL: Record<string, string> = {
+  planned: 'Planned',
+  clarify: 'Clarify',
+  refine: 'Refine',
+  build: 'Build',
+  gate: 'Gate',
+  review: 'Review',
+  done: 'Done',
+}
+const STAGE_LABEL: Record<StoryStage, string> = {
+  implement: 'Implement',
+  verify: 'Verify',
+  review: 'Review',
+  done: 'Done',
+  blocked: 'Blocked',
+}
+const STAGE_RANK: Record<StoryStage, number> = { implement: 0, verify: 1, review: 2, done: 3, blocked: 0 }
 
 const str = (value: unknown) => (typeof value === 'string' ? value : null)
 
@@ -41,6 +75,44 @@ const shortPath = (path: string) => path.replace(/\\/g, '/').split('/').slice(-2
 const minutes = (from: number, to: number) => {
   const s = Math.max(0, Math.round((to - from) / 1000))
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`
+}
+
+// A bar in eighth blocks: the filled part and the rest, drawn in two colors.
+function meter(value: number, total: number, width: number): [string, string] {
+  if (total <= 0 || width <= 0) return ['', '░'.repeat(Math.max(0, width))]
+  const eighths = Math.round((Math.min(value, total) / total) * width * 8)
+  const filled = '█'.repeat(Math.floor(eighths / 8)) + (eighths % 8 === 0 ? '' : (' ▏▎▍▌▋▊▉'[eighths % 8] ?? ''))
+  return [filled, '░'.repeat(Math.max(0, width - filled.length))]
+}
+
+// The progress ring a graphical surface draws beside the heading.
+function ring(share: number, label: string): string {
+  const r = 23
+  const c = 2 * Math.PI * r
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="58" height="58" viewBox="0 0 58 58">` +
+    `<circle cx="29" cy="29" r="${r}" fill="none" stroke="#8a8a8a" stroke-opacity="0.3" stroke-width="6"/>` +
+    `<circle cx="29" cy="29" r="${r}" fill="none" stroke="#d97757" stroke-width="6" stroke-linecap="round"` +
+    ` stroke-dasharray="${(c * share).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 29 29)"/>` +
+    `<text x="29" y="33" text-anchor="middle" font-size="12" font-weight="600" fill="#d97757"` +
+    ` font-family="system-ui, sans-serif">${label}</text></svg>`
+  )
+}
+
+const setting = (a: AgentRow) => [a.model, a.effort].filter(x => x !== null).join('/')
+
+const isQuiet = (a: AgentRow, now: number) => a.status === 'running' && now - a.activeAt > QUIET_MS
+
+// Each agent followed by the agents it spawned: the order of a tree.
+function asTree(list: AgentRow[]): { row: AgentRow; depth: number }[] {
+  const ids = new Set(list.map(a => a.agentId))
+  const out: { row: AgentRow; depth: number }[] = []
+  const walk = (a: AgentRow, depth: number) => {
+    out.push({ row: a, depth })
+    for (const child of list.filter(c => c.parentId !== null && c.parentId === a.agentId)) walk(child, depth + 1)
+  }
+  for (const root of list.filter(a => a.parentId === null || !ids.has(a.parentId))) walk(root, 0)
+  return out
 }
 
 // One line for what a tool call is doing: the tool and its target.
@@ -72,7 +144,7 @@ async function readerFor($: EngineInterface): Promise<Reader> {
     },
     list: async path => {
       try {
-        return (await $.fs.list(path)).map(f => ({ name: f.name, isDir: f.kind === 'dir' }))
+        return (await $.fs.list(path)).map(f => ({ name: f.name, isDir: f.kind === 'dir', mtimeMs: f.mtimeMs }))
       } catch {
         return []
       }
@@ -127,12 +199,24 @@ async function upsert(
   await update($, agents, l => l.map(a => (a.key === key ? patch(a) : a)))
 }
 
+// The story an agent works on: its parent's, else the first known story id
+// its description names, else the first its prompt names.
+async function storyOf($: EngineInterface, parentId: string | null, description: string, prompt: string) {
+  const list = await read($, agents)
+  const parent = parentId === null ? undefined : list.find(a => a.agentId === parentId)
+  const ids = knownStoryIds(await read($, snapshot))
+  return parent?.storyId ?? storyIdIn(description, ids) ?? storyIdIn(prompt.slice(0, 4000), ids)
+}
+
 async function newRow($: EngineInterface, key: string): Promise<AgentRow> {
   const now = await $.clock.now()
   const info = key === MAIN ? undefined : (await $.agent.list()).find(a => a.id === key)
+  const parentId = info?.parentId ?? null
   return {
     key,
     agentId: key === MAIN ? null : key,
+    parentId,
+    storyId: key === MAIN ? null : await storyOf($, parentId, info?.description ?? '', ''),
     type: key === MAIN ? 'main session' : (info?.type ?? 'agent'),
     description: info?.description ?? '',
     model: null,
@@ -142,6 +226,7 @@ async function newRow($: EngineInterface, key: string): Promise<AgentRow> {
     tools: 0,
     startedAt: now,
     endedAt: null,
+    activeAt: now,
   }
 }
 
@@ -189,6 +274,18 @@ function openPane($: EngineInterface) {
   void refresh($)
 }
 
+// The short form of where the focus story stands: `D4/5`, `review 1`, `verify`.
+function stageShort(stage: StoryStage | null, step: string | null, story: Story | undefined): string {
+  if (stage === null) return ''
+  if (stage === 'implement') {
+    const n = /^D(\d+)/.exec(step ?? '')?.[1]
+    if (n === undefined) return 'build'
+    const total = story?.deliverablesTotal ?? 0
+    return total > 0 ? `D${n}/${total}` : `D${n}`
+  }
+  if (stage === 'review') return step ?? 'review'
+  return stage
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -226,9 +323,12 @@ export const register: Register = on => {
   on('agent.spawn', async ($, e, next) => {
     const now = await $.clock.now()
     const temp = `spawn:${e.tool_use_id}:${e.workflow?.agentIndex ?? ''}`
+    const parentId = e.parentAgentId ?? null
     const row: AgentRow = {
       key: temp,
       agentId: null,
+      parentId,
+      storyId: await storyOf($, parentId, e.description, e.prompt),
       type: e.subagentType,
       description: e.description,
       model: e.model ?? null,
@@ -238,6 +338,7 @@ export const register: Register = on => {
       tools: 0,
       startedAt: now,
       endedAt: null,
+      activeAt: now,
     }
     await update($, agents, l => [...l.filter(a => a.key !== temp), row].slice(-40))
     const spawned = await next(e)
@@ -286,11 +387,13 @@ export const register: Register = on => {
     const input = e as unknown as Record<string, unknown>
     const tool = String(e.tool)
     const key = e.agentId ?? MAIN
+    const now = await $.clock.now()
     await upsert($, key, () => newRow($, key), a => ({
       ...a,
       status: 'running',
       activity: activityOf(tool, input),
       tools: a.tools + 1,
+      activeAt: now,
     }))
     const ran = await next(e)
     const path = str(input['file_path']) ?? ''
@@ -329,6 +432,7 @@ export const register: Register = on => {
     }
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = e.props.bodyColumns
+    const now = await $.clock.now()
     const list = await read($, agents)
     const running = list.filter(a => a.status === 'running' && a.key !== MAIN)
     const milestone = currentMilestone(snap)
@@ -339,15 +443,22 @@ export const register: Register = on => {
       parts.push(`${isActive ? '▶' : '○'} ${milestone.id} ${milestone.name}`)
     }
     if (sprint !== null) {
+      const flow = sprint.flow
       const done = sprint.stories.filter(s => s.isDone).length
-      parts.push(`${sprint.id} ${sprint.status} ${done}/${sprint.stories.length}`)
+      if (flow.phase === 'refine') {
+        const rp = refineProgress(snap, sprint)
+        parts.push(`${sprint.id} Refine ${rp.refined.length}/${rp.ids.length}`)
+      } else {
+        parts.push(`${sprint.id} ${PHASE_LABEL[flow.phase] ?? flow.phase} ${done}/${sprint.stories.length}`)
+      }
+      if (flow.phase === 'build' && flow.focus !== null) {
+        const story = snap.stories.find(s => s.id === flow.focus)
+        parts.push(`${flow.focus} ${stageShort(flow.stage, flow.step, story)}`.trim())
+      }
     }
     if (running.length > 0) {
-      const first = running[0]
-      parts.push(
-        `${running.length} agent${running.length > 1 ? 's' : ''}` +
-          (first === undefined ? '' : `: ${first.description || first.type} → ${first.activity}`),
-      )
+      const oldest = Math.min(...running.map(a => a.startedAt))
+      parts.push(`● ${running.length} agent${running.length > 1 ? 's' : ''} · ${minutes(oldest, now)}`)
     }
 
     return (
@@ -362,7 +473,8 @@ export const register: Register = on => {
         ))}
         {snap.hasScrum && (
           <Box>
-            <Text dimColor>{cut(parts.join(' · ') || 'ai-scrum', Math.max(10, width - 22))} </Text>
+            <Text color="claude">✻ </Text>
+            <Text dimColor>{cut(parts.join(' · ') || 'ai-scrum', Math.max(10, width - 24))} </Text>
             <Button key="open" label="Overview" onPress={() => openPane($)} />
             <Button key="hide" label="Hide" plain onPress={() => update($, isBandHidden, () => true)} />
           </Box>
@@ -374,7 +486,10 @@ export const register: Register = on => {
   // --- The pane ---
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Text } = elements
+    // The terminal has no Svg; there the bar alone shows the progress.
+    const Svg = 'Svg' in elements ? (elements as { Svg: ElementConstructor<SvgProps> }).Svg : null
     const snap = await read($, snapshot)
     const width = e.props.bodyColumns
     if (snap === null) {
@@ -398,151 +513,440 @@ export const register: Register = on => {
     const list = await read($, agents)
     const hints = updateHints(snap)
     const sprint = activeSprint(snap)
+    const flow = sprint?.flow ?? null
+    const phase = flow?.phase ?? null
+    const isLive = sprint !== null && sprint.status === 'in-progress'
     const milestone = currentMilestone(snap)
     const storyById = new Map(snap.stories.map(s => [s.id, s] as const))
-    const looseStories = unplannedStories(snap)
-    const looseMilestones = unplannedMilestones(snap)
-    const shownMilestones = snap.milestones.filter(
-      (m, i) => !isDone(m.status) || i === snap.milestones.findIndex(x => x === milestone) - 1,
-    )
-    const isSprintBusy = list.some(a => a.status === 'running')
-    const activeAgents = list.filter(a => a.status === 'running' && a.key !== MAIN)
-    const finishedAgents = list.filter(a => a.status !== 'running' && a.key !== MAIN).slice(-5).reverse()
+    const titleOf = (id: string) => storyById.get(id)?.title ?? sprint?.stories.find(s => s.id === id)?.title ?? ''
+    const inner = Math.max(24, width - 4)
+    const running = list.filter(a => a.status === 'running' && a.key !== MAIN)
     const main = list.find(a => a.key === MAIN)
+    const isIdle = running.length === 0 && main?.status !== 'running'
+    const waiting = waitingItems(snap.standing)
+    const standing = snap.standing.filter(l => !/^waiting on\b/i.test(l))
+    const doneCount = sprint === null ? 0 : sprint.stories.filter(s => s.isDone).length
+    const rp = sprint !== null && phase === 'refine' ? refineProgress(snap, sprint) : null
+    const progress =
+      sprint === null || sprint.stories.length === 0
+        ? null
+        : rp !== null
+          ? { value: rp.refined.length, total: rp.ids.length, unit: 'refined' }
+          : { value: doneCount, total: sprint.stories.length, unit: 'stories' }
+    // Agents a phase card already shows; the agents card lists the rest.
+    const shown = new Set<string>()
 
     const storyLine = (s: Story) =>
       `${s.id} ${s.title} · ${s.status}` +
       (s.deliverablesTotal > 0 ? ` · D ${s.deliverablesDone}/${s.deliverablesTotal}` : '')
 
     const agentLine = (a: AgentRow) => {
-      const setting = [a.model, a.effort].filter(x => x !== null).join('/')
-      const time = minutes(a.startedAt, a.endedAt ?? now)
-      return `${a.description || a.type} · ${a.type}${setting === '' ? '' : ` · ${setting}`} · ${time}`
+      const set = setting(a)
+      return `${a.description || a.type} · ${a.type}${set === '' ? '' : ` · ${set}`} · ${minutes(a.startedAt, a.endedAt ?? now)}`
     }
 
-    return (
-      <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          {snap.versions.map(v => (
-            <Text key={`v-${v.plugin}`} dimColor>
-              {v.plugin}: project {v.inProject ?? '—'} · installed {v.installed ?? '—'} · latest {v.latest ?? '—'}
-            </Text>
-          ))}
-          {hints.map(hint => (
-            <Box key={`ph-${hint.plugin}-${hint.command ?? 'plugin'}`}>
-              <Text color="warning">⚠ {cut(hint.text, width - 14)} </Text>
-              {hint.command !== null && (
-                <Button key={`pupdate-${hint.plugin}`} label="Update" onPress={() => launch($, hint.command ?? '')} />
-              )}
-            </Box>
-          ))}
+    const resumeButton =
+      sprint === null ? null : sprint.status === 'planned' ? (
+        <Button key="sprint-start" variant="primary" label={`Start · ${launchLabel(snap, 'sprint')}`} onPress={() => launch($, `/sprint ${sprint.id}`)} />
+      ) : isLive && isIdle ? (
+        <Button key="sprint-resume" variant="primary" label={`Resume · ${launchLabel(snap, 'sprint')}`} onPress={() => launch($, `/sprint ${sprint.id}`)} />
+      ) : null
+
+    // The heartbeat of a running sprint: its last trail line and its age.
+    const trailLine = () => {
+      if (sprint === null || sprint.lastTrail === null) return null
+      const isSilent = sprint.trailAt !== null && now - sprint.trailAt > SILENT_MS
+      const age = sprint.trailAt === null ? '' : ` · ${minutes(sprint.trailAt, now)} ago`
+      return (
+        <Box key="trail">
+          <Text color={isSilent ? 'warning' : 'success'}>● </Text>
+          <Text color={isSilent ? 'warning' : undefined} dimColor={!isSilent}>
+            {cut(`trail: ${sprint.lastTrail.replace(/^\s*[-*]\s*/, '')}${age}`, inner - 2)}
+          </Text>
         </Box>
+      )
+    }
 
-        {(snap.phase !== null || snap.standing.length > 0) && (
-          <Box flexDirection="column">
-            {snap.phase !== null && <Text bold>{cut(snap.phase, width)}</Text>}
-            {snap.standing.map((l, i) => (
-              <Text key={`st-${i}`}>{l}</Text>
-            ))}
-          </Box>
-        )}
+    // --- the heading card ---
 
-        {shownMilestones.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold>Milestones</Text>
-            {shownMilestones.map(m => {
-              const mark = isDone(m.status) ? '✓' : m === milestone ? '▶' : '○'
-              const isLoose = looseMilestones.includes(m)
-              return (
-                <Box key={`m-${m.id}`}>
-                  <Text color={isDone(m.status) ? 'success' : m === milestone ? 'claude' : undefined} dimColor={isDone(m.status)}>
-                    {cut(`${mark} ${m.id} ${m.name} · ${m.sprints.join(' ') || 'no sprint'}`, width - (isLoose ? 26 : 0))}{' '}
+    const at = phase === null ? -1 : phase === 'done' ? PHASES.length : PHASES.indexOf(phase as (typeof PHASES)[number])
+    const isNarrow = inner < 52
+    const versionsOk = hints.length === 0 && snap.versions.some(v => v.inProject !== null)
+    const scrumVersion = snap.versions.find(v => v.plugin === 'ai-scrum')?.inProject ?? null
+    const [filled, empty] = progress === null ? ['', ''] : meter(progress.value, progress.total, Math.min(30, inner - 18))
+
+    const hero = (
+      <Box key="hero" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+        <Box flexDirection="row" gap={1}>
+          {Svg !== null && progress !== null && (
+            <Svg
+              source={ring(progress.value / progress.total, `${progress.value}/${progress.total}`)}
+              alt={`${progress.value} of ${progress.total} ${progress.unit}`}
+              width={58}
+              height={58}
+            />
+          )}
+          <Box flexDirection="column" flexGrow={1}>
+            <Box justifyContent="space-between">
+              <Text color="claude" bold>{cut(`✻ ${snap.phase ?? 'ai-scrum'}`, inner - 18)}</Text>
+              {versionsOk && scrumVersion !== null && <Text color="success">{scrumVersion} ✓</Text>}
+            </Box>
+            {milestone !== null && (
+              <Text>
+                <Text color="claude">▶ {milestone.id} {milestone.name}</Text>
+                <Text dimColor>{cut(sprint === null ? '' : ` · ${sprint.id} ${sprint.title}`, Math.max(0, inner - milestone.name.length - 8))}</Text>
+              </Text>
+            )}
+            {isLive && (
+              <Text>
+                {PHASES.map((p, i) => (
+                  <Text key={`ph-${p}`} color={i < at ? 'success' : i === at ? 'claude' : undefined} dimColor={i > at} bold={i === at}>
+                    {i === 0 ? '' : ' ━ '}
+                    {i < at ? '✓' : i === at ? '●' : '○'} {isNarrow ? (PHASE_LABEL[p] ?? p).slice(0, 3) : PHASE_LABEL[p]}
                   </Text>
-                  {isLoose && (
-                    <Button key={`plan-${m.id}`} label={`Plan · ${launchLabel(snap, 'roadmap')}`} onPress={() => launch($, '/roadmap plan')} />
+                ))}
+              </Text>
+            )}
+            {progress !== null && (
+              <Text>
+                <Text color={rp !== null ? 'success' : 'claude'}>{filled}</Text>
+                <Text dimColor>{empty}</Text>
+                {`  ${progress.value}/${progress.total} ${progress.unit}`}
+              </Text>
+            )}
+          </Box>
+        </Box>
+        {hints.map(hint => (
+          <Box key={`ph-${hint.plugin}-${hint.command ?? 'plugin'}`}>
+            <Text color="warning">⚠ {cut(hint.text, inner - 12)} </Text>
+            {hint.command !== null && (
+              <Button key={`pupdate-${hint.plugin}`} label="Update" onPress={() => launch($, hint.command ?? '')} />
+            )}
+          </Box>
+        ))}
+        {standing.map((l, i) => (
+          <Text key={`st-${i}`} dimColor>{l}</Text>
+        ))}
+      </Box>
+    )
+
+    // --- the phase card: what the sprint is doing right now ---
+
+    let focus: ReturnType<typeof Box> | null = null
+
+    if (sprint !== null && rp !== null) {
+      // Refinement: every story at once, the ones still refining first.
+      const agentFor = (id: string) =>
+        running.filter(a => a.storyId === id).sort((a, b) => a.startedAt - b.startedAt)[0]
+      for (const a of running) if (a.storyId !== null && rp.ids.includes(a.storyId)) shown.add(a.key)
+      const rows = rp.open
+        .map(id => ({ id, agent: agentFor(id) }))
+        .sort((a, b) => (a.agent?.startedAt ?? Infinity) - (b.agent?.startedAt ?? Infinity))
+      const rest = rows.slice(REFINE_ROWS)
+      const [done, todo] = meter(rp.refined.length, rp.ids.length, Math.min(30, inner))
+      focus = (
+        <Box key="focus" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+          <Box justifyContent="space-between">
+            <Text bold>Refinement</Text>
+            <Text color="claude">{rp.refined.length}/{rp.ids.length} refined</Text>
+          </Box>
+          <Text>
+            <Text color="success">{done}</Text>
+            <Text dimColor>{todo}</Text>
+          </Text>
+          {rows.slice(0, REFINE_ROWS).map(({ id, agent }) => {
+            const quiet = agent !== undefined && isQuiet(agent, now)
+            const [lit, unlit] = agent === undefined ? ['', ''] : meter(now - agent.startedAt, REFINE_SCALE_MS, 8)
+            return (
+              <Box key={`rf-${id}`} flexDirection="column">
+                <Box justifyContent="space-between">
+                  <Text>
+                    <Text color={agent === undefined ? undefined : quiet ? 'warning' : 'claude'} dimColor={agent === undefined}>
+                      {agent === undefined ? '○' : '●'}{' '}
+                    </Text>
+                    <Text dimColor>{id} </Text>
+                    {cut(titleOf(id), inner - 22)}
+                  </Text>
+                  {agent === undefined ? (
+                    <Text dimColor>no agent</Text>
+                  ) : (
+                    <Text>
+                      <Text color={quiet ? 'warning' : 'claude'}>{lit}</Text>
+                      <Text dimColor>{unlit} {minutes(agent.startedAt, now).padStart(3)}</Text>
+                    </Text>
                   )}
                 </Box>
-              )
-            })}
+                {agent !== undefined && (
+                  <Text color={quiet ? 'warning' : 'suggestion'}>
+                    {cut(`  → ${quiet ? `quiet ${minutes(agent.activeAt, now)} · ` : ''}${agent.activity || 'starting'}`, inner)}
+                  </Text>
+                )}
+              </Box>
+            )
+          })}
+          {rest.length > 0 && (
+            <Text dimColor>{cut(`+${rest.length} more · ${rest.map(r => r.id).join(' ')}`, inner)}</Text>
+          )}
+          {rp.refined.length > 0 && <Text color="success">{cut(`✓ refined ${rp.refined.join(' ')}`, inner)}</Text>}
+          {resumeButton}
+        </Box>
+      )
+    } else if (sprint !== null && flow !== null && phase === 'build' && flow.focus !== null) {
+      // Build: one story at a time, its stage and the agents on it.
+      const id = flow.focus
+      const story = storyById.get(id)
+      const index = sprint.stories.findIndex(s => s.id === id) + 1
+      const team = asTree(running.filter(a => a.storyId === id))
+      for (const t of team) shown.add(t.row.key)
+      const stage = flow.stage ?? 'implement'
+      const rank = STAGE_RANK[stage]
+      const total = story?.deliverablesTotal ?? 0
+      const current = Number(/^D(\d+)/.exec(flow.step ?? '')?.[1] ?? 0)
+      const ds = Array.from({ length: Math.max(total, current) }, (_, i) => i + 1)
+      const root = team[0]?.row
+      const finished = Object.values(flow.storyMinutes)
+      const average = finished.length === 0 ? null : Math.round(finished.reduce((s, m) => s + m, 0) / finished.length)
+      const stageColor = (r: number) => (rank > r || stage === 'done' ? 'success' : rank === r && stage !== 'blocked' ? 'claude' : undefined)
+      focus = (
+        <Box key="focus" flexDirection="column" borderStyle="round" borderColor={stage === 'blocked' ? 'warning' : 'claude'} paddingX={1}>
+          <Box justifyContent="space-between">
+            <Text color="claude" bold>
+              {stage === 'done' ? 'Just finished' : 'Now building'} · story {index} of {sprint.stories.length}
+            </Text>
+            <Text dimColor>
+              {root === undefined ? '' : minutes(root.startedAt, now)}
+              {average === null ? '' : ` · avg ${average}m`}
+            </Text>
           </Box>
-        )}
-
-        {sprint !== null && (
-          <Box flexDirection="column">
-            <Box>
-              <Text bold>{cut(`Sprint ${sprint.id} — ${sprint.title} (${sprint.status})`, width - 30)} </Text>
-              {sprint.status === 'planned' && (
-                <Button key="sprint-start" variant="primary" label={`Start · ${launchLabel(snap, 'sprint')}`} onPress={() => launch($, `/sprint ${sprint.id}`)} />
-              )}
-              {sprint.status === 'in-progress' && !isSprintBusy && (
-                <Button key="sprint-resume" variant="primary" label={`Resume · ${launchLabel(snap, 'sprint')}`} onPress={() => launch($, `/sprint ${sprint.id}`)} />
-              )}
-            </Box>
-            {sprint.stories.map(st => {
-              const story = storyById.get(st.id)
-              const text = story === undefined ? `${st.id} ${st.title}` : storyLine(story)
+          <Text bold>{cut(`${id} ${titleOf(id)}`, inner)}</Text>
+          <Text>
+            {ds.map(n => {
+              const isNow = n === current && stage === 'implement'
+              const isPast = !isNow && (n <= (story?.deliverablesDone ?? 0) || rank > 0)
               return (
-                <Text key={`ss-${st.id}`} dimColor={st.isDone || story?.status === 'done'}>
-                  {cut(`${st.isDone ? '[x]' : '[ ]'} ${text}`, width)}
+                <Text key={`d-${n}`} color={isNow ? 'claude' : isPast ? 'success' : undefined} dimColor={!isNow && !isPast} bold={isNow}>
+                  {isNow ? '●' : isPast ? '✓' : '○'}D{n}{' '}
                 </Text>
               )
             })}
-            {sprint.lastTrail !== null && <Text dimColor>{cut(`trail: ${sprint.lastTrail}`, width)}</Text>}
-          </Box>
-        )}
-
-        <Box flexDirection="column">
-          <Text bold>Agents</Text>
-          {main !== undefined && main.status === 'running' && (
-            <Text>{cut(`● main session → ${main.activity}`, width)}</Text>
-          )}
-          {activeAgents.length === 0 && main?.status !== 'running' && <Text dimColor>Nothing running.</Text>}
-          {activeAgents.map(a => (
-            <Button key={`a-${a.key}`} plain onPress={() => (a.agentId === null ? undefined : $.ui.view({ agentId: a.agentId }))}>
-              <Text color="claude">● </Text>
-              {cut(`${agentLine(a)} → ${a.activity}`, width - 2)}
-            </Button>
+            <Text dimColor>{ds.length > 0 ? '→ ' : ''}</Text>
+            <Text color={stageColor(1)} dimColor={stageColor(1) === undefined} bold={stage === 'verify'}>Verify</Text>
+            <Text dimColor> → </Text>
+            <Text color={stageColor(2)} dimColor={stageColor(2) === undefined} bold={stage === 'review'}>Review</Text>
+          </Text>
+          <Text color={stage === 'blocked' ? 'warning' : undefined}>
+            <Text color={stage === 'blocked' ? 'warning' : 'claude'}>{STAGE_LABEL[stage]}</Text>
+            {cut(`${flow.step === null ? '' : ` · ${flow.step}`}${flow.stepAt === null ? '' : ` · started ${clockOf(flow.stepAt)}`}`, inner - 10)}
+          </Text>
+          {team.slice(0, FOCUS_AGENTS).map(({ row: a, depth }) => (
+            <Box key={`fa-${a.key}`} flexDirection="column">
+              <Box justifyContent="space-between">
+                <Button key={`a-${a.key}`} plain onPress={() => (a.agentId === null ? undefined : $.ui.view({ agentId: a.agentId }))}>
+                  <Text dimColor>{depth === 0 ? '' : `${'  '.repeat(depth - 1)}└ `}</Text>
+                  <Text color={isQuiet(a, now) ? 'warning' : 'claude'}>● </Text>
+                  {cut(a.description || a.type, inner - 34)}
+                </Button>
+                <Text dimColor>{`${setting(a)}  ${minutes(a.startedAt, now)}  ${a.tools} tools`}</Text>
+              </Box>
+              <Text color={isQuiet(a, now) ? 'warning' : 'suggestion'}>
+                {cut(`${'  '.repeat(depth + 1)}→ ${a.activity || 'starting'}`, inner)}
+              </Text>
+            </Box>
           ))}
-          {finishedAgents.map(a => (
-            <Text key={`f-${a.key}`} dimColor color={a.status === 'failed' ? 'error' : undefined}>
-              {cut(`${a.status === 'failed' ? '✗' : '✓'} ${agentLine(a)} · ${a.tools} tools`, width)}
-            </Text>
-          ))}
+          {team.length > FOCUS_AGENTS && <Text dimColor>+{team.length - FOCUS_AGENTS} more on {id}</Text>}
+          {trailLine()}
+          {resumeButton}
         </Box>
-
-        {looseStories.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold>Stories in no sprint</Text>
-            {looseStories.map(s => {
-              const next = storyCommand(s)
-              const label = `${next.label} · ${launchLabel(snap, next.name)}`
+      )
+    } else if (sprint !== null) {
+      // Planned, clarify, gate, review: the sprint, what it waits for, its stories.
+      const what =
+        phase === 'planned'
+          ? `Sprint ${sprint.id} — ${sprint.title} (planned)`
+          : phase === 'clarify'
+            ? 'Clarification · /sprint asks its questions before refining'
+            : phase === 'gate'
+              ? `Regression gate${flow?.step ? ` · ${flow.step}` : ''}${flow?.stepAt ? ` · started ${clockOf(flow.stepAt)}` : ''}`
+              : phase === 'review'
+                ? 'Sprint review'
+                : `Sprint ${sprint.id} — ${sprint.title} (${sprint.status})`
+      focus = (
+        <Box key="focus" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+          <Text color="claude" bold>{cut(what, inner)}</Text>
+          {(phase === 'planned' || phase === 'clarify') &&
+            sprint.stories.map(st => {
+              const s = storyById.get(st.id)
               return (
-                <Box key={`ls-${s.id}`}>
-                  <Text>{cut(storyLine(s), width - label.length - 6)} </Text>
-                  <Button key={`go-${s.id}`} label={label} onPress={() => launch($, next.command)} />
-                </Box>
+                <Text key={`ss-${st.id}`} dimColor={st.isDone}>
+                  {cut(`${st.isDone ? '✓' : '○'} ${s === undefined ? `${st.id} ${st.title}` : storyLine(s)}`, inner)}
+                </Text>
               )
             })}
-          </Box>
-        )}
+          {isLive && trailLine()}
+          {resumeButton}
+        </Box>
+      )
+    }
 
-        {(snap.openTopics.length > 0 || snap.followUps > 0) && (
-          <Box flexDirection="column">
-            <Text bold>Open</Text>
-            {snap.openTopics.map((t, i) => (
-              <Text key={`ot-${i}`}>{cut(`· ${t}`, width)}</Text>
+    // In build, gate and review the sprint shrinks to a row of story chips.
+    const finishedTimes = flow === null ? [] : Object.entries(flow.storyMinutes)
+    const lastDone = finishedTimes[finishedTimes.length - 1]
+    const avg =
+      finishedTimes.length === 0 ? null : finishedTimes.reduce((s, [, m]) => s + m, 0) / finishedTimes.length
+    const left = sprint === null ? 0 : sprint.stories.length - doneCount
+    const chips =
+      sprint !== null && flow !== null && (phase === 'build' || phase === 'gate' || phase === 'review') ? (
+        <Box key="sprint" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+          <Box justifyContent="space-between">
+            <Text>
+              <Text bold>Sprint {sprint.id}</Text>
+              <Text dimColor>{cut(` ${sprint.title}`, Math.max(0, inner - 30))}</Text>
+            </Text>
+            <Text dimColor>
+              {doneCount}/{sprint.stories.length}
+              {avg === null || left === 0 || phase !== 'build' ? '' : ` · ~${Math.round(avg * left)}m left`}
+            </Text>
+          </Box>
+          <Text>
+            {sprint.stories.map(st => {
+              const isFocus = st.id === flow.focus && !st.isDone
+              return (
+                <Text key={`c-${st.id}`} color={st.isDone ? 'success' : isFocus ? 'claude' : undefined} dimColor={!st.isDone && !isFocus} bold={isFocus}>
+                  {st.isDone ? '✓' : isFocus ? '●' : ''}{st.id}{' '}
+                </Text>
+              )
+            })}
+          </Text>
+          {lastDone !== undefined && (
+            <Text dimColor>{cut(`last: ${lastDone[0]} ${titleOf(lastDone[0])} · ${lastDone[1]} min`, inner)}</Text>
+          )}
+        </Box>
+      ) : null
+
+    // --- agents the phase card does not show ---
+
+    const sprintAgents = rp === null ? [] : list.filter(a => a.storyId !== null && rp.ids.includes(a.storyId))
+    const others = running.filter(a => !shown.has(a.key))
+    const finished = isLive
+      ? []
+      : list.filter(a => a.status !== 'running' && a.key !== MAIN).slice(-5).reverse()
+    const refineRunning = sprintAgents.filter(a => a.status === 'running')
+    const refineDone = sprintAgents.filter(a => a.status !== 'running')
+    const quietOnes = refineRunning.filter(a => isQuiet(a, now))
+    const longest = [...refineRunning].sort((a, b) => a.startedAt - b.startedAt)[0]
+    const models = [...new Set(refineRunning.map(setting).filter(m => m !== ''))].join(', ')
+    const hasAgentsCard =
+      sprintAgents.length > 0 || others.length > 0 || finished.length > 0 || main?.status === 'running' || !isLive
+
+    const agentsCard = hasAgentsCard ? (
+      <Box key="agents" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+        <Box justifyContent="space-between">
+          <Text bold>Agents</Text>
+          <Text color="claude">
+            {sprintAgents.length > 0
+              ? `${refineRunning.length} running · ${refineDone.length} done`
+              : others.length > 0
+                ? `${others.length} running`
+                : ''}
+          </Text>
+        </Box>
+        {sprintAgents.length > 0 && (
+          <Text>
+            {refineRunning.map(a => (
+              <Text key={`dot-${a.key}`} color={isQuiet(a, now) ? 'warning' : 'claude'}>●</Text>
             ))}
-            {snap.followUps > 0 && <Text dimColor>{snap.followUps} follow-ups in the roadmap</Text>}
+            {refineDone.map(a => (
+              <Text key={`dot-${a.key}`} color={a.status === 'failed' ? 'error' : 'success'}>●</Text>
+            ))}
+            <Text dimColor>{models === '' ? '' : `  refine · ${models}`}</Text>
+          </Text>
+        )}
+        {(quietOnes.length > 0 || longest !== undefined) && (
+          <Box justifyContent="space-between">
+            <Text color="warning">
+              {quietOnes.length === 0 ? '' : cut(`quiet: ${quietOnes.map(a => `${a.storyId} (${minutes(a.activeAt, now)})`).join(' ')}`, inner - 22)}
+            </Text>
+            <Text dimColor>{longest === undefined ? '' : `longest ${longest.storyId} · ${minutes(longest.startedAt, now)}`}</Text>
           </Box>
         )}
+        {main !== undefined && main.status === 'running' && (
+          <Text>{cut(`● main session → ${main.activity}`, inner)}</Text>
+        )}
+        {others.map(a => (
+          <Button key={`a-${a.key}`} plain onPress={() => (a.agentId === null ? undefined : $.ui.view({ agentId: a.agentId }))}>
+            <Text color={isQuiet(a, now) ? 'warning' : 'claude'}>● </Text>
+            {cut(`${agentLine(a)} → ${a.activity}`, inner - 2)}
+          </Button>
+        ))}
+        {finished.map(a => (
+          <Text key={`f-${a.key}`} dimColor color={a.status === 'failed' ? 'error' : undefined}>
+            {cut(`${a.status === 'failed' ? '✗' : '✓'} ${agentLine(a)} · ${a.tools} tools`, inner)}
+          </Text>
+        ))}
+        {sprintAgents.length === 0 && others.length === 0 && main?.status !== 'running' && finished.length === 0 && (
+          <Text dimColor>Nothing running.</Text>
+        )}
+      </Box>
+    ) : null
 
+    // --- what waits on the person, and what comes next ---
+
+    const waitingCard =
+      waiting.length > 0 ? (
+        <Box key="waiting" flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1}>
+          <Text color="warning" bold>⚠ Waiting on you</Text>
+          {waiting.map((w, i) => (
+            <Text key={`w-${i}`}>{cut(`· ${w}`, inner)}</Text>
+          ))}
+        </Box>
+      ) : null
+
+    const looseMilestones = unplannedMilestones(snap)
+    const looseStories = unplannedStories(snap)
+    const hasNext =
+      looseMilestones.length > 0 || looseStories.length > 0 || snap.openTopics.length > 0 || snap.followUps > 0
+    const planLabel = `Plan · ${launchLabel(snap, 'roadmap')}`
+    const nextCard = hasNext ? (
+      <Box key="next" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+        <Box justifyContent="space-between">
+          <Text bold>Next</Text>
+          <Text dimColor>{snap.followUps > 0 ? `${snap.followUps} follow-ups` : ''}</Text>
+        </Box>
+        {looseMilestones.map(m => (
+          <Box key={`m-${m.id}`} justifyContent="space-between">
+            <Text>{cut(`○ ${m.id} ${m.name} · no sprint`, inner - planLabel.length - 6)} </Text>
+            <Button key={`plan-${m.id}`} label={planLabel} onPress={() => launch($, '/roadmap plan')} />
+          </Box>
+        ))}
+        {looseStories.map(s => {
+          const step = storyCommand(s)
+          const label = `${step.label} · ${launchLabel(snap, step.name)}`
+          return (
+            <Box key={`ls-${s.id}`} justifyContent="space-between">
+              <Text>{cut(storyLine(s), inner - label.length - 6)} </Text>
+              <Button key={`go-${s.id}`} label={label} onPress={() => launch($, step.command)} />
+            </Box>
+          )
+        })}
+        {snap.openTopics.length > 0 && <Text dimColor>{cut(`Open: ${snap.openTopics.join(' · ')}`, inner)}</Text>}
+      </Box>
+    ) : null
+
+    return (
+      <Box flexDirection="column" gap={1}>
+        {hero}
+        {focus}
+        {chips}
+        {agentsCard}
+        {waitingCard}
+        {nextCard}
         <Box>
           <Button key="roadmap-check" label={`Roadmap check · ${launchLabel(snap, 'roadmap')}`} onPress={() => launch($, '/roadmap check')} />
           <Button key="concept" label="New concept…" onPress={() => $.prompt.fill({ text: '/concept ', mode: 'replace' })} />
           <Button key="refresh" label="Refresh" onPress={() => refresh($)} />
         </Box>
         <Text dimColor>
-          {snap.sprints.length} sprints open · {snap.doneSprints} done · {snap.stories.length} stories open ·{' '}
+          Sprints {snap.sprints.length} open · {snap.doneSprints} done · Stories {snap.stories.length} open ·{' '}
           {snap.doneStories} done
         </Text>
       </Box>
