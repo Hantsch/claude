@@ -10,12 +10,6 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
-
-## 1.1.0 — 2026-10-28
-
-<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
-
 - The sprint card with its story chips now sits above the build card. The build card's story title
   unfolds on a click to the story's requirement and acceptance criteria.
 
@@ -24,6 +18,11 @@ is empty, so no version ever ships without notes.
   `sprint-branch`), the sprint branch's name, commit per story and the protected branches. It is
   the cockpit's only write, one profile line at a time, and locked while a sprint runs. The
   heading card shows the branching in one line.
+
+## 1.1.0 — 2026-10-28
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - The pane is now a stack of cards that follows the sprint's phase. A heading card shows the phase,
   the current milestone, a step bar (Clarify, Refine, Build, Gate, Review) and the sprint's progress,
   as a ring where the surface can draw one.
