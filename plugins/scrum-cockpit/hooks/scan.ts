@@ -248,6 +248,24 @@ export function parseSprint(
   }
 }
 
+// A section's text as paragraphs: hard-wrapped lines joined, a list item or an
+// empty line starting a new one, template placeholders and comments dropped.
+export function paragraphs(body: string[]): string[] {
+  const out: string[] = []
+  let isOpen = false
+  for (const raw of body) {
+    const l = stripLinks(raw).replace(/\*\*/g, '').trim()
+    if (l === '' || l.startsWith('<')) {
+      isOpen = false
+      continue
+    }
+    if (isOpen && !/^([-*]|\d+\.)\s/.test(l)) out[out.length - 1] += ` ${l}`
+    else out.push(l)
+    isOpen = true
+  }
+  return out
+}
+
 export function parseStory(fileName: string, text: string): Story {
   const fm = frontmatter(text)
   let done = 0
@@ -266,6 +284,8 @@ export function parseStory(fileName: string, text: string): Story {
     status: fm['status'] || 'draft',
     deliverablesDone: done,
     deliverablesTotal: total,
+    requirement: paragraphs(section(text, /^Requirement/i)?.body ?? []),
+    criteria: paragraphs(section(text, /^Acceptance Criteria/i)?.body ?? []),
   }
 }
 

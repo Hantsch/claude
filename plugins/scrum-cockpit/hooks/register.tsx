@@ -28,12 +28,13 @@ const MAIN = 'main'
 // Change a tag when the stored shape changes: an older value then reads as
 // the initial one instead of breaking the drawing after a reload.
 const snapshot = atom({ plugin: 'scrum-cockpit', key: 'snapshot' } as const, null, {
-  shape: 'snapshot-3',
+  shape: 'snapshot-4',
 })
 const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
   shape: 'agents-2',
 })
 const isBandHidden = atom({ plugin: 'scrum-cockpit', key: 'isBandHidden' } as const, false)
+const openStory = atom({ plugin: 'scrum-cockpit', key: 'openStory' } as const, null)
 
 const WATCHED = /docs[\\/]|ROADMAP|sprint|requirement|\.claude[\\/](ai-scrum|tech-rules|commands)/i
 
@@ -747,6 +748,8 @@ export const register: Register = on => {
       const finished = Object.values(flow.storyMinutes)
       const average = finished.length === 0 ? null : Math.round(finished.reduce((s, m) => s + m, 0) / finished.length)
       const stageColor = (r: number) => (rank > r || stage === 'done' ? 'success' : rank === r && stage !== 'blocked' ? 'claude' : undefined)
+      const isOpen = (await read($, openStory)) === id
+      const hasText = story !== undefined && story.requirement.length + story.criteria.length > 0
       focus = (
         <Box key="focus" flexDirection="column" borderStyle="round" borderColor={stage === 'blocked' ? 'warning' : 'claude'} paddingX={1}>
           <Box justifyContent="space-between">
@@ -758,7 +761,25 @@ export const register: Register = on => {
               {average === null ? '' : ` · avg ${average}m`}
             </Text>
           </Box>
-          <Text bold>{cut(`${id} ${titleOf(id)}`, inner)}</Text>
+          {hasText ? (
+            <Button key="story-text" plain onPress={() => update($, openStory, v => (v === id ? null : id))}>
+              <Text dimColor>{isOpen ? '▾ ' : '▸ '}</Text>
+              <Text bold>{isOpen ? `${id} ${titleOf(id)}` : cut(`${id} ${titleOf(id)}`, inner - 2)}</Text>
+            </Button>
+          ) : (
+            <Text bold>{cut(`${id} ${titleOf(id)}`, inner)}</Text>
+          )}
+          {isOpen && story !== undefined && (
+            <Box key="story-body" flexDirection="column" paddingLeft={2}>
+              {story.requirement.map((p, i) => (
+                <Text key={`rq-${i}`} dimColor>{p}</Text>
+              ))}
+              {story.criteria.length > 0 && <Text bold>Acceptance criteria</Text>}
+              {story.criteria.map((p, i) => (
+                <Text key={`ac-${i}`} dimColor>{p}</Text>
+              ))}
+            </Box>
+          )}
           <Text>
             {ds.map(n => {
               const isNow = n === current && stage === 'implement'
@@ -975,8 +996,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" gap={1}>
         {hero}
-        {focus}
         {chips}
+        {focus}
         {agentsCard}
         {waitingCard}
         {nextCard}

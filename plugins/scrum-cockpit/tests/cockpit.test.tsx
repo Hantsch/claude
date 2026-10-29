@@ -105,6 +105,17 @@ const FILES: Record<string, string> = {
     'status: draft # draft -> ready -> in-progress -> done',
     '---',
     '',
+    '## Requirement',
+    '',
+    'A maintainer wants a release to wait for',
+    'a green [CI run](../ci.md).',
+    '',
+    '## Acceptance Criteria',
+    '',
+    '- [ ] **AC1** — the release job needs',
+    '      the CI job',
+    '- [ ] **AC2** — ...',
+    '',
     '## Deliverables',
     '',
     '- [ ] D1 — <smallest useful, individually acceptable result; names the files it touches>',
@@ -234,6 +245,8 @@ test('the scanner reads milestones, sprints, stories and versions', async () => 
   expect(byId.get('266')?.deliverablesTotal).toBe(0)
   expect(byId.get('267')?.deliverablesDone).toBe(1)
   expect(byId.get('267')?.deliverablesTotal).toBe(2)
+  expect(byId.get('266')?.requirement).toEqual(['A maintainer wants a release to wait for a green CI run.'])
+  expect(byId.get('266')?.criteria).toEqual(['- [ ] AC1 — the release job needs the CI job', '- [ ] AC2 — ...'])
   expect(unplannedStories(snap).map(s => s.id)).toEqual(['280'])
   expect(snap.doneStories).toBe(1)
 
@@ -277,6 +290,10 @@ test('the pane shows the overview and its buttons start commands, on every surfa
     expect((await ui.find({ type: 'Text', text: /Now building/ }))?.text).toContain('story 2 of 2')
     expect((await ui.find({ type: 'Text', text: /^266 / }))?.text).toContain('Release waits for a green CI run')
     expect((await ui.find({ type: 'Text', text: /trail:/ }))?.text).toContain('D1 · done')
+    expect(await ui.find({ type: 'Text', text: /^A maintainer/ })).toBeUndefined()
+    await ui.press({ key: 'story-text' })
+    expect((await ui.find({ type: 'Text', text: /^A maintainer/ }))?.text).toContain('green CI run')
+    await ui.press({ key: 'story-text' })
 
     await ui.press({ key: 'sprint-resume' })
     await ui.unmount()

@@ -12,6 +12,9 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- The sprint card with its story chips now sits above the build card. The build card's story title
+  unfolds on a click to the story's requirement and acceptance criteria.
+
 - A settings pane (`/scrum settings`, or **Settings** in the pane) shows and changes the profile's
   branching: base branch, sprint branch or direct commits on the base (ai-scrum's new
   `sprint-branch`), the sprint branch's name, commit per story and the protected branches. It is

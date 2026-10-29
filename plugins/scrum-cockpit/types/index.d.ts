@@ -59,6 +59,9 @@ export type Story = {
   status: string
   deliverablesDone: number
   deliverablesTotal: number
+  // The `## Requirement` and `## Acceptance Criteria` text, as paragraphs.
+  requirement: string[]
+  criteria: string[]
 }
 
 // The model and effort a project command runs with, from its frontmatter.
@@ -120,6 +123,8 @@ declare module 'claude-code' {
       snapshot: Shaped<Snapshot | null>
       agents: Shaped<AgentRow[]>
       isBandHidden: boolean
+      // The story whose text the build card shows unfolded.
+      openStory: string | null
     }
   }
 }
