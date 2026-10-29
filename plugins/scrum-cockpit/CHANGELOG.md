@@ -10,6 +10,10 @@ is empty, so no version ever ships without notes.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 1.2.0 — 2026-10-29
+
 - The sprint card with its story chips now sits above the build card. The build card's story title
   unfolds on a click to the story's requirement and acceptance criteria.
 
