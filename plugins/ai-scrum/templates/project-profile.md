@@ -102,10 +102,17 @@ changelog-path: none
 
 ## Branching
 
-branch-base: main <!-- branch a sprint is cut from -->
-sprint-branch-pattern: sprint/{id}
-auto-commit-per-story: true <!-- /sprint commits once per story ON THE SPRINT BRANCH only -->
+branch-base: main <!-- the branch a sprint starts from: cut from with sprint-branch: true, committed on with false -->
+sprint-branch: true <!-- true = cut a sprint branch, commit there, you merge it; false = commit every story directly on branch-base -->
+sprint-branch-pattern: sprint/{id} <!-- ignored with sprint-branch: false -->
+auto-commit-per-story: true <!-- /sprint commits once per story, on the sprint branch (or on branch-base with sprint-branch: false) -->
 protected-branches: main <!-- never commit here, never push, never merge — except the one `SNN: sprint started` commit /sprint makes on branch-base -->
+<!--
+  sprint-branch: false is for a branch you work on directly, such as `dev` in a private
+  project: no branch, no merge step, the sprint's commits land on branch-base as they are
+  made. It requires a branch-base that is NOT in protected-branches — /sprint refuses to
+  start otherwise. Change it between sprints, never while one is in-progress.
+-->
 
 ## Acceptance
 

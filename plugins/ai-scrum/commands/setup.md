@@ -157,8 +157,12 @@ Cover, in this order of importance:
      value is the best available hint for `e2e` — offer it converted, and drop both old keys.
      Say in the report that the manual acceptance gate (P2) is gone: stories are no longer
      held open waiting for a human to walk them, and `testplan.md` is no longer a gate.
-3. **Branching** — `branch-base` (detected default branch or `dev`), and whether
-   `/sprint` may auto-commit once per story on the sprint branch.
+3. **Branching** — `branch-base` (detected default branch or `dev`); `sprint-branch`: does
+   `/sprint` cut its own branch from it (`true`, the default — you merge at the end) or commit
+   directly on `branch-base` (`false` — typical for a private project worked on `dev`)? With
+   `false`, `branch-base` must not be in `protected-branches`; say so if it is and ask which
+   to change. Then whether `/sprint` may auto-commit once per story. A profile without
+   `sprint-branch` gets `true` — what it did before the key existed — without asking.
 4. **doc-language** — detected default; `en` for a new project.
 5. **`changelog-path`** — only ask if the survey found a user-facing changelog at the repo
    root (`version.md`, `VERSION.md`, `CHANGELOG.md`): should `/build` and `/sprint` require an

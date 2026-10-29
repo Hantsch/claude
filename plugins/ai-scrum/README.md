@@ -104,6 +104,10 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   `progress.md` per step, deliverable, verification and review, and treats the final report as
   the end of the run — nothing keeps running behind it. A status question is answered with the
   last trail line and the elapsed time, not with "it is running".
+- **Sprint branch or straight on the base.** `branch-base` in the profile is where a sprint
+  starts; `sprint-branch: true` (the default) cuts `sprint/SNN` from it and leaves the merge to
+  you, `sprint-branch: false` commits every story directly on `branch-base` — for a private
+  project worked on `dev`. A protected branch is never committed on in either mode.
 - **Open questions belong to the user.** Anything a story deliberately left open is never
   decided by an agent. In a sprint the orchestrator bundles those questions, records the
   answers as binding `(User)` decisions, and only then lets the agents run.
@@ -164,7 +168,7 @@ too, but its effort is not set on the call.
 ### The pipeline
 
 ```
-phase 0    `S07: sprint started` on branch-base ─► cut the sprint branch
+phase 0    `S07: sprint started` on branch-base ─► cut the sprint branch (sprint-branch: true)
 phase 1a   open questions of all stories ─► you, bundled ─► recorded as binding (User) decisions
 phase 1b   refine every draft story, concurrently ─► ready | BLOCKED: user question
            (one follow-up round) ─► one line of tiers: the last moment to stop the run
