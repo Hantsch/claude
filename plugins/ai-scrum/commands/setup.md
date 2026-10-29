@@ -64,6 +64,9 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `e2e-story: npx playwright test {files}`; a script that runs one flow by name
    (`ui:flow`, `e2e:flow`) → `npm run <script> -- {test}`; a script that runs every flow
    (`ui:flows`, `e2e:flows`) next to a separate `e2e` → `e2e-all`. No match → `none`.
+   A script that answers "will the PR and the release pass?" (`verify:release`,
+   `release:check`, `verify`, a `ci:local` that replays the CI workflows) → `release-verify`;
+   no match → `none`.
 6. **Doc language:** if requirement/story files already exist, sample one or two and
    detect the language actually used — that is the default for `doc-language`, so an
    existing German project stays German.
@@ -136,6 +139,15 @@ Cover, in this order of importance:
    list yet, `none`. **On an update these are keys an older profile lacks — offer them, never
    fill them in silently, and never replace a value the profile already has**, placeholder
    excepted. An answer left open becomes `none`.
+1e. **`release-verify`** (see its comment in the profile template) — the command `/sprint` runs
+   as its very last step so that every sprint ends releasable. One question: the detected
+   script or `none`; with `none` the short suites run in its place. Say that it should check
+   what the PR and release pipelines block on, and that a long one (over ten minutes) is fine —
+   `/sprint` runs it in the background. **On an update this is a key an older profile lacks —
+   offer it, never fill it in silently, never replace an existing value**, placeholder excepted.
+   An answer left open becomes `none`. If the profile's `## Notes` already describe such a
+   sprint-end check by hand, say that phase 4 of `/sprint` now does it and that the note can go
+   — never edit `## Notes` yourself.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
    - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an

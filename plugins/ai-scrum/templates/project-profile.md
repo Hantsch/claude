@@ -40,6 +40,16 @@ e2e-story: none <!-- e.g. npx playwright test {files} | npm run ui:flow -- {test
 e2e-story-slices: 1 <!-- 1 = one call; n > 1 only when e2e-story carries {shard} and one call could exceed ten minutes — /build then runs {shard} = 1/n … n/n in sequence -->
 e2e-all: none <!-- e.g. npm run ui:flows | npx playwright test --project=flows | none -->
 e2e-cleanup: none <!-- e.g. taskkill /F /IM electron.exe | pkill -f electron | none — stops what a crashed or killed e2e run leaves behind; /sprint runs it before relaunching a suite. It kills your own running instance too. -->
+release-verify: none <!-- e.g. npm run verify:release | make release-check | none — /sprint's last step (phase 4): "will a PR and a release of this commit pass?", on the final commit; nothing is committed after a green run -->
+<!--
+  release-verify = the project's own releasable check: a command that runs what the PR and
+               release pipelines block on, against the commit at hand (ideally merged into the
+               release branch, as the PR would be). /sprint runs it once as its very last step,
+               after the review commit and a roadmap check, fixes a red result at most twice and
+               reports the verdict as the first line of its final report. `none` = the short
+               suites (build, test, lint, typecheck) run there instead — they are what the
+               review commit's doc edits can break.
+-->
 <!--
   Narrow per story, broad per sprint. `/build` runs a story-sized gate; `/sprint` runs
   the full one once, after the last story, and bisects a red result back to a story.

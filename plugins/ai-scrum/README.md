@@ -11,7 +11,7 @@ run it without installing anything.
 /roadmap plan          cut the next sprint     -> story drafts + sprints/SNN/sprint.md
 /refine <id>           plan a story  (Opus)    -> Plan + Deliverables + AC -> test mapping
 /build <id> [--full]   implement it  (cheap)   -> code + tests + narrow gate + clean review + Done
-/sprint <id>           run a whole sprint      -> branch, all stories, regression gate, review.md
+/sprint <id>           run a whole sprint      -> branch, all stories, regression gate, review.md, releasable
 
 /ai-scrum:setup        install / update        -> the five commands above, two agents, profile + docs
 ```
@@ -78,7 +78,7 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
                  ▲                                                  │
                  └──────────── sprint review / roadmap check ────────┘
 
-              sprint = clarify -> refine all -> build all -> regression gate -> review.md
+              sprint = clarify -> refine all -> build all -> regression gate -> review.md -> releasable
 ```
 
 - **Small deliverables, each with its own test.** Refine cuts a story into `D1…Dn` and maps
@@ -180,6 +180,8 @@ phase 2    per ready story, in list order:
 phase 2b   regression gate: short suites + e2e-all on the finished branch
            red ─► attribute (flaky / pre-existing / story) ─► fix on the branch, or a merge blocker
 phase 3    review.md · testplan.md (manual residue only) · roadmap ─► `S07: sprint review + roadmap`
+phase 4    roadmap check (agent) ─► `release-verify` on the final commit, last
+           red ─► fix (≤ 2 rounds) ─► `releasable: yes | NO` heads the report; nothing committed after
 ```
 
 A deliverable that comes back `PARTIAL` goes to one fresh agent with the partial report. A second
@@ -321,6 +323,11 @@ misses the regression one story causes in another's flow. So the gate is split:
   profile's `e2e-quarantine` list. After that it is an expected failure and is not attributed
   again. If it is still quarantined two sprints later, it becomes a story. `e2e-cleanup` (optional) names the command that
   stops what a killed e2e run leaves behind; `/sprint` runs it before relaunching.
+- **Last (`/sprint` phase 4, after the review commit):** `release-verify` (optional) — the
+  project's "will a PR and a release of this commit pass?" check, run once on the final commit
+  after a `/roadmap check`. Without it the short suites run there. Nothing is committed after a
+  green run, because the review commit edits docs after the gate, and an unchecked last commit
+  is how a green sprint turns into a red PR.
 - **Standalone `/build`:** the narrow gate, and one closing line naming the full suites that
   have not run yet. `/build <id> --full` runs them once at the end instead.
 

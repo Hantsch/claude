@@ -12,6 +12,11 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `/sprint` ends releasable: a new phase 4 after the review commit runs `/roadmap check` in an
+  agent, then the new profile key `release-verify` (or the short suites when `none`) on the final
+  commit, fixes a red result at most twice and commits nothing after a green run. The verdict
+  `releasable: yes | NO` is the first line of the final report. `/ai-scrum:setup` offers the key.
+
 ## 4.7.0 — 2026-10-29
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
