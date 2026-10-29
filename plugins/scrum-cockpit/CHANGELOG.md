@@ -12,6 +12,11 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- A settings pane (`/scrum settings`, or **Settings** in the pane) shows and changes the profile's
+  branching: base branch, sprint branch or direct commits on the base (ai-scrum's new
+  `sprint-branch`), the sprint branch's name, commit per story and the protected branches. It is
+  the cockpit's only write, one profile line at a time, and locked while a sprint runs. The
+  heading card shows the branching in one line.
 - The pane is now a stack of cards that follows the sprint's phase. A heading card shows the phase,
   the current milestone, a step bar (Clarify, Refine, Build, Gate, Review) and the sprint's progress,
   as a ring where the surface can draw one.

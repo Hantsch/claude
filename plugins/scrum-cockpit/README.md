@@ -29,6 +29,15 @@ scrum workflow beside the chat, live, with buttons that start the next step.
 | Next | milestones no sprint covers, open stories no open sprint lists, open topics, follow-ups | Plan (`/roadmap plan`), Refine (`/refine NNN`) or Build (`/build NNN`) |
 | | | Roadmap check, New concept…, Refresh |
 
+**`/scrum settings`** (or **Settings** at the foot of the pane) opens a second pane with the
+profile's branching: the base branch (picked from the repository's local branches, or typed),
+whether `/sprint` cuts a sprint branch or commits directly on the base (`sprint-branch`), the sprint
+branch's name, commit per story, and the protected branches. A pick is written to
+`.claude/ai-scrum.md` at once; `/sprint` reads it at its next start. While a sprint is in progress
+the values are shown but locked, and a base that is both protected and committed on directly is
+flagged, because `/sprint` refuses to start on it. The heading card of the main pane shows the
+same in one line: `⎇ dev → sprint/{id}` or `⎇ dev · commits directly`.
+
 An agent with no tool call for three minutes is drawn amber as *quiet*; a trail that has been silent
 for fifteen minutes turns amber too, the threshold `/sprint` itself uses to tell you.
 
@@ -38,10 +47,11 @@ cockpit keeps no second copy of them. The button label shows them, e.g. `Build �
 
 ## Where the data comes from
 
-Nothing is stored in the project. The cockpit reads, on session start, after every main turn,
+Nothing is stored in the project beyond what the settings pane writes. The cockpit reads, on session start, after every main turn,
 after a write to the docs and every 15 seconds while a sprint or an agent runs:
 
-- `.claude/ai-scrum.md` for `requirements-path`, `sprints-path` and `roadmap-path`;
+- `.claude/ai-scrum.md` for `requirements-path`, `sprints-path`, `roadmap-path` and the `## Branching` values;
+- `.git/refs/heads` and `.git/packed-refs` for the local branches the settings pane offers;
 - the roadmap's "Where we stand", "Current phase" (its milestone table, or one `### M… — …`
   heading per milestone in roadmaps from before ai-scrum 4), "Open" and "Follow-ups" sections;
 - each open sprint's `sprint.md` frontmatter and story list, and its `progress.md` trail, from
@@ -70,7 +80,9 @@ the desktop app and the VS Code extension.
 
 ## What it does not do
 
-- It changes no file. Every button runs a command you could have typed; the command does the work.
+- It changes one file, and only from the settings pane: the `## Branching` lines of
+  `.claude/ai-scrum.md`, each rewritten in place with its comment and every other byte kept. Every
+  other button runs a command you could have typed; the command does the work.
 - It does not run `/plugin update` — that stays your step.
 - It reads the template layout plus the drift seen in real projects (milestone ids like `11.5`,
   an `accepted` status, a roadmap row that still says `planned` while its sprint runs). A roadmap

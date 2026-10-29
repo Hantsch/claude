@@ -5,12 +5,14 @@ import {
   activeSprint,
   currentMilestone,
   isDone,
+  parseBranching,
   parseRoadmap,
   parseTrail,
   scan,
   unplannedMilestones,
   unplannedStories,
   updateHints,
+  withProfileValue,
 } from '../hooks/scan'
 import type { Reader } from '../hooks/scan'
 
@@ -124,6 +126,10 @@ const FILES: Record<string, string> = {
 }
 
 const DIRS: Record<string, { name: string; isDir: boolean }[]> = {
+  '/proj/.git/refs/heads': [
+    { name: 'dev', isDir: false },
+    { name: 'main', isDir: false },
+  ],
   '/proj/docs/sprints': [
     { name: 'README.md', isDir: false },
     { name: 'S36', isDir: true },
@@ -454,5 +460,83 @@ test('in build the story in focus shows its builder and the agent the builder sp
   expect((await ui.find({ type: 'Text', text: /→ Edit/ }))?.text).toContain('release/gate.ts')
   // Agents are at work, so no resume button.
   expect(await ui.find({ key: 'sprint-resume' })).toBeUndefined()
+  await ui.unmount()
+})
+
+// A profile from before `sprint-branch`, CRLF as Windows checkouts have it.
+const OLD_PROFILE = [
+  'sprints-path: docs/sprints',
+  '',
+  '## Branching',
+  '',
+  'branch-base: dev <!-- branch a sprint is cut from -->',
+  'sprint-branch-pattern: sprint/{id}',
+  'auto-commit-per-story: true <!-- once per story -->',
+  'protected-branches: main',
+  '',
+].join('\r\n')
+
+test('a branching value is replaced in place, and a missing key lands after its anchor', () => {
+  const set = withProfileValue(OLD_PROFILE, 'branch-base', 'main', 'branch-base')
+  expect(set).toBe(OLD_PROFILE.replace('branch-base: dev <!--', 'branch-base: main <!--'))
+
+  const added = withProfileValue(OLD_PROFILE, 'sprint-branch', 'false', 'branch-base')
+  expect(added).toContain('branch-base: dev <!-- branch a sprint is cut from -->\r\nsprint-branch: false\r\nsprint-branch-pattern')
+
+  expect(parseBranching(added, ['dev', 'main'])).toEqual({
+    base: 'dev',
+    isSprintBranch: false,
+    pattern: 'sprint/{id}',
+    isAutoCommit: true,
+    protectedBranches: ['main'],
+    branches: ['dev', 'main'],
+  })
+  // No key at all is the behaviour from before the key existed.
+  expect(parseBranching(OLD_PROFILE, []).isSprintBranch).toBe(true)
+})
+
+test('settings: the branching is shown, and locked while a sprint runs', async ($, on) => {
+  project(on, { '/proj/.claude/ai-scrum.md': OLD_PROFILE })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'refresh' })
+  expect((await pane.find({ type: 'Text', text: /⎇/ }))?.text).toBe('⎇ dev → sprint/{id}')
+  await pane.unmount()
+
+  const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /is running/ }))?.text).toContain('S36')
+  expect(await ui.find({ key: 'mode' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('settings: switching to direct commits writes the profile line, on every surface with fields', async ($, on) => {
+  const sprint = FILES['/proj/docs/sprints/S36/sprint.md'] ?? ''
+  project(on, {
+    '/proj/.claude/ai-scrum.md': OLD_PROFILE,
+    '/proj/docs/sprints/S36/sprint.md': sprint.replace('status: in-progress', 'status: done'),
+  })
+  const written: { path: string; text: string }[] = []
+  on('fs.write', (_, e) => {
+    written.push({ path: posix(e.path), text: e.text })
+    return { value: undefined }
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  for (const surface of ['terminal', 'vscode', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface })
+    await ui.press({ key: 'refresh' })
+    await ui.select({ key: 'mode', value: 'false' })
+    await ui.unmount()
+  }
+  expect(written.length).toBe(3)
+  expect(written[0]?.path).toBe('/proj/.claude/ai-scrum.md')
+  expect(written[0]?.text).toBe(OLD_PROFILE.replace('-->\r\n', '-->\r\nsprint-branch: false\r\n'))
+
+  const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'terminal' })
+  await ui.select({ key: 'base', value: 'main' })
+  expect(written[3]?.text).toContain('branch-base: main <!--')
   await ui.unmount()
 })

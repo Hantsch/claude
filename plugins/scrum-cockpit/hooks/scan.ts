@@ -1,4 +1,5 @@
 import type {
+  Branching,
   Launch,
   Milestone,
   ScrumPlugin,
@@ -347,6 +348,59 @@ async function versions(r: Reader, root: string): Promise<VersionCheck[]> {
   return out
 }
 
+// A profile value: the text after `key:` up to a trailing `<!-- -->` comment.
+export function profileValue(profile: string, key: string): string | null {
+  const m = new RegExp(`^${key}:[ \\t]*(.*?)[ \\t]*(?:<!--.*)?\\r?$`, 'm').exec(profile)
+  return m === null ? null : (m[1] ?? '').trim()
+}
+
+// The profile with `key` set to `value`, its comment and every other byte kept.
+// A missing key goes after `after`, else under `## Branching`, else at the end.
+export function withProfileValue(profile: string, key: string, value: string, after: string): string {
+  const line = new RegExp(`^(${key}:[ \\t]*)(.*?)([ \\t]*<!--.*?)?(\\r?)$`, 'm')
+  if (line.test(profile)) {
+    return profile.replace(line, (_all, head: string, _old, comment: string | undefined, cr: string) => `${head}${value}${comment ?? ''}${cr}`)
+  }
+  const nl = profile.includes('\r\n') ? '\r\n' : '\n'
+  const anchor =
+    new RegExp(`^${after}:.*?(?=\\r?$)`, 'm').exec(profile) ??
+    new RegExp(`^## Branching[ \\t]*(?=\\r?$)`, 'm').exec(profile)
+  if (anchor === null) return `${profile}${profile === '' || profile.endsWith('\n') ? '' : nl}${key}: ${value}${nl}`
+  const end = anchor.index + anchor[0].length
+  return `${profile.slice(0, end)}${nl}${key}: ${value}${profile.slice(end)}`
+}
+
+export function parseBranching(profile: string, branches: string[]): Branching {
+  const value = (key: string, fallback: string) => {
+    const v = profileValue(profile, key)
+    return v === null || v === '' ? fallback : v
+  }
+  return {
+    base: value('branch-base', 'main'),
+    isSprintBranch: value('sprint-branch', 'true') !== 'false',
+    pattern: value('sprint-branch-pattern', 'sprint/{id}'),
+    isAutoCommit: value('auto-commit-per-story', 'true') !== 'false',
+    protectedBranches: value('protected-branches', '').split(/[\s,]+/).filter(b => b !== '' && b !== 'none'),
+    branches,
+  }
+}
+
+// The repository's local branches, from the ref folders and packed-refs.
+async function localBranches(r: Reader, root: string): Promise<string[]> {
+  const out = new Set<string>()
+  const walk = async (dir: string, prefix: string, depth: number) => {
+    for (const entry of await r.list(dir)) {
+      if (!entry.isDir) out.add(`${prefix}${entry.name}`)
+      else if (depth < 3) await walk(`${dir}/${entry.name}`, `${prefix}${entry.name}/`, depth + 1)
+    }
+  }
+  await walk(`${root}/.git/refs/heads`, '', 0)
+  for (const m of ((await r.read(`${root}/.git/packed-refs`)) ?? '').matchAll(/^[0-9a-f]+ refs\/heads\/(\S+?)\r?$/gm)) {
+    if (m[1] !== undefined) out.add(m[1])
+  }
+  return [...out].sort()
+}
+
 async function profilePaths(r: Reader, root: string) {
   const profile = (await r.read(`${root}/.claude/ai-scrum.md`)) ?? ''
   const value = (key: string, fallback: string) => {
@@ -392,6 +446,9 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     f => !f.isDir && /^\d+.*\.md$/.test(f.name),
   ).length
 
+  const profile = await r.read(`${root}/.claude/ai-scrum.md`)
+  const branching = profile === null ? null : parseBranching(profile, await localBranches(r, root))
+
   const launch: Record<string, Launch> = {}
   for (const name of COMMANDS) {
     const fm = frontmatter((await r.read(`${root}/.claude/commands/${name}.md`)) ?? '')
@@ -424,6 +481,7 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     openTopics: roadmap?.openTopics ?? [],
     followUps: roadmap?.followUps ?? 0,
     launch,
+    branching,
     readAt: now,
   }
 }

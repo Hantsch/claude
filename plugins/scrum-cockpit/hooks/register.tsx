@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementConstructor, EngineInterface, Register, SvgProps, Timer } from 'claude-code'
 
-import type { AgentRow, Snapshot, Story, StoryStage } from '../types'
+import type { AgentRow, Branching, Snapshot, Story, StoryStage } from '../types'
 import {
   activeSprint,
   clockOf,
@@ -17,16 +17,18 @@ import {
   unplannedStories,
   updateHints,
   waitingItems,
+  withProfileValue,
 } from './scan'
 import type { Reader } from './scan'
 
 const PANE = 'scrum-cockpit'
+const SETTINGS = 'scrum-settings'
 const MAIN = 'main'
 
 // Change a tag when the stored shape changes: an older value then reads as
 // the initial one instead of breaking the drawing after a reload.
 const snapshot = atom({ plugin: 'scrum-cockpit', key: 'snapshot' } as const, null, {
-  shape: 'snapshot-2',
+  shape: 'snapshot-3',
 })
 const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
   shape: 'agents-2',
@@ -274,6 +276,38 @@ function openPane($: EngineInterface) {
   void refresh($)
 }
 
+function openSettings($: EngineInterface) {
+  void $.ui.open({ id: SETTINGS, title: 'Scrum settings' })
+  void refresh($)
+}
+
+// The one write the cockpit makes: a `## Branching` value of the profile, on
+// its own line, every other byte of the file kept.
+async function saveSetting($: EngineInterface, key: string, value: string, after: string) {
+  const snap = await read($, snapshot)
+  const clean = value.trim()
+  if (snap === null || clean === '' || /[\r\n<]/.test(clean)) return
+  if (snap.sprints.some(s => s.status === 'in-progress')) {
+    $.ui.toast('A sprint is running: change the branching after it')
+    return
+  }
+  const path = `${snap.root}/.claude/ai-scrum.md`
+  try {
+    const text = await $.fs.read(path)
+    if (typeof text !== 'string') return
+    const changed = withProfileValue(text, key, clean, after)
+    if (changed !== text) await $.fs.write(path, changed)
+    $.ui.toast(`${key}: ${clean}`)
+  } catch {
+    $.ui.toast(`Could not write ${key} to .claude/ai-scrum.md`)
+  }
+  await refresh($)
+}
+
+// Where a sprint commits, in one line: `dev → sprint/{id}` or `dev · commits directly`.
+const branchingLine = (b: Branching) =>
+  b.isSprintBranch ? `⎇ ${b.base} → ${b.pattern}` : `⎇ ${b.base} · commits directly`
+
 // The short form of where the focus story stands: `D4/5`, `review 1`, `verify`.
 function stageShort(stage: StoryStage | null, step: string | null, story: Story | undefined): string {
   if (stage === null) return ''
@@ -314,7 +348,12 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'scrum' }, async $ => {
+  on('command.run', { command: 'scrum' }, async ($, e) => {
+    if (/^\s*settings\b/i.test(e.args)) {
+      openSettings($)
+
+      return { text: 'Scrum settings opened.' }
+    }
     openPane($)
 
     return { text: 'Scrum cockpit opened.' }
@@ -627,6 +666,7 @@ export const register: Register = on => {
         {standing.map((l, i) => (
           <Text key={`st-${i}`} dimColor>{l}</Text>
         ))}
+        {snap.branching !== null && <Text dimColor>{cut(branchingLine(snap.branching), inner)}</Text>}
       </Box>
     )
 
@@ -943,12 +983,128 @@ export const register: Register = on => {
         <Box>
           <Button key="roadmap-check" label={`Roadmap check · ${launchLabel(snap, 'roadmap')}`} onPress={() => launch($, '/roadmap check')} />
           <Button key="concept" label="New concept…" onPress={() => $.prompt.fill({ text: '/concept ', mode: 'replace' })} />
+          <Button key="settings" label="Settings" onPress={() => openSettings($)} />
           <Button key="refresh" label="Refresh" onPress={() => refresh($)} />
         </Box>
         <Text dimColor>
           Sprints {snap.sprints.length} open · {snap.doneSprints} done · Stories {snap.stories.length} open ·{' '}
           {snap.doneStories} done
         </Text>
+      </Box>
+    )
+  })
+
+  // --- The settings pane: the profile's branching, read and changed ---
+
+  on('ui.render', { component: 'Pane', requestId: SETTINGS }, async ($, e) => {
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Text } = elements
+    // Mobile draws no fields; there the values are only shown.
+    const Input = 'Input' in elements ? elements.Input : null
+    const Select = 'Select' in elements ? elements.Select : null
+    const snap = await read($, snapshot)
+    const inner = Math.max(24, e.props.bodyColumns - 4)
+    if (snap === null || snap.branching === null) {
+      return (
+        <Box flexDirection="column">
+          <Text>{snap === null ? 'Reading the project…' : 'No .claude/ai-scrum.md in this project.'}</Text>
+          {snap !== null && <Button key="setup" label="Set up ai-scrum" onPress={() => launch($, '/ai-scrum:setup')} />}
+          <Button key="refresh" label="Refresh" onPress={() => refresh($)} />
+        </Box>
+      )
+    }
+    const b = snap.branching
+    const running = snap.sprints.find(s => s.status === 'in-progress')
+    const isEditable = running === undefined && Input !== null && Select !== null
+    const isConflict = !b.isSprintBranch && b.protectedBranches.includes(b.base)
+    const protectedText = b.protectedBranches.join(', ') || 'none'
+    const onOff = [
+      { value: 'true', label: 'yes' },
+      { value: 'false', label: 'no' },
+    ]
+
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Box key="branching" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+          <Text color="claude" bold>Branching</Text>
+          <Text dimColor>{cut(branchingLine(b), inner)}</Text>
+          {isEditable && Input !== null && Select !== null ? (
+            <Box flexDirection="column">
+              <Select
+                key="base"
+                label="Base branch "
+                options={[...new Set([b.base, ...b.branches])].map(v => ({ value: v }))}
+                value={b.base}
+                onSelect={v => void saveSetting($, 'branch-base', v, 'branch-base')}
+              />
+              <Input
+                key="base-other"
+                label="Other base "
+                placeholder="a branch name"
+                submitLabel="set"
+                onSubmit={v => void saveSetting($, 'branch-base', v, 'branch-base')}
+              />
+              <Select
+                key="mode"
+                label="Sprint commits "
+                options={[
+                  { value: 'true', label: 'on a sprint branch, merged by you' },
+                  { value: 'false', label: `directly on ${b.base}` },
+                ]}
+                value={String(b.isSprintBranch)}
+                onSelect={v => void saveSetting($, 'sprint-branch', v, 'branch-base')}
+              />
+              {b.isSprintBranch && (
+                <Input
+                  key="pattern"
+                  label="Sprint branch "
+                  value={b.pattern}
+                  submitLabel="set"
+                  onSubmit={v => void saveSetting($, 'sprint-branch-pattern', v, 'sprint-branch')}
+                />
+              )}
+              <Select
+                key="autocommit"
+                label="Commit per story "
+                options={onOff}
+                value={String(b.isAutoCommit)}
+                onSelect={v => void saveSetting($, 'auto-commit-per-story', v, 'sprint-branch-pattern')}
+              />
+              <Input
+                key="protected"
+                label="Protected "
+                value={protectedText}
+                submitLabel="set"
+                onSubmit={v => void saveSetting($, 'protected-branches', v, 'auto-commit-per-story')}
+              />
+            </Box>
+          ) : (
+            <Box flexDirection="column">
+              <Text>{cut(`Base branch: ${b.base}`, inner)}</Text>
+              <Text>{cut(`Sprint commits: ${b.isSprintBranch ? `on ${b.pattern}, merged by you` : `directly on ${b.base}`}`, inner)}</Text>
+              <Text>{`Commit per story: ${b.isAutoCommit ? 'yes' : 'no'}`}</Text>
+              <Text>{cut(`Protected: ${protectedText}`, inner)}</Text>
+              <Text color="warning">
+                {cut(
+                  running !== undefined
+                    ? `${running.id} is running: change the branching after it`
+                    : 'This surface draws no fields: edit .claude/ai-scrum.md',
+                  inner,
+                )}
+              </Text>
+            </Box>
+          )}
+          {isConflict && (
+            <Text color="warning">
+              {cut(`⚠ ${b.base} is protected: /sprint will not start. Unprotect it or use a sprint branch.`, inner)}
+            </Text>
+          )}
+        </Box>
+        <Text dimColor>{cut('Writes these lines of .claude/ai-scrum.md; /sprint reads them when it starts.', inner)}</Text>
+        <Box>
+          <Button key="cockpit" label="Cockpit" onPress={() => openPane($)} />
+          <Button key="refresh" label="Refresh" onPress={() => refresh($)} />
+        </Box>
       </Box>
     )
   })

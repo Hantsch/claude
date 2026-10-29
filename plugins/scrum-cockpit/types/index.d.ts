@@ -64,6 +64,17 @@ export type Story = {
 // The model and effort a project command runs with, from its frontmatter.
 export type Launch = { model: string | null; effort: string | null }
 
+// The profile's `## Branching` values, and the repository's local branches to pick from.
+export type Branching = {
+  base: string
+  // `sprint-branch: false` commits on `base` itself; a profile without the key means true.
+  isSprintBranch: boolean
+  pattern: string
+  isAutoCommit: boolean
+  protectedBranches: string[]
+  branches: string[]
+}
+
 export type Snapshot = {
   root: string
   hasScrum: boolean
@@ -78,6 +89,8 @@ export type Snapshot = {
   openTopics: string[]
   followUps: number
   launch: Record<string, Launch>
+  // Null when the project has no profile.
+  branching: Branching | null
   readAt: number
 }
 
