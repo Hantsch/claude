@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.7.0 — 2026-10-29
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - New profile key `sprint-branch` (default `true`, the behaviour so far). With `false`, `/sprint`
   cuts no branch and commits every story directly on `branch-base` — for working on `dev` in a
   private project; it refuses to start while that `branch-base` is in `protected-branches`.
