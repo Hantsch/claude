@@ -59,6 +59,19 @@ A `pwsh` in a profile command or a workflow step runs as `powershell -NoProfile
 -ExecutionPolicy Bypass` where `pwsh` is not installed (a script that targets 5.1 runs the
 same); the report names that substitution.
 
+## Trail — what a watcher sees
+
+A full run takes minutes in the background, so it says where it stands in `<trail>` =
+`$(git rev-parse --git-common-dir)/ai-scrum/trail.md` — inside `.git`, never tracked, so a
+line written after a sprint's last commit leaves the working tree clean. Two lines per full run,
+appended by the shell with the timestamp it produces (`date '+%Y-%m-%d %H:%M'`), never typed;
+`<sprint>` is the sprint id when `/sprint` runs this, `-` when you do:
+
+- F4: `- <ts> · <sprint> · release-check · started · watch <work>/run.log`
+- F6: `- <ts> · <sprint> · release-check · done · <the verdict line>`
+
+`base` mode writes nothing there. The scrum cockpit reads exactly these lines; keep their shape.
+
 ## The verdict — one line, and how it is reached
 
 The verdict is the first line of the report, in exactly one of three forms:
@@ -165,9 +178,12 @@ that did not run and why. The table is the evidence; a verdict without it is not
      `pending`; the record closes once both lanes have an outcome (or it is superseded). A failed run's
      failing job and step from `…/actions/runs/<id>/jobs`, its first error line from
      `…/check-runs/<job id>/annotations`.
-   - **The outcome**, written back into the record (rewrite that line): per lane `green`,
-     `red: <workflow> › <job> › <step> · <run url>` or `pending`. Any lane red counts as red, as
-     soon as it is known — a red PR does not wait for a merge. Then compare with the verdict:
+   - **The outcome**, written back into the record (rewrite that line) as one more field:
+     `"outcome":{"result":"<result>","pr":"<lane>","release":"<lane>","checked_at":"<UTC ISO>"}`,
+     each `<lane>` being `green`, `red: <workflow> › <job> › <step> · <run url>`, `pending` or
+     `none`. Any lane red counts as red as soon as it is known — a red PR does not wait for a
+     merge. `<result>` is one of `green`, `missed`, `not-confirmed`, `confirmed`, `superseded`,
+     `pending` — from comparing with the verdict:
      - `yes` + green → a **green cycle**.
      - `yes` + red → **missed**, loudly, and the incident row for the problem record of the
        ai-scrum plugin (`docs/problems/release-readiness.md` in its repository), ready to paste:
@@ -177,7 +193,10 @@ that did not run and why. The table is the evidence; a verdict without it is not
        wolf gets ignored.
      - `NO` + red → confirmed.
    - **One line in the report:** `record: <n> green cycles in a row · <m> missed · <k> not
-     confirmed (last ten) · <p> pending`, the missed ones each on their own line under it. Not
+     confirmed (last ten) · <p> pending`, the missed ones each on their own line under it. The
+     streak counts closed records newest first — `green` and `not-confirmed` (GitHub was green
+     either way) add one, `missed` and `confirmed` (GitHub was red) end it, `pending` and
+     `superseded` are skipped. The scrum cockpit counts the same way from the same file. Not
      GitHub, no API access, no records yet → `record: outcome unknown — <why>`; records stay
      open.
    This step never changes the verdict of the current run; it reports on earlier ones.
@@ -354,7 +373,8 @@ long. From the top-level session, never from a subagent (a subagent cannot outli
 tool call and never hears when a background task ends):
 1. A status line with its facts: `Release check · <n> steps (<pr> PR, <rel> release) · started
    <clock> · last took <minutes, or "first run, no estimate"> · watch <work>/run.log`. The clock
-   is the output of a shell command, never typed.
+   is the output of the shell command that appends the `started` line to `<trail>` (`## Trail`),
+   never typed.
 2. ONE `Bash` call with `run_in_background: true`: `bash "<work>/run.sh" 2>&1 | tee "<work>/run.log"`.
 3. End the turn with exactly that one task in flight and nothing else pending. Its exit
    notification wakes the session. Never poll, never sleep, never launch it a second time — a
@@ -387,6 +407,9 @@ place.
   `{"at":"<UTC ISO time>","sprint":"<SNN or null>","head":"<sha>","head_tree":"<tree>","base":"<origin/release-branch sha>","merge_tree":"<tree>","release_branch":"<name>","verdict":"yes|NO|UNVERIFIED","version":"<planned or null>","level":"<level or null>","steps":<blocking steps>,"red":["<step>",…],"not_run":["<step>",…]}`
   — written by the shell (`printf … >> <records>`), the time from `date -u`, never typed. It is
   what the next run's B7 compares with GitHub; it is inside `.git`, not a repository file.
+- **The trail's `done` line** (`## Trail`), with the verdict line exactly as reported — also when
+  the verdict is NO or UNVERIFIED, and also for `release-verify: none`, so a watcher never sees a
+  check that started and never ended.
 - Then clean up: `rm -rf "<work>"` — except when the caller still needs the step logs (`/sprint`
   phase 4 fixing a red step); then the caller deletes it once its verdict is final.
 
@@ -396,8 +419,8 @@ the check.
 ## Rules
 
 - **Never merge, commit, tag, push or publish, never change a repository file.** Everything this
-  command writes is under `<work>`, outside the repository, plus its one record line and B7's
-  outcomes in `.git/ai-scrum/release-checks.jsonl` — inside `.git`, never tracked.
+  command writes is under `<work>`, outside the repository, plus its record line, B7's outcomes
+  and two trail lines in `.git/ai-scrum/` — inside `.git`, never tracked.
 - **It checks itself twice:** F3b, before the run, that the plan names every workflow step; B7,
   on the next run, that its earlier verdicts matched what GitHub then did.
 - **Each step once.** The only re-run is the isolated re-run of a failed test that tells red from

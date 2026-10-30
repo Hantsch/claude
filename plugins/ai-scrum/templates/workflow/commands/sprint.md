@@ -54,8 +54,14 @@ shorten their wording or change their language, never drop them.
   that appends the step's line to `<sprints>/$1/progress.md` in the same command, exactly like
   the trail rule in `build.md` — `- <shell timestamp> · 107 · build · started` for a story,
   `· refine · 106 107 108 109 · started` for the refine round, `· gate · e2e-all · started`
-  for the long suite, `· gate · roadmap-check · started` and `· gate · release-check ·
-  started` for phase 4. The last duration comes from the trail (the previous story's `build ·
+  for the long suite. **Phase 4 writes its lines elsewhere**: by then `progress.md` is
+  committed in `<sprints>/done/$1/`, and a line appended after the review commit would leave the
+  working tree dirty — the next `/sprint` refuses to start on it, or the line slips into someone
+  else's commit. Its trail is `<trail>` = `$(git rev-parse --git-common-dir)/ai-scrum/trail.md`,
+  inside `.git`, never tracked (`mkdir -p` its folder): `- <ts> · $1 · roadmap-check · started`,
+  `- <ts> · $1 · roadmap-check · done`, and the release check's own two lines (its F4 and F6).
+  Every phase-4 step writes both its `started` and its `done` line — that is how anyone watching
+  (the scrum cockpit, you on resume) tells a running step from a finished one. The last duration comes from the trail (the previous story's `build ·
   started` and `story · done` lines) or from the previous sprint's `## Regression gate` record;
   for the first of a kind write `first one, no estimate` — never a guess.
 - **After the step**, one line: result, elapsed, commit — `107 done · 16 min · 0a99dce · 2/4`.
@@ -74,8 +80,8 @@ message reaches you when the current call returns), answer in at most five lines
 nothing new in that turn:
 
 1. the current step and its start time · elapsed of expected;
-2. the last line of `<sprints>/$1/progress.md` with its timestamp (`tail -n 1`), or for a gate
-   suite the last three lines of its log;
+2. the last line of `<sprints>/$1/progress.md` with its timestamp (`tail -n 1`) — in phase 4
+   the last line of `<trail>` — or for a gate suite the last three lines of its log;
 3. background tasks alive (`<id> <command> since HH:MM`) or `none`;
 4. what you are waiting for and when you expect it;
 5. the escape: `Esc, then /sprint $1 — it resumes at the first open spot`.
@@ -543,7 +549,8 @@ commit is how a green gate turns into a red PR (measured: a green 93-minute gate
 roadmap line added by the review commit failed the PR's unit tests). So this phase runs last, and
 **nothing of the sprint is committed after its green run.**
 
-1. **Roadmap check.** Status line and trail line `· gate · roadmap-check · started`. ONE fresh
+1. **Roadmap check.** Status line and the `roadmap-check · started` line in `<trail>`
+   (`## Status lines`), its `done` line when the agent has returned. ONE fresh
    `Agent` (`model: "sonnet"`, `run_in_background: false`) reads `.claude/commands/roadmap.md`
    and runs its mode `check` on the work branch, plus what the profile's `## Notes` add to that
    mode. It cannot ask the user: a step that needs them (an older-shape rebuild, a decision) is
@@ -560,9 +567,10 @@ roadmap line added by the review commit failed the PR's unit tests). So this pha
    run. It is what GitHub will run: the merge of `HEAD` into `origin/<release-branch>`, in a
    throwaway clone with a clean install, every blocking step of the PR lane and the release lane
    (the release as a dry run), under CI conditions — derived from the workflow files on every
-   run, so it cannot drift from them. Its F4 is this phase's background task: the status line
-   with the trail line `· gate · release-check · started`, ONE background `Bash`, end the turn,
-   read its summary when it returns. `release-verify` in the profile picks the method
+   run, so it cannot drift from them. Run it with `$1` as its sprint id — its trail lines in
+   `<trail>` and its record carry it. Its F4 is this phase's background task: the status line
+   with the `release-check · started` line, ONE background `Bash`, end the turn, read its
+   summary when it returns; its F6 writes the `done` line with the verdict. `release-verify` in the profile picks the method
    (`auto`, the project's own command, or `none` — which can never be `yes`).
    A NO for a reason outside the code — a prerequisite that is not running, a step that needs
    the user (a secret, a tag that already exists), the bump with `commit-style: plain` — is not

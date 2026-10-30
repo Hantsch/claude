@@ -49,6 +49,10 @@ is empty, so no version ever ships without notes.
   the next run (every sprint start) compares it with what GitHub then did on that tree:
   `record: 3 green cycles in a row · 0 missed · 1 not confirmed`. A missed `yes` is reported
   loudly with a ready-made incident row and lands in the sprint review.
+- **A sprint no longer ends with a dirty working tree.** Phase 4 used to append its trail lines
+  to `progress.md` after the review commit had committed it; they now go to
+  `.git/ai-scrum/trail.md` (never tracked), with a `done` line for every step and the verdict in
+  the release check's — which is what the scrum cockpit reads to follow phase 4.
 
 ## 4.9.0 — 2026-10-30
 
