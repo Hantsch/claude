@@ -44,7 +44,8 @@ Four plugins, in three shapes:
   interface: a band above the prompt and a pane beside the chat showing a project's ai-scrum state
   and the running subagents. Direct-ship for the same reason as `common`. It only *reads* what
   ai-scrum writes (profile, roadmap, sprint and story files, the `progress.md` trail lines, the lock
-  files), so a change to those formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in
+  files, and `.git/ai-scrum/trail.md` + `release-checks.jsonl` from `/sprint` phase 4 and
+  `/release-check`), so a change to those formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in
   the terminal, the desktop app's local sessions and the VS Code extension.
 
 **Why the stack rules are payload and not plugin skills.** A plugin is installed per user, so a

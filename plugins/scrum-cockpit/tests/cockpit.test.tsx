@@ -6,6 +6,9 @@ import {
   currentMilestone,
   isDone,
   parseBranching,
+  parseReleaseProfile,
+  parseReleaseRecord,
+  parseReleaseTrail,
   parseRoadmap,
   parseTrail,
   scan,
@@ -30,6 +33,7 @@ const FILES: Record<string, string> = {
   '/proj/.claude/commands/refine.md': '---\ndescription: x\nmodel: opus\neffort: high\n---\n',
   '/proj/.claude/commands/build.md': '---\ndescription: x\nmodel: sonnet\neffort: medium\n---\n',
   '/proj/.claude/commands/roadmap.md': '---\ndescription: x\nmodel: sonnet\neffort: medium\n---\n',
+  '/proj/.claude/commands/release-check.md': '---\ndescription: x\nmodel: sonnet\neffort: medium\n---\n',
   '/home/.claude/plugins/installed_plugins.json': JSON.stringify({
     version: 2,
     plugins: {
@@ -555,5 +559,155 @@ test('settings: switching to direct commits writes the profile line, on every su
   const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'terminal' })
   await ui.select({ key: 'base', value: 'main' })
   expect(written[3]?.text).toContain('branch-base: main <!--')
+  await ui.unmount()
+})
+
+// --- the release check: phase 4 and /release-check, from .git/ai-scrum/ ---
+
+const TRAIL_RUNNING = [
+  '- 2026-10-30 15:02 · S36 · roadmap-check · started',
+  '- 2026-10-30 15:04 · S36 · roadmap-check · done',
+  '- 2026-10-30 15:05 · S36 · release-check · started · watch /tmp/ai-scrum-release-check/proj/run.log',
+].join('\n')
+const VERDICT = 'releasable: yes · merge of 612487d into origin/main@0f1bdb8 · next release 1.2.0 (minor) · 6/6 blocking steps green'
+const TRAIL_DONE = `${TRAIL_RUNNING}\n- 2026-10-30 15:19 · S36 · release-check · done · ${VERDICT}\n`
+
+const RECORDS = [
+  { head: 'aaaaaaa1', verdict: 'yes', at: '2026-10-01T10:00:00Z', outcome: { result: 'green', pr: 'green', release: 'green' } },
+  { head: 'bbbbbbb2', verdict: 'yes', at: '2026-10-08T10:00:00Z', outcome: { result: 'missed', pr: 'red: validate › validate › Test · https://x/1', release: 'pending' } },
+  { head: 'ccccccc3', verdict: 'NO', at: '2026-10-15T10:00:00Z', outcome: { result: 'not-confirmed', pr: 'green', release: 'green' } },
+  { head: 'ddddddd4', verdict: 'NO', at: '2026-10-20T10:00:00Z', outcome: { result: 'superseded', pr: 'red: validate · https://x/2', release: 'none' } },
+  { head: 'eeeeeee5', verdict: 'yes', at: '2026-10-22T10:00:00Z', outcome: { result: 'green', pr: 'green', release: 'green' } },
+  { head: 'fffffff6', verdict: 'yes', at: '2026-10-30T14:19:00Z' },
+]
+  .map(r => JSON.stringify(r))
+  .join('\n')
+
+test('the release trail says what runs, and keeps the last verdict while the next step runs', () => {
+  expect(parseReleaseTrail(null)).toBeNull()
+
+  const running = parseReleaseTrail(TRAIL_RUNNING)
+  expect(running?.sprint).toBe('S36')
+  expect(running?.step).toBe('release-check')
+  expect(running?.isRunning).toBe(true)
+  expect(running?.startedAt).toBe('2026-10-30 15:05')
+  expect(running?.watch).toBe('/tmp/ai-scrum-release-check/proj/run.log')
+  expect(running?.verdict).toBeNull()
+
+  const done = parseReleaseTrail(TRAIL_DONE)
+  expect(done?.isRunning).toBe(false)
+  expect(done?.startedAt).toBe('2026-10-30 15:05')
+  expect(done?.endedAt).toBe('2026-10-30 15:19')
+  expect(done?.kind).toBe('yes')
+  expect(done?.verdict).toBe(VERDICT)
+
+  // The next sprint's phase 4 starts: still running, the last verdict stays known.
+  const next = parseReleaseTrail(`${TRAIL_DONE}- 2026-11-06 09:00 · S37 · roadmap-check · started\n`)
+  expect(`${next?.sprint}|${next?.step}|${next?.isRunning}|${next?.kind}`).toBe('S37|roadmap-check|true|yes')
+
+  // Run by hand: no sprint.
+  const byHand = parseReleaseTrail('- 2026-10-30 16:00 · - · release-check · done · releasable: NO — Test: 1 red · fix it\n')
+  expect(`${byHand?.sprint}|${byHand?.kind}`).toBe('null|NO')
+})
+
+test('the release record counts green cycles the way /release-check B7 does', () => {
+  expect(parseReleaseRecord(null)).toBeNull()
+  expect(parseReleaseRecord('\n')).toBeNull()
+
+  const record = parseReleaseRecord(`${RECORDS}\nnot json\n`)
+  // Newest first: pending skipped, green, superseded skipped, not-confirmed, then missed ends it.
+  expect(record?.streak).toBe(2)
+  expect(record?.missed).toEqual([{ head: 'bbbbbbb', at: '2026-10-08T10:00:00Z', red: 'red: validate › validate › Test · https://x/1' }])
+  expect(record?.notConfirmed).toBe(1)
+  expect(record?.pending).toBe(1)
+  expect(record?.total).toBe(6)
+})
+
+test('a finished sprint in its phase 4 stays the sprint in focus, with the release check as its card', async ($, on) => {
+  const sprint = FILES['/proj/docs/sprints/S36/sprint.md'] ?? ''
+  project(on, {
+    '/proj/docs/sprints/S36/sprint.md': sprint.replace('status: in-progress', 'status: done').replace('- [ ] 266', '- [x] 266'),
+    '/proj/.git/ai-scrum/trail.md': TRAIL_RUNNING,
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'refresh' })
+  expect((await pane.find({ type: 'Text', text: /^Release check · S36/ }))?.text).toBe('Release check · S36 phase 4')
+  expect((await pane.find({ type: 'Text', text: /^watch / }))?.text).toContain('run.log')
+  // Nothing runs in this test: the run died, so /sprint S36 resumes phase 4.
+  expect((await pane.find({ key: 'sprint-resume' }))?.text).toBe('Resume · sonnet/medium')
+  // A check is running: no second one from here.
+  expect(await pane.find({ key: 'release-check' })).toBeUndefined()
+  await pane.unmount()
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text', text: /S36/ }))?.text).toContain('S36 Release 2/2 · Release check')
+  await band.unmount()
+})
+
+test('after the check: the verdict, the record, a missed one loudly, and the button', async ($, on) => {
+  project(on, { '/proj/.git/ai-scrum/trail.md': TRAIL_DONE, '/proj/.git/ai-scrum/release-checks.jsonl': RECORDS })
+  const submitted: string[] = []
+  on('command.run', (_, e) => {
+    submitted.push(`/${e.command} ${e.args}`.trim())
+    return { text: '' }
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  for (const surface of ['terminal', 'vscode', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'refresh' })
+    expect((await ui.find({ type: 'Text', text: /^releasable:/ }))?.text).toContain('next release 1.2.0 (minor)')
+    expect((await ui.find({ type: 'Text', text: /^record:/ }))?.text).toBe(
+      'record: 2 green cycles in a row · 1 missed · 1 not confirmed · 1 pending',
+    )
+    expect((await ui.find({ type: 'Text', text: /missed: yes on/ }))?.text).toContain('bbbbbbb (2026-10-08) → red: validate')
+    // S36 is still in progress: the sprint, not phase 4, is in focus.
+    expect((await ui.find({ type: 'Text', text: /Now building/ }))?.text).toContain('story 2 of 2')
+    await ui.press({ key: 'release-check' })
+    await ui.unmount()
+  }
+  expect(submitted).toEqual(['/release-check', '/release-check', '/release-check'])
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text', text: /missed/ }))?.text).toContain('release check missed 1×')
+  await band.unmount()
+})
+
+test('settings: the release keys are shown, and a profile without them is told where they come from', async ($, on) => {
+  expect(parseReleaseProfile('release-branch: main\nrelease-verify: auto <!-- auto | cmd | none -->\n')).toEqual({
+    branch: 'main',
+    verify: 'auto',
+    plan: null,
+    dryRun: null,
+    changelogStyle: null,
+    commitStyle: null,
+  })
+
+  project(on, { '/proj/.claude/ai-scrum.md': `${OLD_PROFILE}\r\n## Release\r\n\r\nrelease-branch: main\r\nrelease-verify: none\r\n` })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'terminal' })
+  await ui.press({ key: 'refresh' })
+  expect((await ui.find({ type: 'Text', text: /^Release branch:/ }))?.text).toBe('Release branch: main')
+  expect((await ui.find({ type: 'Text', text: /^Release check:/ }))?.text).toBe('Release check: none')
+  expect((await ui.find({ type: 'Text', text: /^Dry run:/ }))?.text).toBe('Dry run: — (not set)')
+  await ui.unmount()
+
+  const old = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'vscode' })
+  expect(await old.find({ type: 'Text', text: /No ## Release keys/ })).toBeUndefined()
+  await old.unmount()
+})
+
+test('settings: an older profile without release keys points at setup', async ($, on) => {
+  project(on, { '/proj/.claude/ai-scrum.md': OLD_PROFILE })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, requestId: 'scrum-settings', surface: 'terminal' })
+  await ui.press({ key: 'refresh' })
+  expect((await ui.find({ type: 'Text', text: /No ## Release keys/ }))?.text).toContain('/ai-scrum:setup')
   await ui.unmount()
 })

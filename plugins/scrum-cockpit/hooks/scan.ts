@@ -2,6 +2,9 @@ import type {
   Branching,
   Launch,
   Milestone,
+  ReleaseProfile,
+  ReleaseRecord,
+  ReleaseState,
   ScrumPlugin,
   Snapshot,
   Sprint,
@@ -22,7 +25,7 @@ export type Reader = {
 }
 
 const PLUGINS: ScrumPlugin[] = ['ai-scrum', 'tech-rules']
-const COMMANDS = ['refine', 'build', 'sprint', 'roadmap', 'concept']
+const COMMANDS = ['refine', 'build', 'sprint', 'roadmap', 'concept', 'release-check']
 
 const lines = (text: string) => text.split(/\r?\n/)
 
@@ -248,6 +251,77 @@ export function parseSprint(
   }
 }
 
+// Walks `.git/ai-scrum/trail.md`, which `/sprint` phase 4 and `/release-check` write once
+// progress.md is committed: `- <ts> · <SNN|-> · roadmap-check · started`, `… · done`,
+// `- <ts> · S08 · release-check · started · watch <log>` and
+// `- <ts> · S08 · release-check · done · releasable: yes · …`. The last line says what runs;
+// the verdict is the last `release-check · done` line's, also while a later step runs.
+export function parseReleaseTrail(text: string | null): ReleaseState | null {
+  if (text === null) return null
+  let state: ReleaseState | null = null
+  let verdict: string | null = null
+  for (const raw of lines(text)) {
+    const parts = raw.replace(/^\s*[-*]\s*/, '').split(/\s+·\s+/)
+    const [at = '', sprint = '', step = '', event = ''] = parts
+    if (parts.length < 4 || !/^(roadmap|release)-check$/.test(step)) continue
+    const detail = parts.slice(4).join(' · ')
+    const isSame = state !== null && state.step === step && state.sprint === (sprint === '-' ? null : sprint)
+    if (event === 'done' && step === 'release-check') verdict = detail === '' ? null : detail
+    state = {
+      sprint: sprint === '-' || sprint === '' ? null : sprint,
+      step,
+      isRunning: event === 'started',
+      startedAt: event === 'started' ? at : isSame ? (state?.startedAt ?? null) : null,
+      endedAt: event === 'started' ? null : at,
+      watch: event === 'started' && detail.startsWith('watch ') ? detail.slice(6).trim() : null,
+      verdict,
+      kind: null,
+    }
+  }
+  if (state === null) return null
+  const kind = /releasable:\s*(yes|NO|UNVERIFIED)\b/.exec(verdict ?? '')?.[1]
+  return { ...state, verdict, kind: kind === 'yes' || kind === 'NO' || kind === 'UNVERIFIED' ? kind : null }
+}
+
+// Sums up `.git/ai-scrum/release-checks.jsonl` the way `/release-check` B7 does: the streak
+// counts closed records newest first, `green` and `not-confirmed` add one, `missed` and
+// `confirmed` end it, `pending` and `superseded` are skipped; the rest is over the last ten.
+export function parseReleaseRecord(text: string | null): ReleaseRecord | null {
+  if (text === null) return null
+  const records = lines(text)
+    .filter(l => l.trim() !== '')
+    .map(l => parseJson(l))
+    .filter(r => typeof r === 'object' && r !== null)
+  if (records.length === 0) return null
+  const result = (r: unknown) => str(field(field(r, 'outcome'), 'result'))
+  let streak = 0
+  for (const r of [...records].reverse()) {
+    const res = result(r)
+    if (res === null || res === 'pending' || res === 'superseded') continue
+    if (res !== 'green' && res !== 'not-confirmed') break
+    streak += 1
+  }
+  const recent = records.slice(-10)
+  const missed = recent
+    .filter(r => result(r) === 'missed')
+    .map(r => {
+      const pr = str(field(field(r, 'outcome'), 'pr')) ?? ''
+      const rel = str(field(field(r, 'outcome'), 'release')) ?? ''
+      return {
+        head: (str(field(r, 'head')) ?? '').slice(0, 7),
+        at: str(field(r, 'at')) ?? '',
+        red: pr.startsWith('red') ? pr : rel,
+      }
+    })
+  return {
+    streak,
+    missed,
+    notConfirmed: recent.filter(r => result(r) === 'not-confirmed').length,
+    pending: recent.filter(r => result(r) === null || result(r) === 'pending').length,
+    total: records.length,
+  }
+}
+
 // A section's text as paragraphs: hard-wrapped lines joined, a list item or an
 // empty line starting a new one, template placeholders and comments dropped.
 export function paragraphs(body: string[]): string[] {
@@ -405,6 +479,22 @@ export function parseBranching(profile: string, branches: string[]): Branching {
   }
 }
 
+// The profile's `## Release` keys; a profile from before ai-scrum 4.10 has none of them.
+export function parseReleaseProfile(profile: string): ReleaseProfile {
+  const value = (key: string) => {
+    const v = profileValue(profile, key)
+    return v === null || v === '' ? null : v
+  }
+  return {
+    branch: value('release-branch'),
+    verify: value('release-verify'),
+    plan: value('release-plan'),
+    dryRun: value('release-dry-run'),
+    changelogStyle: value('changelog-style'),
+    commitStyle: value('commit-style'),
+  }
+}
+
 // The repository's local branches, from the ref folders and packed-refs.
 async function localBranches(r: Reader, root: string): Promise<string[]> {
   const out = new Set<string>()
@@ -469,6 +559,25 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
   const profile = await r.read(`${root}/.claude/ai-scrum.md`)
   const branching = profile === null ? null : parseBranching(profile, await localBranches(r, root))
 
+  // Phase 4 runs after the review commit has moved the sprint to done/ and set it done, so
+  // its state is in `.git/ai-scrum/`, not in the sprint's progress.md.
+  const release = parseReleaseTrail(await r.read(`${root}/.git/ai-scrum/trail.md`))
+  const record = parseReleaseRecord(await r.read(`${root}/.git/ai-scrum/release-checks.jsonl`))
+  let releasing: Sprint | null = null
+  const releaseSprint = release?.isRunning === true ? release.sprint : null
+  if (releaseSprint !== null && !sprints.some(s => s.id === releaseSprint && s.status === 'in-progress')) {
+    const text =
+      (await r.read(`${paths.sprints}/done/${releaseSprint}/sprint.md`)) ??
+      (await r.read(`${paths.sprints}/${releaseSprint}/sprint.md`))
+    if (text !== null) {
+      const done = parseSprint(releaseSprint, text, null)
+      releasing = {
+        ...done,
+        flow: { ...done.flow, phase: 'release', step: release?.step ?? null, stepAt: release?.startedAt ?? null },
+      }
+    }
+  }
+
   const launch: Record<string, Launch> = {}
   for (const name of COMMANDS) {
     const fm = frontmatter((await r.read(`${root}/.claude/commands/${name}.md`)) ?? '')
@@ -502,6 +611,10 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     followUps: roadmap?.followUps ?? 0,
     launch,
     branching,
+    releaseProfile: profile === null ? null : parseReleaseProfile(profile),
+    releasing,
+    release,
+    record,
     readAt: now,
   }
 }
@@ -540,8 +653,11 @@ export function updateHints(snap: Snapshot): UpdateHint[] {
 export const isRunning = (status: string) => /in.progress|▶/i.test(status)
 export const isDone = (status: string) => /\b(done|accepted)\b|✔|✓/i.test(status)
 
+// The sprint the cockpit follows: a running one, else a finished one still in its phase 4,
+// else the next planned one.
 export const activeSprint = (snap: Snapshot) =>
   snap.sprints.find(s => s.status === 'in-progress') ??
+  snap.releasing ??
   snap.sprints.find(s => s.status === 'planned') ??
   null
 

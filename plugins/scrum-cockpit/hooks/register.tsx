@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementConstructor, EngineInterface, Register, SvgProps, Timer } from 'claude-code'
 
-import type { AgentRow, Branching, Snapshot, Story, StoryStage } from '../types'
+import type { AgentRow, Branching, ReleaseRecord, Snapshot, Story, StoryStage } from '../types'
 import {
   activeSprint,
   clockOf,
@@ -28,7 +28,7 @@ const MAIN = 'main'
 // Change a tag when the stored shape changes: an older value then reads as
 // the initial one instead of breaking the drawing after a reload.
 const snapshot = atom({ plugin: 'scrum-cockpit', key: 'snapshot' } as const, null, {
-  shape: 'snapshot-4',
+  shape: 'snapshot-5',
 })
 const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
   shape: 'agents-2',
@@ -36,7 +36,7 @@ const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
 const isBandHidden = atom({ plugin: 'scrum-cockpit', key: 'isBandHidden' } as const, false)
 const openStory = atom({ plugin: 'scrum-cockpit', key: 'openStory' } as const, null)
 
-const WATCHED = /docs[\\/]|ROADMAP|sprint|requirement|\.claude[\\/](ai-scrum|tech-rules|commands)/i
+const WATCHED = /docs[\\/]|ROADMAP|sprint|requirement|\.claude[\\/](ai-scrum|tech-rules|commands)|ai-scrum[\\/]trail/i
 
 // An agent with no tool call for this long is marked quiet; a trail silent
 // for SILENT_MS is the sprint command's own "say it" threshold.
@@ -49,7 +49,7 @@ const FOCUS_AGENTS = 3
 // What a refine round is expected to take, the scale of a row's bar.
 const REFINE_SCALE_MS = 15 * 60_000
 
-const PHASES = ['clarify', 'refine', 'build', 'gate', 'review'] as const
+const PHASES = ['clarify', 'refine', 'build', 'gate', 'review', 'release'] as const
 const PHASE_LABEL: Record<string, string> = {
   planned: 'Planned',
   clarify: 'Clarify',
@@ -57,7 +57,22 @@ const PHASE_LABEL: Record<string, string> = {
   build: 'Build',
   gate: 'Gate',
   review: 'Review',
+  release: 'Release',
   done: 'Done',
+}
+const STEP_LABEL: Record<string, string> = {
+  'roadmap-check': 'Roadmap check',
+  'release-check': 'Release check',
+}
+const VERDICT_COLOR = { yes: 'success', NO: 'error', UNVERIFIED: 'warning' } as const
+
+// `record: 3 green cycles in a row · 1 missed · …`, the parts that are not zero.
+function recordLine(r: ReleaseRecord): string {
+  const parts = [`${r.streak} green cycle${r.streak === 1 ? '' : 's'} in a row`]
+  if (r.missed.length > 0) parts.push(`${r.missed.length} missed`)
+  if (r.notConfirmed > 0) parts.push(`${r.notConfirmed} not confirmed`)
+  if (r.pending > 0) parts.push(`${r.pending} pending`)
+  return `record: ${parts.join(' · ')}`
 }
 const STAGE_LABEL: Record<StoryStage, string> = {
   implement: 'Implement',
@@ -335,9 +350,10 @@ export const register: Register = on => {
       void (async () => {
         const snap = await read($, snapshot)
         const list = await read($, agents)
+        // A release check runs as one background shell: no agent, and its sprint is done.
         const isBusy =
           list.some(a => a.status === 'running') ||
-          (snap !== null && snap.sprints.some(s => s.status === 'in-progress'))
+          (snap !== null && (snap.sprints.some(s => s.status === 'in-progress') || snap.release?.isRunning === true))
         if (isBusy) {
           await reconcile($)
           await refresh($)
@@ -438,7 +454,7 @@ export const register: Register = on => {
     const ran = await next(e)
     const path = str(input['file_path']) ?? ''
     const command = str(input['command']) ?? ''
-    if (WATCHED.test(path) || /git mv|progress\.md|ROADMAP|sprints|requirements|\.lock/i.test(command)) {
+    if (WATCHED.test(path) || /git mv|progress\.md|ROADMAP|sprints|requirements|\.lock|ai-scrum[\\/]trail|release-checks/i.test(command)) {
       schedule($)
     }
 
@@ -495,7 +511,14 @@ export const register: Register = on => {
         const story = snap.stories.find(s => s.id === flow.focus)
         parts.push(`${flow.focus} ${stageShort(flow.stage, flow.step, story)}`.trim())
       }
+      if (flow.phase === 'release' && flow.step !== null) parts.push(STEP_LABEL[flow.step] ?? flow.step)
     }
+    const rel = snap.release
+    if (rel !== null && rel.isRunning && rel.sprint === null) parts.push(`${STEP_LABEL[rel.step] ?? rel.step} running`)
+    else if (rel !== null && !rel.isRunning && rel.kind !== null && sprint?.status !== 'in-progress') {
+      parts.push(`releasable: ${rel.kind}`)
+    }
+    const missed = snap.record?.missed.length ?? 0
     if (running.length > 0) {
       const oldest = Math.min(...running.map(a => a.startedAt))
       parts.push(`● ${running.length} agent${running.length > 1 ? 's' : ''} · ${minutes(oldest, now)}`)
@@ -511,6 +534,13 @@ export const register: Register = on => {
             )}
           </Box>
         ))}
+        {missed > 0 && (
+          <Box key="missed">
+            <Text color="warning">
+              {cut(`⚠ release check missed ${missed}× — said yes, then GitHub went red · /scrum for details`, width - 4)}
+            </Text>
+          </Box>
+        )}
         {snap.hasScrum && (
           <Box>
             <Text color="claude">✻ </Text>
@@ -555,7 +585,7 @@ export const register: Register = on => {
     const sprint = activeSprint(snap)
     const flow = sprint?.flow ?? null
     const phase = flow?.phase ?? null
-    const isLive = sprint !== null && sprint.status === 'in-progress'
+    const isLive = sprint !== null && (sprint.status === 'in-progress' || phase === 'release')
     const milestone = currentMilestone(snap)
     const storyById = new Map(snap.stories.map(s => [s.id, s] as const))
     const titleOf = (id: string) => storyById.get(id)?.title ?? sprint?.stories.find(s => s.id === id)?.title ?? ''
@@ -671,11 +701,60 @@ export const register: Register = on => {
       </Box>
     )
 
+    // --- the release check: running, or its last verdict and how verdicts fared ---
+
+    const rel = snap.release
+    const record = snap.record
+    const isChecking = rel?.isRunning === true
+    const verdictColor = rel === null || rel.isRunning || rel.kind === null ? undefined : VERDICT_COLOR[rel.kind]
+    const releaseCard =
+      rel === null && record === null ? null : (
+        <Box
+          key="release"
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isChecking ? 'claude' : verdictColor}
+          borderDimColor={!isChecking && verdictColor === undefined}
+          paddingX={1}
+        >
+          <Box justifyContent="space-between">
+            <Text bold color={isChecking ? 'claude' : undefined}>
+              {rel !== null && isChecking
+                ? `${STEP_LABEL[rel.step] ?? rel.step}${rel.sprint === null ? '' : ` · ${rel.sprint} phase 4`}`
+                : 'Releasable'}
+            </Text>
+            <Text dimColor>
+              {rel === null
+                ? ''
+                : isChecking
+                  ? rel.startedAt === null ? 'running' : `started ${clockOf(rel.startedAt)}`
+                  : rel.endedAt === null ? '' : `checked ${rel.endedAt}`}
+            </Text>
+          </Box>
+          {rel !== null && isChecking && rel.watch !== null && <Text dimColor>{cut(`watch ${rel.watch}`, inner)}</Text>}
+          {rel !== null && rel.verdict !== null && (
+            <Text key="verdict" color={verdictColor} dimColor={isChecking}>
+              {cut(`${isChecking ? 'last: ' : ''}${rel.verdict}`, inner)}
+            </Text>
+          )}
+          {record !== null && <Text key="record" dimColor={record.missed.length === 0} color={record.missed.length > 0 ? 'warning' : undefined}>{cut(recordLine(record), inner)}</Text>}
+          {record?.missed.map((m, i) => (
+            <Text key={`missed-${i}`} color="warning">
+              {cut(`⚠ missed: yes on ${m.head} (${m.at.slice(0, 10)}) → ${m.red}`, inner)}
+            </Text>
+          ))}
+          {phase === 'release' && resumeButton}
+        </Box>
+      )
+
     // --- the phase card: what the sprint is doing right now ---
 
     let focus: ReturnType<typeof Box> | null = null
 
-    if (sprint !== null && rp !== null) {
+    if (phase === 'release' && releaseCard !== null) {
+      // Phase 4 of a finished sprint: the release card is what it is doing.
+      focus = releaseCard
+    } else if (sprint !== null && rp !== null) {
       // Refinement: every story at once, the ones still refining first.
       const agentFor = (id: string) =>
         running.filter(a => a.storyId === id).sort((a, b) => a.startedAt - b.startedAt)[0]
@@ -856,7 +935,7 @@ export const register: Register = on => {
       finishedTimes.length === 0 ? null : finishedTimes.reduce((s, [, m]) => s + m, 0) / finishedTimes.length
     const left = sprint === null ? 0 : sprint.stories.length - doneCount
     const chips =
-      sprint !== null && flow !== null && (phase === 'build' || phase === 'gate' || phase === 'review') ? (
+      sprint !== null && flow !== null && (phase === 'build' || phase === 'gate' || phase === 'review' || phase === 'release') ? (
         <Box key="sprint" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
           <Box justifyContent="space-between">
             <Text>
@@ -998,11 +1077,15 @@ export const register: Register = on => {
         {hero}
         {chips}
         {focus}
+        {focus === releaseCard ? null : releaseCard}
         {agentsCard}
         {waitingCard}
         {nextCard}
         <Box>
           <Button key="roadmap-check" label={`Roadmap check · ${launchLabel(snap, 'roadmap')}`} onPress={() => launch($, '/roadmap check')} />
+          {(snap.launch['release-check']?.model ?? null) !== null && !isChecking && (
+            <Button key="release-check" label={`Release check · ${launchLabel(snap, 'release-check')}`} onPress={() => launch($, '/release-check')} />
+          )}
           <Button key="concept" label="New concept…" onPress={() => $.prompt.fill({ text: '/concept ', mode: 'replace' })} />
           <Button key="settings" label="Settings" onPress={() => openSettings($)} />
           <Button key="refresh" label="Refresh" onPress={() => refresh($)} />
@@ -1122,6 +1205,32 @@ export const register: Register = on => {
           )}
         </Box>
         <Text dimColor>{cut('Writes these lines of .claude/ai-scrum.md; /sprint reads them when it starts.', inner)}</Text>
+        {snap.releaseProfile !== null && (
+          <Box key="release-profile" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+            <Text bold>Release</Text>
+            {snap.releaseProfile.branch === null && snap.releaseProfile.verify === null ? (
+              <Text color="warning">
+                {cut('No ## Release keys yet: /ai-scrum:setup offers them (release branch, check, plan, dry run).', inner)}
+              </Text>
+            ) : (
+              <Box flexDirection="column">
+                {[
+                  ['Release branch', snap.releaseProfile.branch],
+                  ['Release check', snap.releaseProfile.verify],
+                  ['Plan', snap.releaseProfile.plan],
+                  ['Dry run', snap.releaseProfile.dryRun],
+                  ['Changelog', snap.releaseProfile.changelogStyle],
+                  ['Commits', snap.releaseProfile.commitStyle],
+                ].map(([label, value]) => (
+                  <Text key={`rp-${label}`} color={label === 'Release check' && value === 'none' ? 'warning' : undefined}>
+                    {cut(`${label}: ${value ?? '— (not set)'}`, inner)}
+                  </Text>
+                ))}
+              </Box>
+            )}
+            <Text dimColor>{cut('Shown, not edited here: /ai-scrum:setup asks about them.', inner)}</Text>
+          </Box>
+        )}
         <Box>
           <Button key="cockpit" label="Cockpit" onPress={() => openPane($)} />
           <Button key="refresh" label="Refresh" onPress={() => refresh($)} />

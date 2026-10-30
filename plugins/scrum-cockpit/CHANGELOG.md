@@ -11,6 +11,18 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+- **The cockpit follows a sprint to its end.** Phase 4 of `/sprint` (roadmap check, release
+  check) runs after the sprint is archived and marked done; the cockpit now reads it from
+  `.git/ai-scrum/trail.md` (ai-scrum 4.10) and keeps the sprint in focus with a new **Release**
+  step: the running check, its start and the log to watch, and a Resume button when it stopped.
+- **The release verdict and its record.** A Releasable card shows the last
+  `releasable: yes | NO | UNVERIFIED` line in green, red or amber, and the record from
+  `.git/ai-scrum/release-checks.jsonl` (`record: 3 green cycles in a row · 1 missed`). A missed
+  verdict — yes, then GitHub went red — is shown in amber, in the band too.
+- **A Release check button** runs `/release-check` with its own model and effort; hidden while a
+  check runs.
+- **Settings show the profile's `## Release` keys** (read-only), and point at `/ai-scrum:setup`
+  when the profile has none.
 
 ## 1.2.0 — 2026-10-29
 

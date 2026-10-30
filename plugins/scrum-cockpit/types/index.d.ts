@@ -22,7 +22,7 @@ export type SprintStory = { id: string; title: string; isDone: boolean }
 
 // Where a running sprint stands, read off its progress.md trail: the phase,
 // and in the build phase the story in focus and the step it is on.
-export type SprintPhase = 'planned' | 'clarify' | 'refine' | 'build' | 'gate' | 'review' | 'done'
+export type SprintPhase = 'planned' | 'clarify' | 'refine' | 'build' | 'gate' | 'review' | 'release' | 'done'
 
 export type StoryStage = 'implement' | 'verify' | 'review' | 'done' | 'blocked'
 
@@ -78,6 +78,45 @@ export type Branching = {
   branches: string[]
 }
 
+// The release check as `.git/ai-scrum/trail.md` tells it: the last step `/sprint` phase 4 or
+// `/release-check` started, whether it has ended, and the verdict it ended with.
+export type ReleaseState = {
+  // The sprint whose phase 4 it belongs to, null when it was run by hand.
+  sprint: string | null
+  // `roadmap-check` or `release-check`.
+  step: string
+  isRunning: boolean
+  // The trail's own timestamp of the step's start, and of its end.
+  startedAt: string | null
+  endedAt: string | null
+  // The log a running check writes to.
+  watch: string | null
+  // The last verdict line, `releasable: yes · …`, and its first word.
+  verdict: string | null
+  kind: 'yes' | 'NO' | 'UNVERIFIED' | null
+}
+
+// The verdicts in `.git/ai-scrum/release-checks.jsonl`, against what GitHub then did.
+export type ReleaseRecord = {
+  // Closed records, newest first, while GitHub was green.
+  streak: number
+  // `yes`, then red on GitHub: the head, the check's time and what went red.
+  missed: { head: string; at: string; red: string }[]
+  notConfirmed: number
+  pending: number
+  total: number
+}
+
+// The profile's `## Release` values, as written; null for a key the profile lacks.
+export type ReleaseProfile = {
+  branch: string | null
+  verify: string | null
+  plan: string | null
+  dryRun: string | null
+  changelogStyle: string | null
+  commitStyle: string | null
+}
+
 export type Snapshot = {
   root: string
   hasScrum: boolean
@@ -94,6 +133,11 @@ export type Snapshot = {
   launch: Record<string, Launch>
   // Null when the project has no profile.
   branching: Branching | null
+  releaseProfile: ReleaseProfile | null
+  // A finished sprint (in done/) whose phase 4 is still running.
+  releasing: Sprint | null
+  release: ReleaseState | null
+  record: ReleaseRecord | null
   readAt: number
 }
 
