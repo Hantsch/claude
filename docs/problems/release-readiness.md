@@ -4,7 +4,7 @@
 or a release of a project that runs ai-scrum goes red, or a fix commit is needed between a
 sprint's end and its release (§8).*
 
-**Status:** open — C1–C6 built into ai-scrum (`/release-check`, under `## Unreleased`, not yet
+**Status:** open — C1–C6, C8, C9 built into ai-scrum (`/release-check`, under `## Unreleased`, not yet
 released) · **Incidents:** 9 (I1–I9) · **Last:** I9, 2026-10-30, claude-control (resolved) ·
 **Next:** release ai-scrum, `/ai-scrum:setup` in the projects (§6), then count green cycles (§1)
 
@@ -20,7 +20,9 @@ sprint" differ from "green on GitHub", and which of them are closed?**
 
 **Solved when** five consecutive sprint → PR → release cycles, in projects with an automatic
 release workflow, are green on the PR's first run and release without a fix commit in between,
-and every `releasable: yes` in that window was right.
+and every `releasable: yes` in that window was right. From ai-scrum 4.10.0 the count comes from
+each project's `/release-check` record line (`record: <n> green cycles in a row · <m> missed`,
+printed at every sprint start, C9) — read it there instead of reconstructing it.
 
 ## 2. Incident log
 
@@ -128,6 +130,8 @@ second.
 | C5 | Commit subjects carry the bump, opt-in (`commit-style: conventional`): story commits typed from the story (`feat(022): …`, `fix(…)`, `test(023): …`), bookkeeping `docs(S07): …` | M5 | ai-scrum `sprint.md`, `build.md`, profile | done (unreleased) — `Change type:` in every story's Done section drives the bump check; `commit-style: conventional` types the subjects; setup recommends it where the release reads commit types |
 | C6 | Setup recommends a required status check on the release branch (the PR lane's job) — a proposal, the plugin never changes repository settings | M6 | ai-scrum or tech-rules setup | done (unreleased) — ai-scrum setup checks protection via `gh api` and recommends a required status check; never changes it |
 | C7 | This repo's `release.ps1` replaces heading *and* body on promotion (as claude-control's does), and the 18 stray placeholders go | M4 (here) | `scripts/release.ps1` | proposed — not part of this change (`scripts/`, this repo only) |
+| C8 | The plan's completeness is checked by a script, not trusted to the agent: every `run:` line of every push/pull_request workflow must be named in `plan.md` by `file:line`; a missing one is re-planned once, then `UNVERIFIED` (F3b). Tested on claude-control: a plan without `validate.yml:42` (check-notes — I9's step) is caught | an agent's plan silently dropping a step (M2 again, one level up) | ai-scrum `release-check.md` | done (unreleased); GitHub Actions only — other CI is warning W5 |
+| C9 | Every verdict leaves a record in `.git/ai-scrum/release-checks.jsonl`; the next run (every sprint start) finds where that tree went on the release branch, reads the PR and release runs from the GitHub API and reports `green cycle` / **`missed`** (yes → red, with an incident row for §2) / `not confirmed` (NO → green) / `superseded`. Tested against PR #7: the dev run's NO on `612487d` resolves to merge `154ddee`, validate and release green → `not confirmed` | a wrong verdict going unnoticed; the §1 count done by hand | ai-scrum `release-check.md` B7, `sprint.md` phase 0 | done (unreleased) |
 
 ## 6. Open
 
@@ -210,6 +214,9 @@ git worktree remove --force ../pr-merge
 Nothing is referenced or committed; the simulated commit is garbage-collected.
 
 ## 8. Adding an incident
+
+A project on ai-scrum ≥ 4.10.0 finds most of them itself: a `missed` in a sprint's first line or
+its `review.md` carries the row ready to paste. Then:
 
 1. A row in §2: date, project and run/PR/commit, the failing step's message verbatim, the
    sprint's `releasable:` line if there was one, the mechanisms.
