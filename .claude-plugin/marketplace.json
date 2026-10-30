@@ -67,7 +67,7 @@
       "name": "scrum-cockpit",
       "source": "./plugins/scrum-cockpit",
       "description": "A mod for projects that run ai-scrum: shows the milestone, sprint, stories and running subagents beside the chat, says when ai-scrum or tech-rules is out of date, and offers buttons that start the next command with its own model and effort.",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "author": {
         "name": "Hantsch"
       },
