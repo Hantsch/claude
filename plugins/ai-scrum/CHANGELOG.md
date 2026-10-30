@@ -12,6 +12,38 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **`/sprint` reports `releasable: yes` only when a PR and the release would pass.** The new
+  workflow command `/release-check` checks what GitHub checks: the **merge** of the branch into
+  the release branch, in a throwaway clone with a clean install, every blocking step of the PR
+  lane and the release lane (the release as a dry run), under CI conditions (`CI=true`,
+  `TZ=UTC`, no publish credentials, a short `TEMP` on Windows). The step list is derived from the
+  merged tree's CI workflow files on every run, so it cannot drift from them; what cannot run
+  locally is named step by step. The verdict is `releasable: yes` with the next version and bump level,
+  `NO` with the failing step, its reason and what unblocks it, or `UNVERIFIED` with the steps
+  that did not run and why, with the step table under it. `/sprint` phase 4 runs it in full, in the background, in place of
+  the old `release-verify` step; it also runs on its own before you open a PR.
+- **`release-verify: none` no longer says yes.** It now yields `UNVERIFIED`; the new default is
+  `auto` (the method above). A project's own command is still honoured.
+- **The release commit comes back at sprint start.** `/sprint` phase 0 fetches and, when
+  the release branch on origin has commits the work branch lacks and the merge is conflict-free,
+  merges them into the work branch before any story writes a note (again in phase 4, before the
+  check). A conflict stops the sprint before refine. This is the one merge `/sprint` makes; it
+  never touches a protected branch and never pushes.
+- **Release notes land where the release reads them.** New profile key `changelog-style`
+  (`unreleased` | `version-section`): `/build` step 9b and the `/sprint` sweep write into the open
+  block — `## Unreleased`, or the topmost section not yet on the release branch — and a published
+  section is never changed; the sweep moves misfiled lines back.
+- **The bump matches the sprint.** `/build` writes a `Change type:` line into every story's
+  Done section; `/release-check` compares the planned bump with it. New profile key
+  `commit-style: conventional` makes every sprint and story commit a Conventional Commit
+  (`feat(042): …`, `docs(S07): sprint review + roadmap`) for release scripts that derive the
+  level from commit types; `plain` (the default) keeps `042: …`.
+- **Profile: new `## Release` section** with `release-branch`, `release-verify` (moved there),
+  `release-plan`, `release-dry-run` and `commit-style`. `/ai-scrum:setup` detects each from the
+  CI workflows and scripts and offers it, asks about an existing `release-verify: none` again, and
+  recommends a required status check when the release branch is unprotected (it never changes
+  the setting).
+
 ## 4.9.0 — 2026-10-30
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

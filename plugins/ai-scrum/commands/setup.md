@@ -15,12 +15,12 @@ Everything you write is in **English**, except artifacts whose language is gover
 
 The plugin ships this one command plus the workflow as **payload**. Setup copies that
 payload into the project, so the workflow belongs to the repository: everyone who clones it
-can run `/refine`, `/build`, `/sprint`, `/roadmap`, `/concept` without installing anything.
+can run `/refine`, `/build`, `/sprint`, `/roadmap`, `/concept`, `/release-check` without installing anything.
 The plugin is only needed to install or update those files — that is this command.
 
 Plugin-owned inside the project (refreshed on update, never hand-edited):
 
-1. `.claude/commands/{refine,build,sprint,roadmap,concept}.md` — the workflow.
+1. `.claude/commands/{refine,build,sprint,roadmap,concept,release-check}.md` — the workflow.
 2. `.claude/agents/{deliverable-hard,story-review-hard}.md` — the two hard-tier agents.
 3. `.claude/ai-scrum.lock` — version + hash per managed file, so an update can tell an
    untouched copy from one you edited.
@@ -40,7 +40,7 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `ai-scrum-version` → this is an **update**, not a fresh install. Existing values are
    the defaults for every question in Phase 2; do not re-ask what is already answered
    unless the value is a placeholder or obviously stale.
-3. **Managed files:** which of the seven workflow files exist, and does
+3. **Managed files:** which of the eight workflow files exist, and does
    `.claude/ai-scrum.lock` exist? For each existing file, classify:
    - **untouched** — the lock has a hash for it and `git hash-object <path>` still matches;
    - **local** — the lock records it as `local` (you were told to keep it last time);
@@ -64,9 +64,31 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `e2e-story: npx playwright test {files}`; a script that runs one flow by name
    (`ui:flow`, `e2e:flow`) → `npm run <script> -- {test}`; a script that runs every flow
    (`ui:flows`, `e2e:flows`) next to a separate `e2e` → `e2e-all`. No match → `none`.
-   A script that answers "will the PR and the release pass?" (`verify:release`,
-   `release:check`, `verify`, a `ci:local` that replays the CI workflows) → `release-verify`;
-   no match → `none`.
+5b. **Release** — the `## Release` keys of the profile template, read from the CI configuration
+   and the scripts, never guessed:
+   - `release-branch`: the branch a release workflow's `push` trigger names
+     (`.github/workflows/*.yml` → `on.push.branches`, or the CI system's equivalent); without a
+     release workflow, the branch PR workflows target; without CI, the default branch.
+   - `release-plan`: a read-only script that prints the next version — `plan-release*`, a
+     release script with `--print-plan` / `--plan` / `--dry-run` that only prints, `npx
+     semantic-release --dry-run`, `release-please` (its PR is the plan). `release-dry-run`: the
+     release script's own no-write mode (`ci-release* -DryRun`, `release.mjs --dry-run`,
+     `semantic-release --dry-run`, `goreleaser release --snapshot --skip=publish`). Read the
+     script's help or header to confirm the mode really writes nothing that leaves the machine
+     (no commit, tag, push, upload); one you cannot confirm is not suggested. Neither → `none`.
+   - `release-verify`: `auto`, unless a script already answers "will the PR and the release
+     pass?" on the merge (`verify:release`, `release:check`, a `ci:local` that replays the CI
+     workflows) — then that command.
+   - `changelog-style`: `unreleased` when the changelog has an `Unreleased` heading, otherwise
+     `version-section`.
+   - `commit-style`: `conventional` when the release derives its bump from Conventional-Commit
+     types — the plan script matches `feat`, `fix`, `BREAKING CHANGE` / `!:` in subjects, or the
+     project uses semantic-release, release-please, standard-version, commitizen, commitlint;
+     otherwise `plain`. Look at `git log --format=%s -30` too: a history that already reads
+     `feat: …` is the same signal.
+   - **Protection of the release branch** (only if `gh` is available and authenticated):
+     `gh api repos/{owner}/{repo}/branches/<release-branch>/protection` — `404` / `Branch not
+     protected` means a red PR can be merged. Reported in Phase 5; never changed.
 6. **Doc language:** if requirement/story files already exist, sample one or two and
    detect the language actually used — that is the default for `doc-language`, so an
    existing German project stays German.
@@ -139,15 +161,29 @@ Cover, in this order of importance:
    list yet, `none`. **On an update these are keys an older profile lacks — offer them, never
    fill them in silently, and never replace a value the profile already has**, placeholder
    excepted. An answer left open becomes `none`.
-1e. **`release-verify`** (see its comment in the profile template) — the command `/sprint` runs
-   as its very last step so that every sprint ends releasable. One question: the detected
-   script or `none`; with `none` the short suites run in its place. Say that it should check
-   what the PR and release pipelines block on, and that a long one (over ten minutes) is fine —
-   `/sprint` runs it in the background. **On an update this is a key an older profile lacks —
-   offer it, never fill it in silently, never replace an existing value**, placeholder excepted.
-   An answer left open becomes `none`. If the profile's `## Notes` already describe such a
-   sprint-end check by hand, say that phase 4 of `/sprint` now does it and that the note can go
-   — never edit `## Notes` yourself.
+1e. **Release** — the `## Release` keys (see their comment in the profile template), from step
+   5b. They are what makes `/sprint` end releasable: it merges `release-branch` in at its start
+   and runs `/release-check` — the merge, a clean clone, every blocking CI step, the release as
+   a dry run — as its last step. Ask, bundled:
+   - `release-branch`, `release-plan`, `release-dry-run`: the detected values, "correct" as the
+     recommended option. A project with a release workflow but no dry-run mode: say plainly
+     that the release step will be reported as not run, so a due release is never `yes` — the
+     fix is a dry-run flag in the release script, which is the project's to add.
+   - `release-verify`: `auto` recommended. An existing project command is kept (it is the
+     project's own check). **An existing `none` is asked about explicitly, with `auto` as the
+     recommendation:** `none` used to mean "the short suites, and call it yes"; it now means the
+     verdict is `UNVERIFIED`, never `yes` — say that, it is why two sprints in a row reported
+     `releasable: yes` on PRs that then went red.
+   - `commit-style`: the detected value as the recommendation, and why — with a release that
+     reads Conventional-Commit types, `plain` subjects make every sprint a patch release. Say
+     that it changes the subjects of every future sprint commit, not the history.
+   **On an update these are keys an older profile lacks — offer them, never fill them in
+   silently, never replace an existing value** (`release-verify: none` is the one value asked
+   about again, as above), placeholder excepted. An answer left open takes the template's default
+   (`auto`, `plain`, `none`); `release-branch` left open takes the detected branch. If the
+   profile's `## Notes` already describe a sprint-end release check or a "merge main back"
+   ritual by hand, say that `/sprint` now does it and that the note can go — never edit `## Notes`
+   yourself.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
    - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an
@@ -179,6 +215,10 @@ Cover, in this order of importance:
 5. **`changelog-path`** — only ask if the survey found a user-facing changelog at the repo
    root (`version.md`, `VERSION.md`, `CHANGELOG.md`): should `/build` and `/sprint` require an
    entry per user-facing change? Default `none`; leaving it unset keeps the DoD bullet dormant.
+   With a path set, `changelog-style` from step 5b goes into the same question (`unreleased` /
+   `version-section`, the detected one recommended): it decides where `/build` writes a note,
+   and a note in the wrong section is a release with empty notes. On an update a profile with a
+   `changelog-path` but no `changelog-style` gets the detected value offered, never silently.
 
 On an update, ask only about entries that are missing, placeholders, or contradicted by
 the survey. If a profile is complete and matches the survey, skip the interview entirely
@@ -275,6 +315,12 @@ Short and complete:
 - Placeholders still in the profile that the user has to fill in.
 - Profile keys **added** on this update, with the value each one got (`none` included), so a
   new key never appears unannounced.
+- **Release readiness**, one line each: the `## Release` values, and what `/release-check` will
+  not be able to check (no `release-dry-run` while a release workflow exists, a `release-verify:
+  none`). If step 5b found the release branch unprotected, recommend a branch protection rule
+  with the PR workflow's job as a required status check — that is the only thing that stops a
+  red PR from being merged; `/release-check` and `/sprint` only report. A proposal: never call
+  the API to change it.
 - **Gitignore findings** from Phase 1 step 8: what is ignored but must not be, and what should
   be ignored but is not, each with the line that would fix it. You do not write `.gitignore`.
 - **Commit reminder:** `.claude/commands/`, `.claude/agents/`, `.claude/ai-scrum.md` and

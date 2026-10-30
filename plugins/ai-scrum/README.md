@@ -12,8 +12,9 @@ run it without installing anything.
 /refine <id>           plan a story  (Opus)    -> Plan + Deliverables + AC -> test mapping
 /build <id> [--full]   implement it  (cheap)   -> code + tests + narrow gate + clean review + Done
 /sprint <id>           run a whole sprint      -> branch, all stories, regression gate, review.md, releasable
+/release-check [base]  will the PR + release pass -> merge into the release branch, every CI step, yes | NO | UNVERIFIED
 
-/ai-scrum:setup        install / update        -> the five commands above, two agents, profile + docs
+/ai-scrum:setup        install / update        -> the six commands above, two agents, profile + docs
 ```
 
 The plugin ships exactly one command — `setup`. Everything else is payload it copies into your
@@ -63,7 +64,7 @@ the same command works in a terminal — see
 | Project **facts** (build/test commands, paths, branch base, acceptance policy) | `.claude/ai-scrum.md` | `/ai-scrum:setup`, editable by hand |
 | Project **rules** (architecture, guardrails, conventions) | `CLAUDE.md` + skills | the project; the commands read them, never write them |
 
-Nothing project-specific is baked into a command — that is what makes the same seven files work
+Nothing project-specific is baked into a command — that is what makes the same eight files work
 in every repository, and what lets an update replace them wholesale.
 
 Each installed file carries a marker (`<!-- ai-scrum:managed <version> ... -->`) and a hash in
@@ -169,6 +170,7 @@ too, but its effort is not set on the call.
 
 ```
 phase 0    `S07: sprint started` on branch-base ─► cut the sprint branch (sprint-branch: true)
+           ─► merge origin/<release-branch> in, if it has commits (a conflict stops here)
 phase 1a   open questions of all stories ─► you, bundled ─► recorded as binding (User) decisions
 phase 1b   refine every draft story, concurrently ─► ready | BLOCKED: user question
            (one follow-up round) ─► one line of tiers: the last moment to stop the run
@@ -180,8 +182,8 @@ phase 2    per ready story, in list order:
 phase 2b   regression gate: short suites + e2e-all on the finished branch
            red ─► attribute (flaky / pre-existing / story) ─► fix on the branch, or a merge blocker
 phase 3    review.md · testplan.md (manual residue only) · roadmap ─► `S07: sprint review + roadmap`
-phase 4    roadmap check (agent) ─► `release-verify` on the final commit, last
-           red ─► fix (≤ 2 rounds) ─► `releasable: yes | NO` heads the report; nothing committed after
+phase 4    roadmap check (agent) ─► release branch merged in again ─► /release-check on the merge, last
+           red ─► fix (≤ 2 rounds) ─► `releasable: yes | NO | UNVERIFIED` heads the report; nothing committed after
 ```
 
 A deliverable that comes back `PARTIAL` goes to one fresh agent with the partial report. A second
@@ -260,13 +262,59 @@ conflicts nobody can resolve and can carry real content into a public repository
 
 `changelog-path` in the profile points at a **user-facing** changelog (`version.md`,
 `CHANGELOG.md`) — not the git history. When it is set, `/build` requires an entry for every
-user-facing feature or fix under `# Features` / `# Fixes` of the current version section, and
-`/sprint` sweeps the sprint's stories for missing ones. House style: appended to the current
-section only, short, punchy, a little funny, in `doc-language`, about what the user can now do
-rather than how it was built. Tests, refactors and internal changes get no entry, and a story with
-no user-facing change adds nothing.
+user-facing feature or fix (change type `feat` / `fix` / `perf`) **in the open block** — the
+place the release reads its notes from — and `/sprint` sweeps the sprint's stories for missing
+or misplaced ones. Where the open block is, is `changelog-style`:
+
+- `unreleased` — a Keep-a-Changelog file whose `## Unreleased` a release script promotes: notes go
+  under `## Unreleased`, never into a version section.
+- `version-section` — every version is a section written by hand (`# 1.22.2` / `# Fixes`): notes
+  go into the topmost section while it is not on the release branch yet; once it is, the next
+  note opens a new section above it.
+
+A **published** section — on the release branch, or tagged — is never changed. House style: short,
+punchy, a little funny, in `doc-language`, about what the user can now do rather than how it was
+built. Tests, refactors and internal changes get no entry, and a story with no user-facing change
+adds nothing.
 
 Default is `none`, and then the rule is dormant — nothing asks for a changelog that does not exist.
+
+## Releasable — `/release-check`
+
+`releasable: yes` means: open the PR, it goes green, merge it, it releases. A check on the branch
+cannot promise that, because GitHub checks something else — the **merge** of the branch into the
+release branch, with every step of its pipelines, on its own runner. `/release-check` rebuilds
+exactly that:
+
+1. **Base** (seconds): `git fetch`, the commits the release branch has that this branch lacks —
+   usually the release commit the pipeline pushed, which nothing brings back on its own — a
+   merge conflict, the release notes on the merged tree, the planned version.
+2. **The merge** in a throwaway clone outside the repository, with a clean install.
+3. **The step list, derived on every run** from the merged tree's CI workflows: the PR lane
+   (`pull_request` workflows) and the release lane (`push` to the release branch). Every blocking
+   step runs once; the publishing step is replaced by `release-plan` and `release-dry-run`; what
+   cannot run here (a secret, another OS) is named one by one. No stored list, so nothing drifts.
+4. **CI conditions:** `CI=true`, `TZ=UTC`, no publish credentials, a short `TEMP` on Windows.
+5. **Notes and bump:** the open block is not empty when a release is due, no published section
+   changed, and the planned bump matches the stories' change types.
+
+The verdict is one of three, and never `yes` from a subset:
+
+```
+releasable: yes · merge of 612487d into origin/main@0f1bdb8 · next release 1.2.0 (minor) · 6/6 blocking steps green
+releasable: NO — missing release-branch commits: b492451 chore(release): 1.1.1 · merge origin/main into dev
+releasable: UNVERIFIED — release step (needs GH_TOKEN; no release-dry-run) · add a dry-run mode to the release script
+```
+
+`/sprint` uses it twice: part 1 at the start, merging the release branch into the work branch when
+that is conflict-free (a conflict stops the sprint before any story writes a line), and the whole
+check as its very last step, in the background. Run it yourself before opening a PR. It enforces
+nothing — a **required status check** on the release branch is what stops a red PR from being
+merged, and that is a repository setting `/ai-scrum:setup` recommends but never makes.
+
+`commit-style: conventional` makes `/sprint` and `/build` write `feat(042): …`, `fix(042): …`,
+`test(042): …` from each story's change type, and `docs(S07): …` for bookkeeping — for release
+scripts that derive the bump from Conventional-Commit types, which read `042: …` as a patch.
 
 ## Acceptance is the test suite
 
@@ -323,11 +371,11 @@ misses the regression one story causes in another's flow. So the gate is split:
   profile's `e2e-quarantine` list. After that it is an expected failure and is not attributed
   again. If it is still quarantined two sprints later, it becomes a story. `e2e-cleanup` (optional) names the command that
   stops what a killed e2e run leaves behind; `/sprint` runs it before relaunching.
-- **Last (`/sprint` phase 4, after the review commit):** `release-verify` (optional) — the
-  project's "will a PR and a release of this commit pass?" check, run once on the final commit
-  after a `/roadmap check`. Without it the short suites run there. Nothing is committed after a
-  green run, because the review commit edits docs after the gate, and an unchecked last commit
-  is how a green sprint turns into a red PR.
+- **Last (`/sprint` phase 4, after the review commit):** `/release-check` (see
+  [Releasable](#releasable--release-check)) — the merge of the final commit into the release
+  branch, every blocking PR and release step, run once after a `/roadmap check`. Nothing is
+  committed after a green run, because the review commit edits docs after the gate, and an
+  unchecked last commit is how a green sprint turns into a red PR.
 - **Standalone `/build`:** the narrow gate, and one closing line naming the full suites that
   have not run yet. `/build <id> --full` runs them once at the end instead.
 
@@ -349,6 +397,13 @@ every scope is on 2.x.
 `.claude/commands/`: same paths, so setup treats your copies as modified, shows the diff and
 asks per file whether to replace them. A deliberate local adaptation it finds is named
 explicitly — that belongs in `.claude/ai-scrum.md` or `CLAUDE.md` now.
+
+**From a profile without `## Release`:** run `/ai-scrum:setup`. It detects the release branch,
+the plan and dry-run scripts, the changelog style and whether your release reads
+Conventional-Commit types, and offers each key — nothing is filled in silently. A
+`release-verify: none` is asked about again, with `auto` recommended: `none` no longer produces
+`releasable: yes`, only `UNVERIFIED`. Stories finished before `Change type:` existed are left out
+of the bump check, and the report says how many.
 
 Existing story files keep their language and their headings — the commands treat the older
 German section names (`## Anforderung`, `## Akzeptanzkriterien`, `## Offene Fragen`,
