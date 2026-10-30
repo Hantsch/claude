@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.10.0 — 2026-10-30
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **`/sprint` reports `releasable: yes` only when a PR and the release would pass.** The new
   workflow command `/release-check` checks what GitHub checks: the **merge** of the branch into
   the release branch, in a throwaway clone with a clean install, every blocking step of the PR
