@@ -4,8 +4,9 @@
 or a release of a project that runs ai-scrum goes red, or a fix commit is needed between a
 sprint's end and its release (§8).*
 
-**Status:** open · **Incidents:** 9 (I1–I9) · **Last:** I9, 2026-10-30, claude-control ·
-**Next:** C1 and C3 (§5), then C2
+**Status:** open — C1–C6 built into ai-scrum (`/release-check`, under `## Unreleased`, not yet
+released) · **Incidents:** 9 (I1–I9) · **Last:** I9, 2026-10-30, claude-control (resolved) ·
+**Next:** release ai-scrum, `/ai-scrum:setup` in the projects (§6), then count green cycles (§1)
 
 ## 1. The problem
 
@@ -35,7 +36,7 @@ Oldest first; append new rows at the bottom. Mechanisms: §3.
 | I6 | 10-29 | q2-launcher PR, head `fca1c8e` ([ci](https://github.com/Hantsch/q2-launcher/actions/runs/40878523867)) | `tech-debt.test.mjs`: roadmap follow-up list 11 > 10 lines — a sprint doc edit broke a test | ? | M7 | `36d107f`; same shape as the case cited in ai-scrum 4.8.0 phase 4 |
 | I7 | 10-29 | q2-launcher PR #24 → [release](https://github.com/Hantsch/q2-launcher/actions/runs/40886812877) | Release step "Package the unpacked Windows app" | ? | not classified (the log needs a token) | `52d7ea9` "release fix" |
 | I8 | 10-30 | claude-control PR #6, head `5778747` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41051446781), [release](https://github.com/Hantsch/claude-control/actions/runs/41051628005)) | Test, N5: `expected 2061 to be less than 2000`; merged 40 s after the red run, release red the same way (2053 ms) | S06: `releasable: yes · a21373f · build + full test + typecheck` | M3, M2, M6 | S07/023 moved the budgets to the perf lane; S06 still unreleased on main |
-| I9 | 10-30 | claude-control PR dev→main, head `e70e7af` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41064355449)) | Check release notes: "'## Unreleased' in CHANGELOG.md is empty … would release 1.1.2 (patch), but the notes are not ready" | S07: `releasable: yes · e70e7af · npm run build && npm run typecheck && npm test` | M1, M2, M4, M5 | open (§6) |
+| I9 | 10-30 | claude-control PR dev→main, head `e70e7af` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41064355449)) | Check release notes: "'## Unreleased' in CHANGELOG.md is empty … would release 1.1.2 (patch), but the notes are not ready" | S07: `releasable: yes · e70e7af · npm run build && npm run typecheck && npm test` | M1, M2, M4, M5 | `3499fed` merged origin/main into dev, `612487d` moved the notes; PR #7 [green](https://github.com/Hantsch/claude-control/actions/runs/41069375210) → [release](https://github.com/Hantsch/claude-control/actions/runs/41070172479) v1.1.2 — a **patch** for S06's features (M5) |
 
 All dates 2026. Window: claude-control's whole CI history (7 PRs to main, 3 red); q2-launcher
 only from 2026-10-27 (the API's last 100 runs) plus what its script's header records.
@@ -107,8 +108,9 @@ Each fix closed the mechanism of the latest incident, in the project where it ha
 | 10-27 | tech-rules `/release-prep`: clean worktree, merge with the release branch, CI conditions, GO/NO-GO | M1, M2, M3 — when someone runs it | projects with tech-rules — not claude-control; `/sprint` does not call it |
 | 10-29 | ai-scrum 4.8.0: phase 4 + `release-verify` key | M7; M1–M3 only with a real key | 1 of 4 projects on ≥ 4.8.0 has one |
 | 10-30 | claude-control S07: N4/N5 to the perf lane, release lane tests only a due release, lanes in `CLAUDE.md` | M3 for N4/N5 | claude-control |
+| 10-30 | ai-scrum `/release-check` + `/sprint` phase 0/4 + `changelog-style` + `Change type:` + `commit-style` (unreleased) | M1, M2, M4, M5 in ai-scrum; M3 partly (CI env, short TEMP — not runner speed) | every ai-scrum project, from its next `/ai-scrum:setup`, with no tech-rules |
 
-The pattern: the answer to M1–M3 exists three times — q2-launcher's script, tech-rules'
+The pattern (before the last row): the answer to M1–M3 exists three times — q2-launcher's script, tech-rules'
 `/release-prep`, ai-scrum's phase-4 hook — none wired to the others, and the one that runs by
 default (phase 4 with `none`) is the weakest and the only one that says "yes". M4 and M5 were
 never named, so each recurrence looked new. Fixes also travel in neither direction (the
@@ -119,34 +121,81 @@ second.
 
 | # | Countermeasure | Closes | Where | Status |
 | --- | --- | --- | --- | --- |
-| C1 | With `release-verify: none`, phase 4 reports `releasable: UNVERIFIED — ran <steps> on HEAD; the PR runs <steps> on the merge with <branch>` instead of `yes` | M2 (the false yes) | ai-scrum `sprint.md` | proposed — smallest, do first |
-| C2 | Sprint start and phase 4 refuse when `origin/<release branch>` has non-merge commits the work branch lacks: `NO — main has the release commit <sha> · merge origin/main into <branch-base>`. At sprint start this runs before any story writes notes. Needs the release branch as a fact (new profile key, or the release workflow's `on.push.branches`) | M1, M4 (stale "current") | ai-scrum `sprint.md` phases 1 + 4, profile, setup | proposed |
-| C3 | Changelog shape as a profile fact (`changelog-style: unreleased \| version-section`; setup detects a `## Unreleased` heading). `/build` 9b and the `/sprint` sweep follow it, and the sweep fails when the sprint's changelog diff touches anything but the Unreleased block | M4 | ai-scrum `build.md`, `sprint.md`, profile template, setup | proposed |
-| C4 | A real release check by default: `/release-prep`'s method (merge tree, every blocking PR and release step, CI conditions) or a generated `release-verify`, so `none` stops being the default | M1, M2, M3 | ai-scrum + tech-rules — owner open (§6) | idea |
-| C5 | Commit subjects carry the bump, opt-in (`commit-style: conventional`): story commits typed from the story (`feat(022): …`, `fix(…)`, `test(023): …`), bookkeeping `docs(S07): …` | M5 | ai-scrum `sprint.md`, `build.md`, profile | proposed |
-| C6 | Setup recommends a required status check on the release branch (the PR lane's job) — a proposal, the plugin never changes repository settings | M6 | ai-scrum or tech-rules setup | proposed |
-| C7 | This repo's `release.ps1` replaces heading *and* body on promotion (as claude-control's does), and the 18 stray placeholders go | M4 (here) | `scripts/release.ps1` | proposed |
+| C1 | With `release-verify: none`, phase 4 reports `releasable: UNVERIFIED — ran <steps> on HEAD; the PR runs <steps> on the merge with <branch>` instead of `yes` | M2 (the false yes) | ai-scrum `sprint.md` | done (unreleased) — `release-verify: none` yields `UNVERIFIED`; the new default is `auto` |
+| C2 | Sprint start and phase 4 refuse when `origin/<release branch>` has non-merge commits the work branch lacks: `NO — main has the release commit <sha> · merge origin/main into <branch-base>`. At sprint start this runs before any story writes notes. Needs the release branch as a fact (new profile key, or the release workflow's `on.push.branches`) | M1, M4 (stale "current") | ai-scrum `sprint.md` phases 1 + 4, profile, setup | done (unreleased), as automation: phase 0 and phase 4 run `/release-check` part B and **merge** `origin/<release-branch>` into the work branch when conflict-free (a conflict stops the sprint); `/release-check` alone reports `NO — missing release-branch commits`. New key `release-branch` |
+| C3 | Changelog shape as a profile fact (`changelog-style: unreleased \| version-section`; setup detects a `## Unreleased` heading). `/build` 9b and the `/sprint` sweep follow it, and the sweep fails when the sprint's changelog diff touches anything but the Unreleased block | M4 | ai-scrum `build.md`, `sprint.md`, profile template, setup | done (unreleased) — the reference for "published" is a section's text **at its tag** (on the release branch without one): a branch that *restores* a damaged section is fine, damage already on the release branch is a warning, damage by the branch is NO |
+| C4 | A real release check by default: the merge tree, every blocking PR and release step, CI conditions (the method of `/release-prep` and q2-launcher's script), so `none` stops being the default | M1, M2, M3 | ai-scrum, without tech-rules (decided 2026-10-30) | done (unreleased): `/release-check` — merge in a `clone --shared` (not a worktree: shared refs), clean install, step list derived from the merged tree's workflows on every run, publish steps replaced by `release-plan` + `release-dry-run`, `not local` named, one background run. `release-verify: auto` is the default |
+| C5 | Commit subjects carry the bump, opt-in (`commit-style: conventional`): story commits typed from the story (`feat(022): …`, `fix(…)`, `test(023): …`), bookkeeping `docs(S07): …` | M5 | ai-scrum `sprint.md`, `build.md`, profile | done (unreleased) — `Change type:` in every story's Done section drives the bump check; `commit-style: conventional` types the subjects; setup recommends it where the release reads commit types |
+| C6 | Setup recommends a required status check on the release branch (the PR lane's job) — a proposal, the plugin never changes repository settings | M6 | ai-scrum or tech-rules setup | done (unreleased) — ai-scrum setup checks protection via `gh api` and recommends a required status check; never changes it |
+| C7 | This repo's `release.ps1` replaces heading *and* body on promotion (as claude-control's does), and the 18 stray placeholders go | M4 (here) | `scripts/release.ps1` | proposed — not part of this change (`scripts/`, this repo only) |
 
 ## 6. Open
 
-**I9 — unblocking claude-control's PR** (verified locally: the merge is conflict-free).
-1. Merge `origin/main` into `dev` — brings `chore(release): 1.1.1` (`b492451`) and PR #6's merge.
-2. On the merged tree, move S06's six bullets from `## 1.1.0` to `## Unreleased`.
-3. **User:** the bump. As it stands: patch → 1.1.2. S06 is features → 1.2.0 needs a `feat:`
-   subject on the merge commit (edit the title when merging the PR) or a `bump: minor` dispatch.
-4. Run the merge-tree check (§7); green → push, PR.
-5. **User:** required check on main (C6).
+**I9 — unblocking claude-control's PR**
+1. Done, `3499fed`: `origin/main` merged into `dev` — brings `chore(release): 1.1.1` (`b492451`).
+2. Done, `612487d`: S06's six bullets moved from `## 1.1.0` to `## Unreleased`; 1.1.0 and 1.0.0
+   are byte-identical to what v1.1.0 shipped again.
+3. Done, 2026-10-30: both lanes on the simulated PR merge, in a throwaway worktree with
+   `npm ci`, `CI=true`, `TZ=UTC`, no tokens — PR lane: typecheck, test (587/587),
+   check-notes ("would release 1.1.2 (patch) — notes are ready"), package; release lane:
+   `ci-release.ps1 -DryRun` (plan, tests, promote, EXE + sums, dry-run commit/tag/push/release).
+   Differences from the runner: Node 25 instead of 22, Windows PowerShell 5.1 instead of pwsh 7.
+4. Done: `dev` pushed, PR #7 green, merged (`154ddee`), released as v1.1.2 (`2c4b390`).
+5. Not done: the bump — S06's features shipped as a patch (M5). From now on caught before the PR
+   by `/release-check` B6 (`Change type:`) and avoided by `commit-style: conventional`.
+6. **User:** required check on main (C6).
+7. main again carries a release commit dev lacks (`2c4b390 chore(release): 1.1.2`): the next
+   sprint's phase 0 merges it — the first live test of C2.
+
+**Acceptance of `/release-check` (2026-10-30)** — throwaway clones of claude-control, an origin
+mirror with `main = 0f1bdb8` (the base of both PRs), the profile as setup would write it
+(`release-plan: pwsh -File scripts/plan-release.ps1`, `release-dry-run: … ci-release.ps1 -DryRun`,
+`changelog-style: unreleased`). The plan (F3) was derived by a fresh agent from the document
+alone: PR lane = validate.yml (npm ci, typecheck, test, check-notes, package), release lane =
+release.yml (plan, dry run); perf.yml in neither lane; nothing `not local`.
+- **I9 replay, dev = `e70e7af`:** `releasable: NO — missing release-branch commits: b492451
+  chore(release): 1.1.1 [skip ci] · merge origin/main into dev`; also NO — notes: `## Unreleased`
+  empty in the merge state; also NO — Check release notes (PR, GitHub's exact message: "would
+  release 1.1.2 (patch), but the notes are not ready"); also NO — release dry run ("RELEASE
+  BLOCKED: '## Unreleased' … is empty"); also NO — Test: `pipeline.test.ts` › cold-start tree
+  (N5 premise) timed out, green alone in 1 s (flaky). W4: `## 1.1.0` on origin/main differs from
+  v1.1.0 (the six misfiled bullets). Matches GitHub's red run 41064355449.
+- **dev = `612487d` (pushed as PR #7):** steps 1–6 green — npm ci, typecheck, test 587/587,
+  check-notes ("notes are ready"), package, plan (1.1.2, patch). Step 7, the release dry run:
+  `ciRelease.test.ts` › "a tag whose release creation failed is published by re-running the job"
+  timed out (18.2 s > 15 s) inside the release's own `npm test`, green alone in 9.6 s (flaky) →
+  `releasable: NO — Release dry run: flaky timeout · give the test headroom or make it
+  deterministic`. GitHub's PR and release runs were green this time. **Not the `yes` the
+  acceptance asked for** — deliberately: a blocking step that went red once is not proven green,
+  and I8 was exactly such a test going red on the runner. Warnings: Node 25 here vs 22 pinned,
+  pwsh → Windows PowerShell 5.1; bump check skipped (12 stories without `Change type:`).
+- Open risk (M3): claude-control has at least two load-sensitive tests in blocking steps
+  (`ciRelease.test.ts` 15 s timeout, `pipeline.test.ts` N5 premise). A sprint's phase 4 hands
+  them to its fix step; until then `/release-check` reports NO whenever one of them trips.
 
 **Decisions that shape the countermeasures**
-- C4: who owns the real check — ai-scrum's phase 4 calling tech-rules' `/release-prep`, or
-  ai-scrum shipping its own?
-- C5: should ai-scrum write Conventional-Commit subjects? It changes every project's history.
-- C2: does the release commit come back by refusal (the user merges) or by automation (the
-  release workflow merges main into dev — project CI, not ai-scrum)?
+- C4, **decided 2026-10-30:** ai-scrum guarantees that a sprint ends releasable — phase 4 proves
+  that the PR and the release will pass — on its own, without tech-rules. tech-rules stays
+  guidelines for *how* things are built.
+- C2, **decided 2026-10-30:** automation in ai-scrum — `/sprint` merges `origin/<release-branch>`
+  into the work branch when conflict-free (phase 0, and before phase 4's check), never into a
+  protected branch, never pushed; a conflict stops the sprint. Reason: sprints run unattended,
+  and a stop at phase 0 waits until someone comes back.
+- C5, **decided 2026-10-30:** a profile key, but setup *recommends* `conventional` where the
+  release derives the bump from commit types (claude-control, this repo), `plain` elsewhere. It
+  changes future subjects, not history.
+- Flaky in a blocking step, **decided 2026-10-30:** NO, not a warning (unlike `/release-prep`'s
+  "GO with warnings"). Revisit if it produces chronic NOs that nobody fixes.
+- **Proposal, not done — tech-rules `/release-prep`:** keep it as the "everything" run (perf,
+  advisory platforms, all flows, a report file), but let its phase 0 steps 5–6 (merge + CI
+  conditions) defer to `.claude/commands/release-check.md` when a project has it, and align the
+  vocabulary (`GO` / `NO-GO` ↔ `yes` / `NO` / `UNVERIFIED`). Without ai-scrum it keeps its own
+  method. tech-rules stays untouched until that is decided.
 
 ## 7. Reproduce
 
-What GitHub checks on a PR from `dev` to `main` — the merge, not `dev` (git ≥ 2.38):
+In a project with ai-scrum: `/release-check` (all of it) or `/release-check base` (seconds).
+By hand — what GitHub checks on a PR from `dev` to `main`, the merge, not `dev` (git ≥ 2.38):
 
 ```bash
 git fetch origin
@@ -171,5 +220,5 @@ Nothing is referenced or committed; the simulated commit is garbage-collected.
 
 Evidence without a token, for public repos: `api.github.com/repos/<owner>/<repo>/actions/runs`,
 `…/actions/runs/<id>/jobs` (failing step), `…/check-runs/<job id>/annotations` (the message).
-The sprint verdict is never in the repository (phase 4 step 4) — it is in the session transcript
+The sprint verdict is never in the repository (phase 4 step 5) — it is in the session transcript
 under `~/.claude/projects/<project>/`.
