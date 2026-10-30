@@ -312,6 +312,18 @@ check as its very last step, in the background. Run it yourself before opening a
 nothing — a **required status check** on the release branch is what stops a red PR from being
 merged, and that is a repository setting `/ai-scrum:setup` recommends but never makes.
 
+**The check checks itself, twice.**
+
+- **Before the run:** a script, not the agent, confirms that the plan names every `run:` step
+  of every PR and release workflow. A step left out makes the verdict `UNVERIFIED`; it never
+  silently disappears.
+- **On the next run:** every verdict leaves a line in `.git/ai-scrum/release-checks.jsonl`
+  (local, never committed). The next run — so every sprint start — looks up what GitHub then did
+  with that tree, PR and release, and reports
+  `record: 3 green cycles in a row · 0 missed · 1 not confirmed`.
+  - A **missed** one (`yes`, then red) is reported loudly, with a ready-made incident row.
+  - A **not confirmed** one (`NO`, then green) shows the check being stricter than GitHub.
+
 `commit-style: conventional` makes `/sprint` and `/build` write `feat(042): …`, `fix(042): …`,
 `test(042): …` from each story's change type, and `docs(S07): …` for bookkeeping — for release
 scripts that derive the bump from Conventional-Commit types, which read `042: …` as a patch.

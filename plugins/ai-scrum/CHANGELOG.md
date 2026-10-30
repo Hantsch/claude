@@ -43,6 +43,12 @@ is empty, so no version ever ships without notes.
   CI workflows and scripts and offers it, asks about an existing `release-verify: none` again, and
   recommends a required status check when the release branch is unprotected (it never changes
   the setting).
+- **`/release-check` checks itself.** Before it runs, a script confirms that its plan names
+  every `run:` step of every PR and release workflow; a missing one makes the verdict
+  `UNVERIFIED`. Every verdict is recorded locally in `.git/ai-scrum/release-checks.jsonl`, and
+  the next run (every sprint start) compares it with what GitHub then did on that tree:
+  `record: 3 green cycles in a row · 0 missed · 1 not confirmed`. A missed `yes` is reported
+  loudly with a ready-made incident row and lands in the sprint review.
 
 ## 4.9.0 — 2026-10-30
 

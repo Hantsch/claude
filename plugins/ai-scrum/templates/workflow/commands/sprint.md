@@ -172,6 +172,11 @@ because a project can switch style between sprints:
      and a notes problem (the open block missing, a published section changed) as a warning — not
      a stop: the sprint's stories are what fill the open block. A published section that was
      *already* changed on the release branch is not this sprint's to repair; name it, leave it.
+   - **B7's record line** too — how the earlier verdicts fared on GitHub. A **missed** one (the
+     last sprint said `releasable: yes`, then a PR or release went red) is said loudly here, goes
+     into this sprint's `review.md` under findings with its ready-made incident row, and into the
+     final report. It does not stop the sprint: it is evidence that the check has a gap, and the
+     gap is closed in the plugin, not here.
 5. **Say what the run looks like from the outside** — the first-line status from
    `## Status lines`: the phases with their shape and rough length, the next release from step
    4, and the progress file `<sprints>/$1/progress.md`.
@@ -582,7 +587,9 @@ roadmap line added by the review commit failed the PR's unit tests). So this pha
    not run> · <why>` — followed by its warnings and its step table. Never `yes` from a subset:
    the short suites green on `HEAD` are not a release check (measured: two sprints in a row said
    `releasable: yes` on build + test + typecheck, and both PRs went red on steps nobody had run).
-   Then delete the release check's `<work>` directory.
+   The check's own record line in `.git/ai-scrum/release-checks.jsonl` (its F6, with `"sprint":
+   "$1"`) is not a repository file and not a commit; the next sprint's phase 0 compares it with
+   what GitHub did. Then delete the release check's `<work>` directory.
 
 ## Closing the run — before the final report
 
@@ -612,7 +619,8 @@ roadmap line added by the review commit failed the PR's unit tests). So this pha
 The first line is phase 4's verdict — `releasable: yes · …` with the planned version and level,
 or `releasable: NO — …` / `releasable: UNVERIFIED — …` with what unblocks it, loudly, because it
 decides whether the user can open a PR. Directly under it its warnings and its step table, the
-PR lane and the release lane step by step. Then, short and complete: the work branch, stories done/blocked, the roadmap check's report
+PR lane and the release lane step by step, and the record line (green cycles, missed, not
+confirmed — a missed one loudly). Then, short and complete: the work branch, stories done/blocked, the roadmap check's report
 compacted, path to `review.md` (and to
 `testplan.md`, if one was written — otherwise say plainly that nothing needs walking by hand),
 the regression gate in one line (green, or which story broke what and whether it was fixed — a

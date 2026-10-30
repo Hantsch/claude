@@ -72,7 +72,8 @@ F5 passed.** NO beats UNVERIFIED, UNVERIFIED beats yes. Several NO reasons: the 
 line, each further one on its own line below it (`also NO — …`), so one run names everything that
 is red. A subset that was green is never `yes` — that is the exact failure this command exists to
 end: build, test and typecheck green on the branch, `releasable: yes`, and the PR red on a step
-nobody had run. `next release none` is a valid part of a `yes` (nothing is due); `<version>` is
+nobody had run — and a workflow step the plan does not name (F3b) is a step that did not run.
+`next release none` is a valid part of a `yes` (nothing is due); `<version>` is
 `?` when there is no `release-plan`.
 
 Under the verdict line, always: the warnings (W below), then the step table
@@ -143,9 +144,47 @@ that did not run and why. The table is the evidence; a verdict without it is not
      workflow does not type, so the fix lies outside the branch:
      `bump: plan says patch (1.1.2), the stories say minor — title the PR's merge commit "feat: …", or dispatch the release with the level`.
    - plan above expected is a warning only (a `feat` commit outside any story is legitimate).
+7. **The last verdicts, against what happened.** A check nobody checks drifts unnoticed: if a
+   `yes` is followed by a red PR, that has to surface by itself, not when someone happens to file
+   it. Every full run leaves one line in `<records>` =
+   `$(git rev-parse --git-common-dir)/ai-scrum/release-checks.jsonl` (F6) — inside `.git`, so
+   per clone, never committed, never pushed. For each record without an `outcome`, oldest first,
+   at most the last ten:
+   - **Where the checked tree went.** In `git log --first-parent --format='%H %T %P'
+     <record base>..origin/<release-branch>`, the oldest commit whose tree is the record's
+     `merge_tree` (a merge or a squash on an unmoved base), else the oldest merge commit whose
+     second parent's tree is the record's `head_tree` (the base moved — say so). That commit is
+     the merge `M`; the PR head `P` is its second parent (a squash: the record's `head`). Nothing
+     found → not merged yet: `P` is the record's `head`, there is no `M`, and only the PR lane
+     can have an outcome. A record still unmerged when a newer record exists is closed as
+     `superseded` with whatever PR outcome it has — the branch changed before the merge.
+   - **What GitHub ran on it** — read-only: `gh api "repos/{owner}/{repo}/actions/runs?head_sha=<sha>"`,
+     without `gh` the public API (`curl -s https://api.github.com/repos/<owner>/<repo>/actions/runs?head_sha=<sha>`),
+     owner and repo from `git remote get-url origin`. PR lane: the `pull_request` runs on `P`;
+     release lane: the `push` runs on `M`. A run still in progress, or no `M` yet → that lane is
+     `pending`; the record closes once both lanes have an outcome (or it is superseded). A failed run's
+     failing job and step from `…/actions/runs/<id>/jobs`, its first error line from
+     `…/check-runs/<job id>/annotations`.
+   - **The outcome**, written back into the record (rewrite that line): per lane `green`,
+     `red: <workflow> › <job> › <step> · <run url>` or `pending`. Any lane red counts as red, as
+     soon as it is known — a red PR does not wait for a merge. Then compare with the verdict:
+     - `yes` + green → a **green cycle**.
+     - `yes` + red → **missed**, loudly, and the incident row for the problem record of the
+       ai-scrum plugin (`docs/problems/release-readiness.md` in its repository), ready to paste:
+       `| I? | <date> | <project> <run link> | <step>: <first error line> | releasable: yes · <sha> | ? | — |`.
+     - `NO` / `UNVERIFIED` + green → **not confirmed**: GitHub passed what the check refused (a
+       flaky test that held, a step that was stricter here). Counted, because a check that cries
+       wolf gets ignored.
+     - `NO` + red → confirmed.
+   - **One line in the report:** `record: <n> green cycles in a row · <m> missed · <k> not
+     confirmed (last ten) · <p> pending`, the missed ones each on their own line under it. Not
+     GitHub, no API access, no records yet → `record: outcome unknown — <why>`; records stay
+     open.
+   This step never changes the verdict of the current run; it reports on earlier ones.
 
 In `base` mode, B is the whole run. Report the verdict lines B produced (no step table — nothing
-ran), or `base: clean · origin/<release-branch>@<sha> · next release <version> (<level>)`, and stop.
+ran), or `base: clean · origin/<release-branch>@<sha> · next release <version> (<level>)`, then
+B7's record line, and stop.
 
 ## F — Full
 
@@ -159,7 +198,7 @@ ran), or `base: clean · origin/<release-branch>@<sha> · next release <version>
 - `release-verify: <command>` → F2 for the clone, then the command in it as F4 would run one step
   (the condition prefix included); its exit code is the step result, its summary lines the
   evidence. Then F5 and F6, with `via <command>` in the verdict line.
-- `auto` → F2 to F6.
+- `auto` → F2 to F6 (F3b included).
 
 **F2 — The merge, in a throwaway clone.** A work directory outside the repository:
 `<work>` = `<system temp>/ai-scrum-release-check/<repo folder name>` — remove a leftover from an
@@ -234,6 +273,13 @@ it could not map.
   or with its class and reason. A step the agent cannot classify is `not local — unclassified:
   <the step>`, never dropped. That is the drift check: a step added to a workflow tomorrow shows up
   in tomorrow's plan.
+- **`plan.md` is a table** `| # | Lane | Class | Kind | Label | Command | Source |`, one row per
+  workflow step. `Source` is where the step is written, as `<workflow file name>:<line of its
+  run:>` (`validate.yml:31`) — for a step that runs, one that was merged into another, and one
+  that does not run alike. **Every `run:` line of every workflow that mentions `push` or
+  `pull_request` gets a row**, also those outside both lanes (`excluded — schedule only`,
+  `excluded — job skipped on push`): F3b checks exactly that, mechanically, so a row is never
+  left out to save space.
 - **Each distinct command runs once**, credited to every lane that contains it (`npm ci` in both
   lanes is one install, lane `pr+release`; `npm test` in both is one step). That is about the
   workflow's own commands: a release script that tests and packages inside its dry run is still
@@ -277,6 +323,32 @@ echo "== done"
   runs on Windows or the host is not Windows. Before an e2e or packaged-app step, the profile's
   `e2e-cleanup` is its own step (`advisory`).
 
+**F3b — Is the plan complete? Checked by a script, not by the agent.** The plan is an agent's
+reading of the workflows; a step it silently drops would be a step nobody runs, and the verdict
+would still say `yes`. So before anything runs, you run this — seconds, no install — and read
+its `==` lines:
+
+```bash
+cd "<work>/tree"
+grep -oE '[A-Za-z0-9_.-]+\.ya?ml:[0-9]+' "<work>/plan.md" | sort -u > "<work>/plan-refs.txt"
+for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+  [ -f "$f" ] && grep -qwE 'push|pull_request|pull_request_target' "$f" || continue
+  grep -nE '^[[:space:]]*(-[[:space:]]+)?run:[[:space:]]*[^[:space:]]' "$f" | while IFS=: read -r ln cmd; do
+    grep -qxF "$(basename "$f"):$ln" "<work>/plan-refs.txt" || echo "== coverage · missing · $(basename "$f"):$ln ·$cmd"
+  done
+done
+echo "== coverage · checked $(ls .github/workflows/*.y*ml 2>/dev/null | wc -l) workflow files"
+```
+
+- No `missing` line → go on.
+- `missing` lines → hand exactly those lines to the F3 agent once more (a fresh one, with the
+  same brief plus the lines): it adds a row for each — a step, or its class and reason — and
+  regenerates `run.sh`. Run the block again. Still missing → go on, and every line left is
+  `not run — not in the plan` in the report: the verdict cannot be `yes` (UNVERIFIED, unless
+  something is NO).
+- CI that is not GitHub Actions has no mechanical check yet: say so as warning W5
+  (`coverage: <ci system> not checked mechanically`).
+
 **F4 — Run it, once, in the background.** It installs dependencies and runs whole pipelines; it is
 long. From the top-level session, never from a subagent (a subagent cannot outlive a ten-minute
 tool call and never hears when a background task ends):
@@ -305,9 +377,16 @@ place.
   (`node 22 here, .node-version says 20`), W3 flaky tests, advisory steps red, conditions that
   could not be emulated (TEMP, an OS), a dirty working tree (`git status --porcelain` not empty:
   the check ran on `HEAD`; commit exactly that, or the PR runs on a different tree), a `pwsh`
-  substitution, W4 a published section already damaged on the release branch (B4).
+  substitution, W4 a published section already damaged on the release branch (B4), W5 a CI system F3b cannot
+  check mechanically.
 - The step table, in run order, every step of the plan.
 - **Not run**, one line per `publish`-without-dry-run and `not local` step with its reason.
+- B7's record line.
+- **The record.** Append one line to `<records>` (B7; `mkdir -p` its folder) — after F2 only,
+  so never for `release-verify: none` or a run that had no merge:
+  `{"at":"<UTC ISO time>","sprint":"<SNN or null>","head":"<sha>","head_tree":"<tree>","base":"<origin/release-branch sha>","merge_tree":"<tree>","release_branch":"<name>","verdict":"yes|NO|UNVERIFIED","version":"<planned or null>","level":"<level or null>","steps":<blocking steps>,"red":["<step>",…],"not_run":["<step>",…]}`
+  — written by the shell (`printf … >> <records>`), the time from `date -u`, never typed. It is
+  what the next run's B7 compares with GitHub; it is inside `.git`, not a repository file.
 - Then clean up: `rm -rf "<work>"` — except when the caller still needs the step logs (`/sprint`
   phase 4 fixing a red step); then the caller deletes it once its verdict is final.
 
@@ -317,7 +396,10 @@ the check.
 ## Rules
 
 - **Never merge, commit, tag, push or publish, never change a repository file.** Everything this
-  command writes is under `<work>`, outside the repository.
+  command writes is under `<work>`, outside the repository, plus its one record line and B7's
+  outcomes in `.git/ai-scrum/release-checks.jsonl` — inside `.git`, never tracked.
+- **It checks itself twice:** F3b, before the run, that the plan names every workflow step; B7,
+  on the next run, that its earlier verdicts matched what GitHub then did.
 - **Each step once.** The only re-run is the isolated re-run of a failed test that tells red from
   flaky. After a fix, the whole command runs again — on the new `HEAD`, a new merge.
 - **The verdict follows the rules above, not a judgment.** A red blocking step is NO however small
