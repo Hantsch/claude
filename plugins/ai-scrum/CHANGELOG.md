@@ -12,6 +12,14 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `/sprint` now archives the finished sprint: phase 3 moves `sprints/SNN/` to
+  `sprints/done/SNN/` with `git mv` inside the `SNN: sprint review + roadmap` commit, so phase 4
+  checks the final layout and the open sprints folder only shows running sprints. The roadmap
+  links to the review at its final path, and `/sprint SNN` on an archived sprint finds it under
+  `done/` (phase 4 can still be resumed from there).
+- `/roadmap check` moves every `status: done` sprint still outside `sprints/done/` there and
+  repoints the links to its review — the catch-up for sprints finished before this release.
+
 ## 4.8.0 — 2026-10-29
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
