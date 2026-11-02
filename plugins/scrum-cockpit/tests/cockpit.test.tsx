@@ -394,6 +394,7 @@ test('the trail names the phase, the story in focus and its stage', () => {
   const refining = parseTrail(trail('10:02 · refine · 022 023 · started'), 'in-progress')
   expect(refining.phase).toBe('refine')
   expect(refining.refineIds).toEqual(['022', '023'])
+  expect(parseTrail(trail('12:15 · refine · 001-004 · started'), 'in-progress').refineIds).toEqual(['001', '002', '003', '004'])
 
   const building = parseTrail(
     trail(

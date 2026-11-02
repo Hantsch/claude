@@ -11,6 +11,10 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+- **A refine round written as a range is read whole.** A trail line `refine · 001-007 · started`
+  counted only 001 and 007, so the refine card said `0/2 refined` and the Agents card treated the
+  other stories' agents as unrelated. Ranges are now expanded.
+- **The Agents card's count includes every running agent it lists**, not only the refine round's.
 
 ## 1.3.0 — 2026-10-30
 

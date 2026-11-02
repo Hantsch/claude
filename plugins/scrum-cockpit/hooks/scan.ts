@@ -149,6 +149,16 @@ export function clockMinutes(text: string): number | null {
 // The `HH:mm` of a trail timestamp.
 export const clockOf = (text: string | null) => (text === null ? null : (/\d{1,2}:\d{2}/.exec(text)?.[0] ?? text))
 
+// The story ids a trail line names, a range such as `001-007` expanded with its padding.
+function idsOf(text: string): string[] {
+  return [...text.matchAll(/(\d+)(?:\s*[-–]\s*(\d+))?/g)].flatMap(([, from = '', to]) => {
+    const a = Number(from)
+    const b = Number(to)
+    if (to === undefined || b < a || b - a > 100) return to === undefined ? [from] : [from, to]
+    return Array.from({ length: b - a + 1 }, (_, i) => String(a + i).padStart(from.length, '0'))
+  })
+}
+
 // Walks progress.md. Its lines are fixed by ai-scrum's sprint.md and build.md:
 // `- <ts> · refine · 106 107 · started`, `- <ts> · 107 · build · started`,
 // `- <ts> · 107 · D2 <title> · done`, `- <ts> · 107 · verify · started`,
@@ -176,7 +186,7 @@ export function parseTrail(text: string | null, status: string): SprintFlow {
     const isStart = event === 'started'
     if (subject === 'refine') {
       flow.phase = 'refine'
-      flow.refineIds = what.match(/\d+/g) ?? []
+      flow.refineIds = idsOf(what)
       continue
     }
     if (subject === 'gate') {

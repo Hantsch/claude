@@ -984,7 +984,7 @@ export const register: Register = on => {
           <Text bold>Agents</Text>
           <Text color="claude">
             {sprintAgents.length > 0
-              ? `${refineRunning.length} running · ${refineDone.length} done`
+              ? `${refineRunning.length + others.length} running · ${refineDone.length} done`
               : others.length > 0
                 ? `${others.length} running`
                 : ''}
