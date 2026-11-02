@@ -11,6 +11,10 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 4.10.1 — 2026-11-02
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 - `/sprint`'s refine trail line spells out every story id instead of a range such as `001-007`,
   so the scrum cockpit counts the whole round.
 
