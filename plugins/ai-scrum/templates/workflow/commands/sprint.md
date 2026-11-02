@@ -53,7 +53,8 @@ shorten their wording or change their language, never drop them.
   Esc + /sprint S22 resumes`. The clock is never typed: it is the output of the `Bash` call
   that appends the step's line to `<sprints>/$1/progress.md` in the same command, exactly like
   the trail rule in `build.md` — `- <shell timestamp> · 107 · build · started` for a story,
-  `· refine · 106 107 108 109 · started` for the refine round, `· gate · e2e-all · started`
+  `· refine · 106 107 108 109 · started` for the refine round (every id spelled out, never a
+  range such as `106-109`: the scrum cockpit reads the ids), `· gate · e2e-all · started`
   for the long suite. **Phase 4 writes its lines elsewhere**: by then `progress.md` is
   committed in `<sprints>/done/$1/`, and a line appended after the review commit would leave the
   working tree dirty — the next `/sprint` refuses to start on it, or the line slips into someone
