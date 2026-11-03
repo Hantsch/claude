@@ -11,6 +11,27 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+- **The gates grow with the project.** The profile has a new `## Stage` section: `stage:
+  prototype | mvp | stable | live`, `core-journeys`, `tech-debt-limit`, `architect-review-every`
+  and `architecture-path`. In `prototype` and `mvp`, `/sprint` no longer ends with a release
+  check that can only answer `UNVERIFIED`: its verdict is the quiet `releasable: not tracked ·
+  stage <stage>`. A profile without `stage` runs as `live` — exactly as before.
+- **`/roadmap check` advises.** A new step compares what the repository has (CI, a release
+  workflow, tags, a test suite, an e2e config) with the profile, counts the done stories since
+  the last solution review and the tech debt, and writes one line of advice per mismatch into the
+  roadmap's new `## Stage` section, with the command that acts on it — once, not every sprint. It
+  never changes the profile. The sprint's final report shows the stage line and its advice.
+- **Follow-ups are tech debt now, and they are counted instead of aged out.** The roadmap section
+  "Follow-ups worth doing" becomes `## Tech debt` (renamed on the next `/roadmap check`, lines
+  kept). Stories get an optional `kind: debt`. Lines are no longer deleted after three sprints;
+  at the profile's `tech-debt-limit` the new mode `/roadmap plan debt` cuts a cleanup sprint.
+- **Setup asks about what exists.** The stage is the first question, detected from the
+  repository or taken from the newest `/solution-architect` review (tech-rules), whose profile
+  diff becomes the preselected answers. Below `stable`, keys for things that do not exist yet
+  (e2e, narrow gates, quarantine, release plan) are written as `none` without a question and
+  reported as `dormant`.
+- `ui-acceptance-required: core` — only criteria on one of the `core-journeys` need an e2e test
+  through the real surface.
 
 ## 4.10.1 — 2026-11-02
 

@@ -70,7 +70,7 @@ sprints/
      relaunched until it is green.
    - **Review:** `review.md` (stories + short description, the acceptance record — which test
      proved which criterion — the regression gate result, findings & decisions, blockers) is written, `testplan.md` only if
-     there is manual residue to walk, the roadmap gets its milestone row, its follow-up lines
+     there is manual residue to walk, the roadmap gets its milestone row, its tech-debt lines
      and a fresh "Where we stand" (nothing more), `status: done`, and the sprint folder is moved
      to `done/SNN/` with `git mv` — all in the one review commit.
    - **Releasable:** after the review commit an agent runs `/roadmap check`, then

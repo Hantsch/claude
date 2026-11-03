@@ -14,6 +14,14 @@ links to it. Maintained by `/sprint`, `/concept` and `/roadmap`; the rules are i
 <— anything waiting on the user (a merge, a decision, a question), or "nothing"; this line
    is dropped when there is nothing>
 
+## Stage
+
+Stage: <stage from the profile> · signals: <what the repository has, e.g. ci, unit-tests, e2e-config, release-workflow, tag — or none>
+
+<Advice from `/roadmap check`, one line each, only while it is open. Removed once followed or
+once the profile no longer contradicts it. No advice: this paragraph is the whole section.>
+- <what to do and why, one line> — `<command>` · since <SNN>
+
 ## Phase overview
 
 | Phase | Goal | Milestones | Status |
@@ -39,12 +47,12 @@ Ideas and concepts that need a decision before they become work. One line each.
 | --- | --- | --- |
 | <concept or idea> | <one sentence + link, e.g. concept drafted (link)> | <one command, e.g. `/roadmap plan`> |
 
-## Follow-ups worth doing
+## Tech debt
 
-Small things a sprint surfaced that need no decision and no story yet — for the user while a
-sprint runs, or for the next cut. One line each, with where it came from. Done items are
-removed, not struck through. A line older than three sprints is promoted to a story or removed
-by `/roadmap check`.
+What a sprint left behind that needs no decision and no story yet: a known gap, a shortcut, a
+finding not fixed. One line each, with where it came from. Done items are removed, not struck
+through. These lines plus the open stories with `kind: debt` count against the profile's
+`tech-debt-limit`; at the limit, `/roadmap plan debt` cuts a cleanup sprint from them.
 
 - <what, one line> — <source: [S03 review](sprints/done/S03/review.md), story 017, …>
 

@@ -2,6 +2,7 @@
 id: 000
 title: <short title>
 status: draft # draft -> ready -> in-progress -> done
+kind: feature # feature | debt — debt counts against the profile's tech-debt-limit
 created: <YYYY-MM-DD>
 ---
 

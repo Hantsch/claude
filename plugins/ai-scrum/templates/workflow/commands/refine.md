@@ -141,6 +141,9 @@ into memory. Everything has to be reviewable in the repository.
        carries it, otherwise map the criterion one level down *and* write the gap into this
        section and into `## Open Questions` for the sprint review. Never turn it into a manual
        step — that is exactly what this workflow is getting rid of.
+     - **`ui-acceptance-required: core`:** the same, but only for a criterion that touches one
+       of the profile's `core-journeys` — name the journey on its line. Every other user-facing
+       criterion maps to `test` and is not a gap. `core-journeys: none` makes this `false`.
      - **An e2e line is also a run target.** `/build` runs only the story's own e2e tests,
        by substituting the file and test name from these lines into the profile's
        `e2e-story` template. So name them exactly as the harness selects them — the real
@@ -217,8 +220,8 @@ into memory. Everything has to be reviewable in the repository.
 - **Acceptance is the test suite (P1)**, if `ac-tests-required: true`: no `status: ready`
   while a criterion has neither a named test nor a `manual residue` reason. There is no
   manual acceptance gate behind this — whatever is not tested here is not checked at all.
-- **The real surface**, if `ui-acceptance-required: true`: a criterion about a *user action*
-  maps to the `e2e` command, not to a console call or a faked-backend test. Missing trigger or
+- **The real surface**, if `ui-acceptance-required: true` (with `core`: only on a core
+  journey): a criterion about a *user action* maps to the `e2e` command, not to a console call or a faked-backend test. Missing trigger or
   missing harness = deliverable, or a named gap; never a manual step.
 - Keep the plan skimmable — the user wants to iterate, not read every detail.
 - Do not commit, do not push. Refine only writes the story file.

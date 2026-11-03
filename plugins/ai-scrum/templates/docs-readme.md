@@ -12,7 +12,7 @@ source, so index tables cannot drift.
 docs/
   README.md                 this map (no status)
   ROADMAP.md                THE status/planning source, one screen: where we stand, phases,
-                            milestones, unprioritised, follow-ups
+                            milestones, unprioritised, tech debt
   requirements/             open stories; done/ = finished, done/INDEX.md = history
   sprints/                  sprint planning + review; done/SNN/ = finished
   concepts/                 concept docs for systems NOT (fully) implemented yet
@@ -25,8 +25,11 @@ docs/
   [ROADMAP.md](ROADMAP.md) — the entry point when coming back to the project. One screen,
   table rows, one sentence per item; it links to detail instead of repeating it. Maintained
   at the end of `/sprint`, `/concept` and in the `/roadmap` ritual.
-- **Small things worth doing on the side** → [ROADMAP.md](ROADMAP.md), "Follow-ups worth
-  doing" — one-liners a sprint surfaced, no decision needed, removed once done.
+- **Known gaps and shortcuts** → [ROADMAP.md](ROADMAP.md), "Tech debt" — one-liners a
+  sprint left behind, no decision needed, removed once paid. Counted against the profile's
+  `tech-debt-limit`; at the limit `/roadmap plan debt` cuts a cleanup sprint.
+- **How mature the project is, and what the workflow advises** → [ROADMAP.md](ROADMAP.md),
+  "Stage" — written by `/roadmap check`.
 - **Gaps, findings, what a test could not prove** → the sprint's `review.md` under
   [sprints/done/](sprints/done/). The roadmap never carries this text.
 - **What happened per story** → [requirements/done/INDEX.md](requirements/done/INDEX.md) (one
@@ -47,7 +50,7 @@ docs/
   its status line — checked in the `/sprint` review (phase 3) and
   `/roadmap check`.
 - Status tables do not belong in this index — only in the roadmap.
-- The roadmap is compacted, not archived: `/roadmap check` removes done follow-ups and
+- The roadmap is compacted, not archived: `/roadmap check` removes paid tech-debt lines and
   collapses finished phases to one row per milestone. Git and the sprint reviews are the
   history.
 

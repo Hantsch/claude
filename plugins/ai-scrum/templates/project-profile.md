@@ -17,6 +17,40 @@
 ai-scrum-version: 1.0.0
 project: <project name>
 
+## Stage
+
+How mature the project is. The gates below follow it: a prototype has no test suite, no CI and
+no release pipeline yet, and the workflow does not pretend it does. Nothing changes the stage
+for you — `/roadmap check` notices when the repository has outgrown it and writes the advice into
+the roadmap's `## Stage` section, `/solution-architect` (tech-rules) decides, and
+`/ai-scrum:setup` applies its recommendation after you confirm it.
+
+stage: prototype <!-- prototype | mvp | stable | live -->
+core-journeys: none <!-- the few user journeys that must keep working, `;`-separated, e.g. sign in; place an order; export | none -->
+tech-debt-limit: 10 <!-- open tech-debt items (roadmap `## Tech debt` + stories with kind: debt) before a cleanup sprint is due -->
+architect-review-every: 20 <!-- stories done since the last solution review before a new one is recommended; 0 = never by count -->
+architecture-path: docs/architecture <!-- where /solution-architect writes its dated reviews -->
+<!--
+  stage      prototype = finding out what to build. No acceptance tests required, no e2e, no
+                         release check at the end of a sprint.
+             mvp       = the first usable cut. Acceptance criteria are proven by tests; still no
+                         e2e and no release check — the sprint's regression gate is the gate.
+             stable    = the core no longer moves much. The core journeys are proven end to end
+                         (`ui-acceptance-required: core`), and every sprint ends with the release
+                         check.
+             live      = users get releases. Everything above, with the release lane checked as
+                         a dry run (`release-plan`, `release-dry-run`).
+             A profile without the key behaves as `live` — that is how every project ran before
+             the key existed.
+  The keys in `## Verify`, `## Release` and `## Acceptance` stay the truth for each gate; the
+  stage is what setup proposes them from and what the advisor compares them against. Only one
+  thing reads the stage directly: whether `/sprint` ends with `/release-check` (stable, live)
+  or with `releasable: not tracked` (prototype, mvp).
+  core-journeys = with `ui-acceptance-required: core`, only a criterion that touches one of
+                  these journeys needs an e2e test through the real surface; every other
+                  criterion is proven by `test`.
+-->
+
 ## Verify
 
 Commands the build step runs before a story may be called done. Use `none` when a
@@ -112,11 +146,13 @@ changelog-style: unreleased <!-- unreleased | version-section — where the next
 
 ## Release
 
-Whether a sprint ends releasable: `/sprint` merges the release branch in at its start and runs
-`/release-check` as its very last step — the merge of the final commit into the release branch,
-in a throwaway clone with a clean install, every blocking step of the PR and the release
-pipelines (the release as a dry run), under CI conditions. Its verdict, `releasable: yes | NO |
-UNVERIFIED`, heads the sprint's final report. Run `/release-check` yourself before opening a PR.
+Whether a sprint ends releasable: `/sprint` merges the release branch in at its start and, from
+stage `stable` on, runs `/release-check` as its very last step — the merge of the final commit
+into the release branch, in a throwaway clone with a clean install, every blocking step of the
+PR and the release pipelines (the release as a dry run), under CI conditions. Its verdict,
+`releasable: yes | NO | UNVERIFIED`, heads the sprint's final report. In stage `prototype` or
+`mvp` the check does not run and the verdict is `releasable: not tracked`. Run `/release-check`
+yourself before opening a PR — it works in every stage.
 
 release-branch: main <!-- the branch PRs target and releases run on, e.g. main | none -->
 release-verify: auto <!-- auto | <your own command> | none -->
@@ -192,7 +228,11 @@ ui-acceptance-required: false
           as the story's first deliverable, or, when that is out of scope, covers the
           criterion at the next level down AND names the gap in the story and the
           sprint review. It never quietly becomes a manual step.
-  false = for a library, CLI, mod or service without a user-facing surface.
+  core  = as `true`, but only for criteria that touch one of the profile's `core-journeys`;
+          every other user-facing criterion is proven by `test` and is not a gap. With
+          `core-journeys: none` this behaves as `false`. The usual value from stage `stable` on.
+  false = for a library, CLI, mod or service without a user-facing surface, and for a
+          prototype or an mvp, where the journeys still change every sprint.
 -->
 
 manual-residue-allowed: true
