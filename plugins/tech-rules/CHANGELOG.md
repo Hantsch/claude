@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.5.0 — 2026-11-03
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `solution-architect` (group `all`, user-invoked, never model-invoked): `/solution-architect
   [<question or focus>]`, a technology-agnostic solution architect. From cheap evidence - CI and
   release workflows, releases and tags, the test inventory, the roadmap phase, churn - it decides
