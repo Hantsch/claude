@@ -11,6 +11,10 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 4.11.0 — 2026-11-03
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 - **The gates grow with the project.** The profile has a new `## Stage` section: `stage:
   prototype | mvp | stable | live`, `core-journeys`, `tech-debt-limit`, `architect-review-every`
   and `architecture-path`. In `prototype` and `mvp`, `/sprint` no longer ends with a release
