@@ -11,6 +11,28 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+- **A calm idle view.** When no sprint and no phase-4 step runs, the pane is one card of short
+  rows — Stage, Phase, Release, Tech debt, Architect, Backlog, Next — each a number against its
+  threshold, with a button only where something is due. The roadmap's "Where we stand" text, the
+  "Waiting on you" card and the per-story "Next" list are gone; the stories are under a folded
+  **Backlog** row (`23 open · 4 ready · 6 unplanned`), with their Refine/Build buttons when
+  unfolded.
+- **Stage** row: the profile's `## Stage` `stage` (`live (default)` without it) and the advice
+  `/roadmap check` wrote under the roadmap's `## Stage`; unfolded, its signals and each advice
+  with its command as a button.
+- **Tech debt** row: the roadmap's `## Tech debt` items (also the older "Follow-ups worth doing")
+  plus open stories with `kind: debt`, against `tech-debt-limit` (default 10) — amber from 80 %,
+  red at the limit with a **Plan tech-debt cleanup** button (`/roadmap plan debt`).
+- **Architect** row: stories done (from `done/INDEX.md`) since the newest
+  `<architecture-path>/<date>-solution-review.md`, against `architect-review-every` (default 20,
+  0 hides it); when due, an **Architect review** button (`/solution-architect`), or
+  `needs tech-rules (/tech-rules:setup)` where the skill is not installed.
+- **Next** row: the planned sprint with **Start SNN**, or **Plan next sprint** (`/roadmap plan`).
+- **Release** row: the last verdict in a few words; a new `releasable: not tracked` verdict
+  (stage prototype or mvp, `/sprint` skipped the check) is drawn dim, not amber, and not named in
+  the band.
+- The band adds one amber line when tech debt is at its limit or an architect review is due.
+- The Agents card is left out when there is nothing to list.
 
 ## 1.3.1 — 2026-11-02
 

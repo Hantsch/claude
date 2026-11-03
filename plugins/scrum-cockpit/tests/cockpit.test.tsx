@@ -4,12 +4,17 @@ import type { On } from 'claude-code'
 import {
   activeSprint,
   currentMilestone,
+  indexCount,
+  isArchitectDue,
+  isDebtDue,
   isDone,
+  parseAdvice,
   parseBranching,
   parseReleaseProfile,
   parseReleaseRecord,
   parseReleaseTrail,
   parseRoadmap,
+  parseStageProfile,
   parseTrail,
   scan,
   unplannedMilestones,
@@ -179,7 +184,11 @@ const reader: Reader = {
 const posix = (path: string) => path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/')
 
 // The engine beneath the mod, answered from the fixtures above.
-function project(on: On, overrides: Record<string, string> = {}) {
+function project(
+  on: On,
+  overrides: Record<string, string> = {},
+  dirs: Record<string, { name: string; isDir: boolean }[]> = {},
+) {
   mock.clock(on, { now: 1_000_000 })
   mock.env(on, { USERPROFILE: '/home' })
   on('session.root', () => ({ value: '/proj' }))
@@ -188,7 +197,7 @@ function project(on: On, overrides: Record<string, string> = {}) {
     return text === undefined ? { deny: `ENOENT ${e.path}` } : { value: text }
   })
   on('fs.list', (_, e) => {
-    const entries = DIRS[posix(e.path)]
+    const entries = dirs[posix(e.path)] ?? DIRS[posix(e.path)]
     return entries === undefined
       ? { deny: `ENOENT ${e.path}` }
       : { value: entries.map(d => ({ name: d.name, kind: d.isDir ? 'dir' : 'file', size: 0, mtimeMs: 0, isLink: false }) as const) }
@@ -231,7 +240,6 @@ test('the scanner reads milestones, sprints, stories and versions', async () => 
 
   expect(snap.hasScrum).toBe(true)
   expect(snap.phase).toBe('Phase 11 — codebase health, source review.')
-  expect(snap.standing.length).toBe(2)
   expect(snap.milestones.map(m => m.id)).toEqual(['11.4', '11.5', '11.6'])
   expect(currentMilestone(snap)?.id).toBe('11.5')
   expect(unplannedMilestones(snap).map(m => m.id)).toEqual(['11.6'])
@@ -255,7 +263,12 @@ test('the scanner reads milestones, sprints, stories and versions', async () => 
   expect(snap.doneStories).toBe(1)
 
   expect(snap.openTopics).toEqual(['Plugin store'])
-  expect(snap.followUps).toBe(1)
+  // The legacy "Follow-ups worth doing" heading is the tech debt list; its placeholder is not.
+  expect(snap.techDebt).toEqual({ count: 1, limit: 10, roadmapItems: 1, stories: [] })
+  // A profile without `## Stage`: live, the behaviour from before stages.
+  expect(snap.stage).toEqual({ name: 'live', isDefault: true, signals: [], advice: [] })
+  // No review yet: every story INDEX.md lists counts; this fixture's INDEX.md is empty.
+  expect(snap.architect).toEqual({ every: 20, since: 0, lastReview: null, hasSkill: false })
   expect(snap.launch['refine']).toEqual({ model: 'opus', effort: 'high' })
   expect(snap.launch['concept']).toEqual({ model: null, effort: null })
 })
@@ -288,9 +301,11 @@ test('the pane shows the overview and its buttons start commands, on every surfa
     const ui = await $.ui.mount({ ...PANE, surface })
     await ui.press({ key: 'refresh' })
 
-    expect((await ui.find({ type: 'Text', text: /11\.6 Packaging/ }))?.text).toContain('no sprint')
-    expect((await ui.find({ key: 'plan-11.6' }))?.text).toBe('Plan · sonnet/medium')
-    expect((await ui.find({ key: 'go-280' }))?.text).toBe('Build · sonnet/medium')
+    // A sprint runs: its cards, no backlog or next rows.
+    expect((await ui.find({ type: 'Text', text: /^Stage/ }))?.text).toBe('Stage      live (default)')
+    expect((await ui.find({ type: 'Text', text: /^Phase/ }))?.text).toBe('Phase      11 · codebase health, source review · 1/3 milestones')
+    expect(await ui.find({ type: 'Text', text: /^Backlog/ })).toBeUndefined()
+    expect(await ui.find({ key: 'plan-11.6' })).toBeUndefined()
     expect((await ui.find({ type: 'Text', text: /Now building/ }))?.text).toContain('story 2 of 2')
     expect((await ui.find({ type: 'Text', text: /^266 / }))?.text).toContain('Release waits for a green CI run')
     expect((await ui.find({ type: 'Text', text: /trail:/ }))?.text).toContain('D1 · done')
@@ -711,4 +726,277 @@ test('settings: an older profile without release keys points at setup', async ($
   await ui.press({ key: 'refresh' })
   expect((await ui.find({ type: 'Text', text: /No ## Release keys/ }))?.text).toContain('/ai-scrum:setup')
   await ui.unmount()
+})
+
+// --- the stage: the profile's thresholds, the roadmap's advice, and the idle view's rows ---
+
+const STAGE_PROFILE = [
+  'requirements-path: docs/requirements',
+  'sprints-path: docs/sprints',
+  'roadmap-path: docs/ROADMAP.md',
+  '',
+  '## Stage',
+  '',
+  'stage: mvp <!-- prototype | mvp | stable | live -->',
+  'core-journeys: sign in, place an order',
+  'tech-debt-limit: 2 <!-- open tech-debt items before a cleanup sprint -->',
+  'architect-review-every: 3',
+  'architecture-path: docs/arch',
+  '',
+].join('\r\n')
+
+const STAGE_ROADMAP = [
+  '# Roadmap',
+  '',
+  '## Where we stand',
+  '',
+  '1 — The King moves in',
+  '- Waiting on you: merging dev; manual residue for S07.',
+  '',
+  '## Stage',
+  '',
+  '<!-- written by /roadmap check -->',
+  'Stage: mvp · signals: real users, a second contributor',
+  '- Tech debt is at its limit: plan a cleanup sprint — `/roadmap plan debt` · since S07',
+  '- Time for an outside look at the architecture — `/solution-architect` · since S06',
+  '- <one line of advice> — `<command>` · since <SNN>',
+  '',
+  '## Current phase: 1 — The King moves in',
+  '',
+  '| # | Milestone | Status | Sprint(s) | Note |',
+  '| --- | --- | --- | --- | --- |',
+  '| M1 | Sign in | done | S01 | |',
+  '| M2 | Orders | planned | | |',
+  '',
+  '## Tech debt',
+  '',
+  '- flaky clock test — S05',
+  '- <what> — <source>',
+  '',
+].join('\r\n')
+
+const DEBT_STORY = '---\nid: 281\ntitle: Drop the old clock shim\nstatus: ready\nkind: debt\n---\n'
+const INDEX = [
+  '# Done',
+  '',
+  '- 001 — Sign in · S01 · accepted',
+  '- 002 — Sign out · S01 · accepted',
+  '- 003 — Orders list · S02 · accepted',
+  '- 004 — Order detail · S02 · accepted',
+  '',
+].join('\n')
+
+test('the roadmap stage section: its signals and advice, placeholders dropped', () => {
+  const roadmap = parseRoadmap(STAGE_ROADMAP)
+  expect(roadmap.signals).toEqual(['real users', 'a second contributor'])
+  expect(roadmap.advice).toEqual([
+    { text: 'Tech debt is at its limit: plan a cleanup sprint', command: '/roadmap plan debt', since: 'S07' },
+    { text: 'Time for an outside look at the architecture', command: '/solution-architect', since: 'S06' },
+  ])
+  // The new heading, and the placeholder line in it.
+  expect(roadmap.debtItems).toBe(1)
+  expect(parseAdvice('- Keep going')).toEqual({ text: 'Keep going', command: null, since: null })
+  expect(parseAdvice('- <one line of advice>')).toBeNull()
+
+  expect(parseStageProfile(STAGE_PROFILE)).toEqual({ stage: 'mvp', isDefault: false, debtLimit: 2, architectEvery: 3 })
+  expect(parseStageProfile('stage:\narchitect-review-every: 0\n')).toEqual({
+    stage: 'live',
+    isDefault: true,
+    debtLimit: 10,
+    architectEvery: 0,
+  })
+  expect(indexCount(INDEX)).toBe(4)
+  expect(indexCount(null)).toBe(0)
+})
+
+test('tech debt counts the roadmap list and the open debt stories; the architect count runs from the newest review', async () => {
+  const files: Record<string, string> = {
+    ...FILES,
+    '/proj/.claude/ai-scrum.md': STAGE_PROFILE,
+    '/proj/docs/ROADMAP.md': STAGE_ROADMAP,
+    '/proj/docs/requirements/281-clock.md': DEBT_STORY,
+    // A done debt story is no debt any more.
+    '/proj/docs/requirements/282-old.md': '---\nid: 282\ntitle: Old debt\nstatus: done\nkind: debt\n---\n',
+    '/proj/docs/requirements/done/INDEX.md': INDEX,
+    '/proj/docs/arch/2026-09-01-solution-review.md': '---\ndate: 2026-09-01\nstage: prototype\nstories-done: 0\n---\n',
+    '/proj/docs/arch/2026-10-12-solution-review.md': '---\ndate: 2026-10-12\nstage: mvp\nstories-done: 2\n---\n',
+  }
+  const dirs: Record<string, { name: string; isDir: boolean }[]> = {
+    ...DIRS,
+    '/proj/docs/requirements': [
+      ...(DIRS['/proj/docs/requirements'] ?? []),
+      { name: '281-clock.md', isDir: false },
+      { name: '282-old.md', isDir: false },
+    ],
+    '/proj/docs/arch': [
+      { name: '2026-10-12-solution-review.md', isDir: false },
+      { name: '2026-09-01-solution-review.md', isDir: false },
+      { name: 'README.md', isDir: false },
+    ],
+  }
+  const r: Reader = { configDir: '/home/.claude', read: async p => files[p] ?? null, list: async p => dirs[p] ?? [] }
+  const snap = await scan(r, '/proj', 0)
+
+  expect(snap.stage).toEqual({
+    name: 'mvp',
+    isDefault: false,
+    signals: ['real users', 'a second contributor'],
+    advice: parseRoadmap(STAGE_ROADMAP).advice,
+  })
+  expect(snap.stories.find(s => s.id === '281')?.kind).toBe('debt')
+  expect(snap.stories.find(s => s.id === '280')?.kind).toBe('feature')
+  expect(snap.techDebt).toEqual({ count: 2, limit: 2, roadmapItems: 1, stories: ['281'] })
+  expect(isDebtDue(snap)).toBe(true)
+  // 4 lines in INDEX.md, 2 when the newest review was written.
+  expect(snap.architect).toEqual({ every: 3, since: 2, lastReview: '2026-10-12', hasSkill: false })
+  expect(isArchitectDue(snap)).toBe(false)
+
+  // No review yet: every story INDEX.md lists; and the skill tech-rules installs is there.
+  const SKILL = '/proj/.claude/skills/solution-architect/SKILL.md'
+  const fresh: Reader = {
+    ...r,
+    read: async p =>
+      p.startsWith('/proj/docs/arch/')
+        ? null
+        : p === SKILL
+          ? '---\ndescription: x\nmodel: opus\neffort: high\n---\n'
+          : (files[p] ?? null),
+    list: async p => (p === '/proj/docs/arch' ? [] : (dirs[p] ?? [])),
+  }
+  const never = await scan(fresh, '/proj', 0)
+  expect(never.architect).toEqual({ every: 3, since: 4, lastReview: null, hasSkill: true })
+  expect(isArchitectDue(never)).toBe(true)
+  expect(never.launch['solution-architect']).toEqual({ model: 'opus', effort: 'high' })
+})
+
+test('a release check skipped for the stage is `not tracked`', () => {
+  const skipped = parseReleaseTrail(
+    `${TRAIL_DONE}- 2026-11-06 10:00 · S37 · release-check · done · releasable: not tracked · stage mvp\n`,
+  )
+  expect(`${skipped?.kind}|${skipped?.isRunning}|${skipped?.verdict}`).toBe(
+    'not tracked|false|releasable: not tracked · stage mvp',
+  )
+})
+
+// The idle view: S36 is done, nothing runs, no sprint is planned.
+const IDLE: Record<string, string> = {
+  '/proj/.claude/ai-scrum.md': STAGE_PROFILE,
+  '/proj/docs/ROADMAP.md': STAGE_ROADMAP,
+  '/proj/docs/sprints/S36/sprint.md': (FILES['/proj/docs/sprints/S36/sprint.md'] ?? '').replace(
+    'status: in-progress',
+    'status: done',
+  ),
+  '/proj/docs/requirements/281-clock.md': DEBT_STORY,
+  '/proj/docs/requirements/done/INDEX.md': INDEX,
+  '/proj/.git/ai-scrum/trail.md': '- 2026-11-01 10:00 · S36 · release-check · done · releasable: not tracked · stage mvp\n',
+}
+const IDLE_DIRS = {
+  '/proj/docs/requirements': [...(DIRS['/proj/docs/requirements'] ?? []), { name: '281-clock.md', isDir: false }],
+}
+
+test('idle: a few rows with their numbers, one button where a threshold is reached, the backlog folded', async ($, on) => {
+  project(on, IDLE, IDLE_DIRS)
+  const submitted: string[] = []
+  on('command.run', (_, e) => {
+    submitted.push(`/${e.command} ${e.args}`.trim())
+    return { text: '' }
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  for (const surface of ['terminal', 'vscode', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'refresh' })
+    // No "Where we stand" text, no "Waiting on you".
+    expect(await ui.find({ type: 'Text', text: /King moves in$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /Waiting on|merging dev/ })).toBeUndefined()
+
+    expect((await ui.find({ key: 'stage-toggle' }))?.text).toBe('Stage      mvp · 2 advice  ▸')
+    expect((await ui.find({ type: 'Text', text: /^Phase/ }))?.text).toBe('Phase      1 · The King moves in · 1/2 milestones')
+    expect((await ui.find({ type: 'Text', text: /^Release/ }))?.text).toBe('Release    not tracked (stage mvp)')
+    // 1 roadmap item and story 281: the limit of 2, so red and the one button.
+    expect((await ui.find({ type: 'Text', text: /^Tech debt/ }))?.text).toBe('Tech debt  2 / 2  ██████████')
+    expect((await ui.find({ key: 'debt-plan' }))?.text).toBe('Plan tech-debt cleanup · sonnet/medium')
+    // No review yet: all 4 INDEX lines, past 3; no skill, so a hint instead of the button.
+    expect((await ui.find({ type: 'Text', text: /^Architect/ }))?.text).toContain('4 / 3')
+    expect((await ui.find({ type: 'Text', text: /^Architect/ }))?.text).toContain('never reviewed')
+    expect(await ui.find({ key: 'architect' })).toBeUndefined()
+    expect((await ui.find({ type: 'Text', text: /needs tech-rules/ }))?.text).toBe('needs tech-rules (/tech-rules:setup)')
+    expect((await ui.find({ key: 'backlog-toggle' }))?.text).toBe('Backlog    4 open · 2 ready · 4 unplanned  ▸')
+    expect((await ui.find({ type: 'Text', text: /^Next/ }))?.text).toBe('Next       no sprint planned')
+
+    // Folded: no per-story rows until the backlog is opened.
+    expect(await ui.find({ key: 'go-280' })).toBeUndefined()
+    await ui.press({ key: 'backlog-toggle' })
+    expect((await ui.find({ key: 'go-280' }))?.text).toBe('Build · sonnet/medium')
+    expect((await ui.find({ key: 'plan-M2' }))?.text).toBe('Plan · sonnet/medium')
+    await ui.press({ key: 'go-280' })
+    await ui.press({ key: 'backlog-toggle' })
+
+    expect(await ui.find({ key: 'advice-go-0' })).toBeUndefined()
+    await ui.press({ key: 'stage-toggle' })
+    expect((await ui.find({ type: 'Text', text: /signals:/ }))?.text).toContain('real users, a second contributor')
+    expect((await ui.find({ key: 'advice-go-0' }))?.text).toBe('/roadmap plan debt · sonnet/medium')
+    // The skill is not installed here: the label is the command alone.
+    expect((await ui.find({ key: 'advice-go-1' }))?.text).toBe('/solution-architect')
+    await ui.press({ key: 'advice-go-0' })
+    await ui.press({ key: 'stage-toggle' })
+
+    await ui.press({ key: 'debt-plan' })
+    await ui.press({ key: 'plan-next' })
+    await ui.unmount()
+  }
+  expect(submitted.slice(0, 4)).toEqual(['/build 280', '/roadmap plan debt', '/roadmap plan debt', '/roadmap plan'])
+  expect(submitted.length).toBe(12)
+
+  // The band: one amber hint for both thresholds, no button of its own; not tracked is no news.
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text', text: /^⚠ tech debt/ }))?.text).toBe(
+    '⚠ tech debt 2/2 · architect review due (4 stories)',
+  )
+  expect(await band.find({ type: 'Text', text: /releasable/ })).toBeUndefined()
+  await band.unmount()
+})
+
+test('idle: below the thresholds no button and no band hint; a planned sprint starts from the next row', async ($, on) => {
+  const sprint = FILES['/proj/docs/sprints/S36/sprint.md'] ?? ''
+  project(
+    on,
+    {
+      ...IDLE,
+      '/proj/.claude/ai-scrum.md': STAGE_PROFILE.replace('tech-debt-limit: 2', 'tech-debt-limit: 10').replace(
+        'architect-review-every: 3',
+        'architect-review-every: 0',
+      ),
+      '/proj/docs/sprints/S36/sprint.md': sprint.replace('status: in-progress', 'status: planned'),
+      '/proj/.git/ai-scrum/trail.md': TRAIL_DONE,
+    },
+    IDLE_DIRS,
+  )
+  const submitted: string[] = []
+  on('command.run', (_, e) => {
+    submitted.push(`/${e.command} ${e.args}`.trim())
+    return { text: '' }
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'refresh' })
+  expect((await ui.find({ type: 'Text', text: /^Tech debt/ }))?.text).toBe('Tech debt  2 / 10  ██░░░░░░░░')
+  expect(await ui.find({ key: 'debt-plan' })).toBeUndefined()
+  // every 0: the architect row is off.
+  expect(await ui.find({ type: 'Text', text: /^Architect/ })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Release/ }))?.text).toBe('Release    ✓ yes · 1.2.0')
+  expect((await ui.find({ type: 'Text', text: /^Next/ }))?.text).toBe('Next       S36 planned · 2 stories')
+  expect((await ui.find({ key: 'sprint-start' }))?.text).toBe('Start S36 · sonnet/medium')
+  // The planned sprint has no card of its own in the idle view.
+  expect(await ui.find({ type: 'Text', text: /\(planned\)$/ })).toBeUndefined()
+  await ui.press({ key: 'sprint-start' })
+  await ui.unmount()
+  expect(submitted).toEqual(['/sprint S36'])
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /^⚠ tech debt/ })).toBeUndefined()
+  await band.unmount()
 })
