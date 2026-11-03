@@ -11,6 +11,10 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 1.4.0 — 2026-11-03
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 - **A calm idle view.** When no sprint and no phase-4 step runs, the pane is one card of short
   rows — Stage, Phase, Release, Tech debt, Architect, Backlog, Next — each a number against its
   threshold, with a button only where something is due. The roadmap's "Where we stand" text, the
