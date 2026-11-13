@@ -12,6 +12,17 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- New group `ui` with the skill `design-system`, installed in every project with a user-facing
+  surface (a UI library or browser bundler in a `package.json`, an `index.html` in a source tree, a
+  .NET UI project). It makes the design system the starting point of UI work instead of a review
+  afterwards: find the project's design system before the first line of UI code, read the screen's
+  archetype and its reference, write need → component down, put a missing component into the kit
+  first, use values only through tokens, no browser dialogs (`alert`/`confirm`/`prompt`), text a
+  user or an agent wrote through the rich-text component, and compare the rendered screen with its
+  reference before calling it done. A project with a UI and no design system gets one first: a
+  read-only inventory, the direction asked from the user, a design document with rule ids, a
+  dev-only reference page built from the real components, a drift scan and a baseline review.
+
 ## 2.4.0 — 2026-10-27
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

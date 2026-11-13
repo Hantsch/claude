@@ -43,6 +43,7 @@ touch `.gitignore`, and does not commit.
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or any `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` — unless `react-native` or `expo` sits in the same file: the rules assume a DOM and Tailwind, so that is a *looks wrong* case for Phase 2, not a detection |
 | `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
+| `ui` | `design-system` | the project has a user-facing surface: a `package.json` with a UI library or a browser bundler (`react`, `vue`, `svelte`, `@angular/core`, `solid-js`, `preact`, `lit`, `three`, `vite`, `electron`), an `index.html` in a source tree, or a .NET UI project (`UseWPF`, `UseWindowsForms`, `UseMaui`, an Avalonia package, `*.razor` files). A library, CLI or service without a screen gets no `ui` group |
 
 Read the groups from disk, never from this table alone: every folder under
 `${CLAUDE_PLUGIN_ROOT}/templates/skills/` is a group, and every folder inside it is one skill

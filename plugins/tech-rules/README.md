@@ -33,6 +33,7 @@ every session.
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` |
 | `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
+| `ui` | `design-system` | the project has a user-facing surface (a UI library or browser bundler in a `package.json`, an `index.html` in a source tree, a .NET UI project) |
 
 | Skill | What it covers |
 | --- | --- |
@@ -49,6 +50,7 @@ every session.
 | `electron-arch` | The four layers and the trust boundary: privilege only in main, a pure shared layer, path containment, the per-window security checklist, quarantined state. |
 | `typed-ipc` | One channel map in the shared layer that main handlers, the preload allowlist and renderer types all derive from, with boot-time and compile-time completeness checks. |
 | `renderer-guidelines` | Shell + modules layout, data and state rules and reuse for an Electron renderer; replaces `frontend-guidelines` there (setup skips it, `design-tokens` stays). |
+| `design-system` | Every UI is built from the project's design system while it is written: find it first, read the archetype and its reference, map each need to its component, a missing component goes into the kit, values only through tokens, no browser dialogs, rich text through its component, compare with the reference before calling it done. Without a design system: inventory, ask the direction, write the document, a dev-only reference page, a drift scan and a baseline review. |
 | `ui-verify` | A Playwright `_electron` harness: screenshot every screen, run axe-core in the same session, gate on `serious`/`critical`; acceptance flows run one per story and all per sprint, in a window that stays offscreen and out of the focus. |
 
 Two **one-time files** ship as well and are offered only for an Electron project, only when the
