@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.6.0 — 2026-11-13
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - New group `ui` with the skill `design-system`, installed in every project with a user-facing
   surface (a UI library or browser bundler in a `package.json`, an `index.html` in a source tree, a
   .NET UI project). It makes the design system the starting point of UI work instead of a review
