@@ -1,254 +1,76 @@
 # Hantsch — Claude Code plugins
 
-A public plugin marketplace for [Claude Code](https://claude.com/claude-code). Public on
-purpose: no token, no auth, no clone needed to install from it.
+Four plugins for [Claude Code](https://claude.com/claude-code): a Scrum workflow, your stack's
+house rules, a few everyday tools, and a live view of the workflow. Public — no token, no clone
+needed to install.
 
-## Plugins
+## Which plugin do I need?
 
-| Plugin | What it does | Changes |
-| --- | --- | --- |
-| [ai-scrum](plugins/ai-scrum/) | Installs a spec-driven Scrum workflow into your repository — roadmap, concept interview, story refine, build with clean-agent review, autonomous sprints. Commands, agents and state live in the project; the plugin only installs and updates them. | [CHANGELOG](plugins/ai-scrum/CHANGELOG.md) |
-| [tech-rules](plugins/tech-rules/) | Installs the house rules for a project's stack into the repository itself: `/tech-rules:setup` detects .NET, React and Electron, writes the matching skills to `.claude/skills/`, keeps a pointer block in `CLAUDE.md` and updates both later. Every project also gets the test rules (`test-gates`) plus `/test-review` and `/release-prep`. | [CHANGELOG](plugins/tech-rules/CHANGELOG.md) |
-| [common](plugins/common/) | Stack-agnostic building blocks: output styles **Briefing** and **KIS** for `/config`, and the `/common:premortem`, `/common:secrets-scan` and `/common:architecture-review` commands. | [CHANGELOG](plugins/common/CHANGELOG.md) |
-| [scrum-cockpit](plugins/scrum-cockpit/) | A mod for projects that run ai-scrum: milestone, sprint, stories and the running subagents beside the chat, a hint when ai-scrum or tech-rules is out of date, and buttons that start the next command with its own model and effort. Terminal and desktop app; the VS Code extension does not load mods. | [CHANGELOG](plugins/scrum-cockpit/CHANGELOG.md) |
+| You want … | Plugin | Start with | |
+| --- | --- | --- | --- |
+| to plan and build a product in sprints, with specs and reviewed stories | [ai-scrum](plugins/ai-scrum/) | `/ai-scrum:setup`, then `/concept` | [changes](plugins/ai-scrum/CHANGELOG.md) |
+| Claude to follow your stack's rules (.NET, React, Electron, UI, tests) | [tech-rules](plugins/tech-rules/) | `/tech-rules:setup` — then it works by itself | [changes](plugins/tech-rules/CHANGELOG.md) |
+| a shorter answer style, a premortem, a secrets scan or an architecture review | [common](plugins/common/) | `/config` → Output style, or `/common:…` | [changes](plugins/common/CHANGELOG.md) |
+| to see your ai-scrum sprint beside the chat and start the next step with a click | [scrum-cockpit](plugins/scrum-cockpit/) | `/scrum` | [changes](plugins/scrum-cockpit/CHANGELOG.md) |
 
-Two of the four are **installers**: what they ship ends up in the consuming repository, so a
-contributor who never installed a plugin still gets the workflow (ai-scrum) and the house rules
-(tech-rules). Only whoever installs or updates them needs the plugin. `common` and `scrum-cockpit`
-are the exception — output styles, commands and a view of the project are tools for the person at
-the keyboard, not repository content, so they stay in the plugin.
+## How they fit together
 
-The former `dotnet`, `react` and `electron` plugins are gone. Their rules are tech-rules' payload,
-unchanged; see [Migrating](plugins/tech-rules/README.md#migrating-from-the-react-dotnet-and-electron-plugins).
+```mermaid
+flowchart LR
+    subgraph repo["your repository — committed, every contributor has it"]
+        W[".claude/commands + agents<br/>the Scrum workflow"]
+        K[".claude/skills<br/>the house rules"]
+    end
+    subgraph you["your machine only"]
+        CO["common<br/>answer styles + tools"]
+        SC["scrum-cockpit<br/>live view"]
+    end
+    AS["ai-scrum"] -- "/ai-scrum:setup" --> W
+    TR["tech-rules"] -- "/tech-rules:setup" --> K
+    SC -. reads .-> W
+```
 
-Versions are not repeated here — they are owned by the release workflow and live in
-[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), in each plugin's
-`plugin.json`, in the [releases](../../releases) and in `claude plugin list`.
+- **ai-scrum** and **tech-rules** are *installers*: their setup command writes into the repository.
+  Commit the result, and everyone who clones has the workflow and the rules — only whoever updates
+  them needs the plugin.
+- **common** and **scrum-cockpit** stay on your machine: they are tools for the person at the
+  keyboard, not rules for the repository.
 
 ## Install
 
-Add the marketplace once per machine:
-
 ```
-/plugin marketplace add Hantsch/claude
-```
-
-Then install what you need:
-
-```
-claude plugin install ai-scrum@hantsch --scope user
+/plugin marketplace add Hantsch/claude                    # once per machine
+claude plugin install <plugin>@hantsch --scope user       # each plugin you want
 ```
 
-`/plugin install ai-scrum@hantsch` from inside a session does the same thing, but the
-interactive flow can land you in **project** scope — which is worth avoiding, see
-[Troubleshooting](#troubleshooting). The CLI form above is explicit and immune to that.
+Always `--scope user`: the interactive `/plugin install` can land in project scope, which breaks
+in VS Code ([why](docs/troubleshooting.md)).
 
-Update later:
+**Update:**
 
 ```
 /plugin marketplace update hantsch
-/plugin update ai-scrum
+/plugin update <plugin>
 ```
 
-Plugins are installed per user, so they are available in every project. Anything a project
-needs on disk is created by that plugin's own setup command — for ai-scrum:
+For ai-scrum and tech-rules, then run their setup again in each project and commit — that is what
+brings the project's copy up to date. scrum-cockpit shows a hint with an **Update** button when a
+project is behind.
 
-```
-/ai-scrum:setup
-```
+## Something does not work?
 
-```
-/tech-rules:setup
-```
+**`Unknown command: /<plugin>:<command>`** — reinstall with `--scope user` and restart the session.
+Typical in VS Code on Windows; the full diagnosis is in [docs/troubleshooting.md](docs/troubleshooting.md).
 
-Both setups write into the project — ai-scrum the workflow (`.claude/commands/`,
-`.claude/agents/`), tech-rules the house rules (`.claude/skills/`). Once that is committed,
-everyone who clones the repository has it without installing anything; the plugin is only needed
-to install and update those files. That is deliberate: a plugin declared in a repository's
-`.claude/settings.json` is **not** installed automatically for a contributor when it comes from an
-external source — Claude Code reports it as missing and prints the install command — so anything
-that has to apply to everyone belongs in the repository.
+**Migrating from the old `dotnet`, `react` or `electron` plugins?** They are gone; their rules are
+now part of tech-rules —
+[four steps](plugins/tech-rules/REFERENCE.md#migrating-from-the-react-dotnet-and-electron-plugins).
 
-## Troubleshooting
+## Contributing
 
-### `Unknown command: /<plugin>:<command>` — the commands never show up
-
-Most often the plugin is installed but not *enabled*, or it is enabled with **project** scope.
-Check what Claude Code actually sees:
-
-```
-claude plugin list
-```
-
-If the plugin is listed as enabled and the commands still do not exist, the likely cause is a
-**Windows drive-letter case mismatch**, which hits the VS Code extension specifically:
-
-- The extension launches its bundled binary with a lowercase drive letter as the working
-  directory (`c:\path\to\project`).
-- A project-scoped install records `projectPath` with an uppercase one (`C:\path\to\project`),
-  because that is how the terminal reports it.
-- That comparison is case-sensitive, so the install record does not match and the plugin is
-  skipped — every command reports `Unknown command` and the slash-command picker says
-  *No matching commands*.
-
-The debug log is misleading here: it reports
-`Plugin "<name>" not cached at ...\.claude\plugins\cache\<marketplace>\<name>\<version> — run
-/plugin to refresh` even though that directory exists and is complete. Refreshing therefore
-never helps, and the same plugin works fine from a terminal session, which makes it look like a
-problem with the plugin's own content.
-
-**Fix — install user-scoped**, which carries no `projectPath` and so skips the comparison:
-
-```
-claude plugin install <name>@hantsch --scope user
-```
-
-Then restart the Claude Code session in VS Code; the plugin registry is read at process start.
-
-To confirm the diagnosis yourself, run the extension's own binary headless from a lowercase
-working directory and watch the plugin lines:
-
-```
-cd /d c:\path\to\project
-"%USERPROFILE%\.vscode\extensions\anthropic.claude-code-<version>-win32-x64\resources\native-binary\claude.exe" ^
-  --setting-sources=user,project,local --debug --debug-to-stderr -p "say ok"
-```
-
-Broken: `Found 1 plugins (0 enabled, 1 disabled)` and `Total plugin commands loaded: 0`.
-Working: `Found 2 plugins (1 enabled, ...)` and `Total plugin commands loaded: <n>`.
-
-This is a Claude Code issue, not a plugin-authoring mistake — worth keeping in mind when a
-plugin from this marketplace appears to be broken only inside the editor.
-
-## Layout
-
-```
-.claude-plugin/marketplace.json   the marketplace manifest (lists every plugin)
-plugins/<name>/
-  .claude-plugin/plugin.json      plugin manifest (name, version, description)
-  commands/*.md                   slash commands, invoked as /<name>:<command>
-  agents/*.md                     subagent definitions
-  skills/<skill>/SKILL.md         skills (optional)
-  output-styles/*.md              output styles, selectable in /config (optional)
-  templates/*                     files a plugin writes into a project
-  templates/workflow/             managed payload: the project's own commands and agents
-    commands/*.md  agents/*.md    (validated like the real thing)
-  templates/skills/<group>/       managed payload: the project's own skills, grouped by stack
-    <skill>/SKILL.md              (validated like the real thing)
-  README.md  CHANGELOG.md
-scripts/validate.ps1              manifests, versions, frontmatter, shipped references
-scripts/plan-release.ps1          derives the semver bump from commit messages
-scripts/check-notes.ps1           refuses a push that would release without release notes
-scripts/release.ps1               version bump in both manifests + changelog promotion
-scripts/ci-release.ps1            release orchestration (commit, tag, push, GitHub release)
-.github/workflows/validate.yml    CI on every push and PR
-.github/workflows/release.yml     CI on main: releases every plugin with releasable commits
-```
-
-## Adding another plugin
-
-1. `plugins/<name>/.claude-plugin/plugin.json` with `name`, `description`, `version`.
-2. Commands as markdown files with YAML frontmatter (`description`, optional
-   `argument-hint`, `model`, `effort`); agents likewise with `name`, `description`, `model`;
-   skills as `skills/<name>/SKILL.md` with a trigger-shaped `description`; output styles in
-   `output-styles/` with `name`, `description` and usually `keep-coding-instructions: true`. At
-   least one of the four has to exist.
-3. Add an entry to `.claude-plugin/marketplace.json` — `name`, `source: "./plugins/<name>"`,
-   `description`, `version`. The version has to match `plugin.json`; CI enforces that.
-4. Reference files shipped with the plugin as `${CLAUDE_PLUGIN_ROOT}/<path>` — that variable
-   points at the installed plugin directory, so absolute paths never leak into a command.
-5. Add a row to the table above — name, what it does, changelog link. No version: the release
-   workflow only touches the manifests and the changelog, never this README.
-
-## Testing locally before pushing
-
-```
-/plugin marketplace add C:/development/Hantsch/claude
-/plugin install <name>@hantsch
-```
-
-A local path source is picked up from the working tree, so you can iterate on a command and
-re-run it without a commit. `/plugin marketplace remove hantsch` and re-adding the GitHub
-source switches back.
-
-Run the same checks CI runs:
-
-```
-pwsh -File scripts/validate.ps1
-pwsh -File scripts/check-notes.ps1
-```
-
-Enable the repository hooks once per clone so the second one runs before every push:
-
-```
-git config core.hooksPath .githooks
-```
-
-## Releasing
-
-Releases happen **automatically on merge to `main`**. Your only job while working is to write
-the notes:
-
-1. Put every change under `## Unreleased` in the plugin's `CHANGELOG.md`.
-2. Commit with a Conventional-Commit prefix — that is what decides the version bump.
-3. Merge to `main`. CI does the rest: version bump in both manifests, `## Unreleased` promoted
-   to the new version, one `chore(release)` commit, an annotated tag `<plugin>-v<version>`, and
-   a GitHub release whose notes are your changelog section plus an update hint.
-
-### How the bump is decided
-
-Only commits that touched `plugins/<name>/` count, and only since that plugin's last tag. The
-highest level across them wins:
-
-| Commit subject | Bump |
-| --- | --- |
-| `feat!: …` or `BREAKING CHANGE` in the body | **major** |
-| `feat: …` | **minor** |
-| `fix: …`, `perf: …`, `refactor: …`, or a plain subject | **patch** |
-| `chore: …`, `docs: …`, `ci: …`, `test: …`, `style: …`, `build: …` | no release |
-| anything containing `[skip release]` | no release |
-
-Changes outside `plugins/` (this README, the scripts, the workflows) never trigger a release.
-
-### The one rule that can fail a build
-
-**No release without notes.** If a release would happen but `## Unreleased` is empty or still
-holds a placeholder, the workflow fails with an explicit message instead of shipping an empty
-version. Two ways out: write the notes, or mark the change as `chore:`/`docs:` (or add
-`[skip release]`) so it is not release-worthy in the first place.
-
-Nothing to set up for this: `secrets.GITHUB_TOKEN` is created by GitHub per workflow run, and
-`permissions: contents: write` gives it the rights to push the release commit and create the
-release. It does require **Settings → Actions → General → Workflow permissions = read and
-write**, and no branch protection on `main` that would reject the bot's push.
-
-### Dry run and manual escape hatches
-
-```
-pwsh -File scripts/plan-release.ps1 -Plugin ai-scrum        # what would be released, and why
-pwsh -File scripts/check-notes.ps1 -Plugin ai-scrum         # ... and are its notes written?
-pwsh -File scripts/ci-release.ps1 -DryRun                   # full run without commit/tag/push
-pwsh -File scripts/release.ps1 -Plugin ai-scrum -Bump minor # bump by hand, no CI involved
-```
-
-The `release` workflow can also be started manually from the Actions tab (`workflow_dispatch`),
-optionally forcing a plugin and a bump level.
-
-## Conventions
-
-- Everything in this repository — docs, commands, templates, commit messages — is **English**.
-- Commit subjects follow Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `!` for
-  breaking) — the release workflow reads them.
-- Semver per plugin: **major** = users must change something after updating, **minor** = new
-  capability, **patch** = wording/fix.
-- Every plugin's `CHANGELOG.md` keeps an `## Unreleased` section at the top; a release without
-  notes is refused by CI.
-- A plugin never writes to `.claude/settings.json` of a project; it proposes and the user decides.
-  `CLAUDE.md` is the user's too — the one exception is a block between explicit
-  `<plugin>:managed:start` / `:managed:end` markers, written only after the user said yes, with
-  everything outside the markers untouched.
-- Every file a plugin writes into a project is either clearly plugin-owned (regenerated on
-  update) or clearly user-owned (never overwritten). No third category.
+Layout, adding a plugin, testing locally, how releases work: [CONTRIBUTING.md](CONTRIBUTING.md).
+Versions live in [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), each
+plugin's `plugin.json` and the [releases](../../releases) — never in a README.
 
 ## License
 

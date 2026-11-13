@@ -1,0 +1,166 @@
+# tech-rules — reference
+
+The details behind the [README](README.md). Read this when you need to know *why* something works
+the way it does, what exactly a skill covers, or what happens to a file you edited. For "what do I
+use when", the README is enough.
+
+- [Why an installer and not a plugin with skills](#why-an-installer-and-not-a-plugin-with-skills)
+- [What ships](#what-ships) — every group and every skill
+- [What setup writes](#what-setup-writes)
+- [Updating, and what happens to your edits](#updating-and-what-happens-to-your-edits)
+- [What this actually enforces](#what-this-actually-enforces)
+- [Project-specific deviations](#project-specific-deviations)
+- [Migrating from the react, dotnet and electron plugins](#migrating-from-the-react-dotnet-and-electron-plugins)
+
+## Why an installer and not a plugin with skills
+
+A plugin is installed per user. A contributor who clones the repository and has not installed it
+gets none of the rules, and nothing tells them so — the code review just gets worse. Committing the
+same rules as **project skills** removes that failure mode:
+
+- `.claude/skills/<name>/SKILL.md` is discovered automatically, for everyone, with no install, no
+  marketplace and no trust dialog.
+- Cloud sessions and scheduled runs load project skills from the cloned repository; user-scope
+  plugins do not transfer.
+- Declaring the plugin in the project's `.claude/settings.json` does **not** close the gap: a
+  plugin from an external source that only the project enables is not installed automatically —
+  Claude Code reports it as missing and prints the `claude plugin install` line for the contributor
+  to run.
+
+So the plugin is the *distribution channel for the maintainer*, and the repository is what every
+contributor actually reads. Only whoever runs updates needs it installed.
+
+## What ships
+
+The rules are payload under `templates/skills/<group>/<skill>/`, grouped by stack. Setup installs
+only the groups the project has, because every installed skill's description sits in the context of
+every session.
+
+| Group | Skills | Installed when |
+| --- | --- | --- |
+| `all` | `karpathy`, `test-gates`, `test-review`, `release-prep`, `solution-architect` | always |
+| `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or `*.csproj` exists |
+| `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` (not with `react-native`/`expo` in the same file — setup asks instead) |
+| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
+| `ui` | `design-system` | the project has a user-facing surface (a UI library or browser bundler in a `package.json`, an `index.html` in a source tree, a .NET UI project) |
+
+**Auto** = Claude loads the skill by itself when the task matches its description. **You type it** =
+the skill is a command (`disable-model-invocation: true`) and runs only when you call it.
+
+### Group `all`
+
+| Skill | Runs | What it covers |
+| --- | --- | --- |
+| `karpathy` | auto | The four behavioral rules against the recurring LLM coding mistakes: think before coding, simplicity first, surgical changes, goal-driven execution. |
+| `test-gates` | auto | Which test runs where - PR lane (core functionality, ≤ 6 min on CI), release smoke, release prep (everything), perf (advisory, never blocks) - and what a test in a blocking lane may do: no wall-clock assertions, timeouts only as hang detectors, clock/zone/paths from the config, one runtime version for local and CI. The procedure for a test that is red on CI and green locally. |
+| `test-review` | `/test-review [all\|staged\|branch [<base>]\|<path>]` | The test engineer: classifies every test (proves a function, measures speed, depends on the machine, brittle, wiring, duplicate), checks its lane and its cost, and writes a report of what to delete, merge, move or fix. Read-only. |
+| `release-prep` | `/release-prep [<release branch>]` | Runs everything before a release (all lanes, every e2e flow, perf, packaging, release dry run) in a throwaway worktree of the merge result, under CI-like conditions, fastest first, and writes a report with a GO / NO-GO verdict. Changes nothing in the repository. |
+| `solution-architect` | `/solution-architect [<question or focus>]` (Opus, high effort) | The technology-agnostic solution architect: decides from evidence (CI and release workflows, test inventory, releases, roadmap phase, churn) the project's stage (`prototype` / `mvp` / `stable` / `live`), its core journeys, the gate set that fits the stage and whether release pipeline and tests fit together. Stack-specific questions go to at most three tech-lead subagents, each briefed with one installed stack skill. Writes `<architecture-path>/<date>-solution-review.md` with a profile diff for ai-scrum's `## Stage`, a proposed `## Test lanes` table, and - in an ai-scrum project - the catch-up stories as drafts (`kind: debt`). Applies nothing; measurements it leaves to `/common:architecture-review tests`. Runs in the top-level session. |
+
+### Group `dotnet`
+
+| Skill | Runs | What it covers |
+| --- | --- | --- |
+| `backend-guidelines` | auto | Layering, dependency direction, type placement and naming for modular ASP.NET Core backends, with the review checklist. |
+| `composition-root` | auto | A readable entry point: one named static registration class per concern, called by name — no authored extension methods. |
+| `csharp-unittest` | auto | Per-domain test projects, one file per use case, AAA, snake_case names, hand-written fakes, blackbox assertions. |
+| `dotnet-review` | `/dotnet-review [staged\|branch [<base>]\|<path>]` | Reviews a C# diff against the three skills above. |
+
+### Group `react`
+
+| Skill | Runs | What it covers |
+| --- | --- | --- |
+| `frontend-guidelines` | auto | Atomic Design layering with a hard dependency direction, mandatory primitives, the duplicate scan, naming and i18n rules. |
+| `design-tokens` | auto | A semantic token layer instead of raw palette classes, dark mode, and the mobile accessibility floor. |
+
+### Group `electron`
+
+| Skill | Runs | What it covers |
+| --- | --- | --- |
+| `electron-arch` | auto | The four layers and the trust boundary: privilege only in main, a pure shared layer, path containment, the per-window security checklist, quarantined state. |
+| `typed-ipc` | auto | One channel map in the shared layer that main handlers, the preload allowlist and renderer types all derive from, with boot-time and compile-time completeness checks. |
+| `renderer-guidelines` | auto | Shell + modules layout, data and state rules and reuse for an Electron renderer; replaces `frontend-guidelines` there (setup skips it, `design-tokens` stays). |
+| `ui-verify` | auto | A Playwright `_electron` harness: screenshot every screen, run axe-core in the same session, gate on `serious`/`critical`; acceptance flows run one per story and all per sprint, in a window that stays offscreen and out of the focus. |
+
+### Group `ui`
+
+| Skill | Runs | What it covers |
+| --- | --- | --- |
+| `design-system` | auto | Every UI is built from the project's design system while it is written: find it first, read the archetype and its reference, map each need to its component, a missing component goes into the kit, values only through tokens, no browser dialogs, rich text through its component, compare with the reference before calling it done. Without a design system: inventory, ask the direction, write the document, a dev-only reference page, a drift scan and a baseline review. In an ai-scrum project, `/design-review` (ai-scrum ≥ 4.13) does that start and the later screen reviews as a command. |
+
+### One-time files
+
+Two **one-time files** ship as well and are offered only for an Electron project, only when the
+target is missing: `templates/oneshot/launch.js` (env-scrubbing dev launcher, so `npm run dev`
+works inside VS Code) and `templates/oneshot/json-store.ts` (atomic, self-healing JSON store with
+`.bak` and quarantine). They are code: copied once, then yours forever, with no marker and no lock
+entry.
+
+## What setup writes
+
+| Path | Owner |
+| --- | --- |
+| `.claude/skills/<name>/SKILL.md` | plugin — refreshed on update, never hand-edit |
+| `.claude/tech-rules.lock` | plugin — version, groups, and a hash per file |
+| the `tech-rules:managed` block in `CLAUDE.md` | yours, block maintained with your explicit yes |
+| `scripts/launch.js`, a JSON store | yours from the moment it lands |
+
+It never writes `.claude/settings.json`, never touches `.gitignore`, never commits, and never
+changes a line of `CLAUDE.md` outside its two markers.
+
+**Commit `.claude/skills/` and `.claude/tech-rules.lock`.** That is the whole point: unless they
+are in the repository, contributors do not get the rules.
+
+## Updating, and what happens to your edits
+
+Each installed file carries `<!-- tech-rules:managed <version> -->` and a `git hash-object` hash in
+the lock. On the next `/tech-rules:setup`:
+
+- untouched copy → overwritten silently,
+- edited copy → you get the diff and decide (replace / keep; a kept file is recorded as `local`, is
+  never overwritten, and each new plugin version asks once more whether to take the rule after all),
+- a group whose stack is gone → setup asks before deleting,
+- no git → drift cannot be detected, so setup asks about every existing file.
+
+Contributors get the rules by cloning, but not the updates: an update is a maintainer running setup
+and committing the result. `/tech-rules:setup check` in CI or before a release tells you whether a
+project is behind.
+
+## What this actually enforces
+
+Be clear about the three layers, because only one of them is enforcement:
+
+| Layer | Mechanism | Effect |
+| --- | --- | --- |
+| Availability | `.claude/skills/` in the repository | every contributor has the rules, without doing anything |
+| Attention | the `CLAUDE.md` block | always in context, so the right skill gets read at the right time |
+| Enforcement | lint rules, tests, a `PostToolUse` hook | the only layer that stops a violation, and the only one that also works on humans |
+
+A skill is model-invoked: it makes Claude aware, it does not gate. Setup proposes a hook snippet
+when the project has a lint or typecheck script, but you paste it into `.claude/settings.json`
+yourself — hooks run code, so that stays a deliberate decision.
+
+Note two ways a rule can go quiet: a personal skill of the same name in `~/.claude/skills/` wins
+over the project copy, and a contributor can mute any project skill via `skillOverrides` in their
+`.claude/settings.local.json`. Setup reports the first; the second is opt-out by design.
+
+## Project-specific deviations
+
+A project's own `CLAUDE.md` wins where it states a deliberate deviation — `sandbox: false` for an
+app that genuinely needs it, `src/core/` next to `src/shared/`, a different test framework. Record
+it there with the reason. **Never edit an installed skill to fit the project**: the next update
+either overwrites it or stops to ask about it, and either way the rule now exists in two versions.
+
+## Migrating from the react, dotnet and electron plugins
+
+Those three plugins are gone; their rules are this plugin's payload, unchanged. Per project:
+
+1. `claude plugin install tech-rules@hantsch --scope user`
+2. `/tech-rules:setup` — installs the same skills into `.claude/skills/`
+3. `/plugin uninstall react@hantsch` (and `dotnet@hantsch`, `electron@hantsch`) — otherwise every
+   rule sits in the listing twice, once namespaced and once as a project skill
+4. commit `.claude/`
+
+The `/dotnet:review` command is now the `dotnet-review` skill, invoked as `/dotnet-review`. The two
+Electron templates moved to `templates/oneshot/` and are offered by setup; an existing copy in your
+project is untouched.

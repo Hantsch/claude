@@ -25,9 +25,13 @@ plugins/<name>/
     commands/*.md  agents/*.md
   templates/skills/<group>/       managed payload: the project's OWN skills, per stack group
     <skill>/SKILL.md
-  README.md  CHANGELOG.md
+  README.md                       at a glance, for the user: what, when, how
+  REFERENCE.md                    the details behind the README (optional)
+  CHANGELOG.md
 scripts/*.ps1                     validate, plan-release, release, ci-release
 .github/workflows/                validate (push + PR), release (push to main)
+CONTRIBUTING.md                   layout, adding a plugin, testing, releasing (for maintainers)
+docs/troubleshooting.md           the full diagnosis behind the README's short fixes
 inbox/                            staging area for drafts, not shipped by any plugin
 ```
 
@@ -231,6 +235,11 @@ claude --plugin-dir plugins/scrum-cockpit
   projects may generate artifacts in another language (ai-scrum's `doc-language`), and an output
   style may *instruct* Claude to answer in one (common's `Briefing`), but nothing in this
   repository is written in one.
+- **Docs are written for the person using the plugin.** A README answers at a glance *what it is,
+  when to use what, how to start* — a "you want … → use …" table, a diagram (mermaid) or an ASCII
+  mock-up of the UI, install in three lines. The reasons, every option and every data source go to
+  the plugin's `REFERENCE.md`. When a change adds or renames a command, skill, row or button,
+  update both: the README's table and the reference.
 - Semver per plugin: major = users must change something after updating, minor = new capability,
   patch = wording/fix.
 - A plugin **never writes to a project's `.claude/settings.json`** — it proposes, the user

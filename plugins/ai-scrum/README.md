@@ -54,7 +54,7 @@ Later, to pull a newer version of the workflow into the project:
 
 If `/ai-scrum:setup` comes back as `Unknown command` — especially in the VS Code extension while
 the same command works in a terminal — see
-[Troubleshooting](../../README.md#troubleshooting) in the marketplace README. The usual fix is
+[Troubleshooting](../../docs/troubleshooting.md). The usual fix is
 `claude plugin install ai-scrum@hantsch --scope user`.
 
 ## What lives where
