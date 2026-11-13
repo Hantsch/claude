@@ -346,6 +346,13 @@ Three switches in the profile:
   backend is not a substitute. If `e2e` is `none`, the harness does not exist yet — refine plans
   it as a deliverable or names the gap, and never converts it into a manual step. `false` for a
   library, CLI, service or mod.
+- `design-system` and `design-scan` (section `## Design`, default `none`) — where the design
+  document lives and the command that finds drift from it. `/refine` plans every UI deliverable
+  from the document (archetype, reference, need → component, a missing component as a kit D
+  first), `/build` hands it to those deliverables, runs the scan in the narrow gate (a hit on a
+  changed line is red) and has the review check the diff against it. In a project with a UI and
+  no design document, refine asks before a story invents its own look; the tech-rules skill
+  `design-system` starts one.
 - `testplan` (default `optional`) — `testplan.md` is not a gate any more. `optional` writes only
   the criteria declared `manual residue`, and no file at all when there are none.
 

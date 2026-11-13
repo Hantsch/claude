@@ -85,6 +85,19 @@ into memory. Everything has to be reviewable in the repository.
      that updates that doc — its own, or the D that changes the behaviour. `/build`'s review
      checks it. Only the story updates the doc: `/roadmap check` merely reports one gone
      stale, it never edits it.
+
+     **UI deliverables follow the design system:** a D that changes what the user sees is planned
+     from the profile's `design-system` document, not from the nearest existing screen — the
+     reference screen is the file to mirror. The D names (a) the archetype and its reference,
+     (b) need → component for everything the screen shows or asks, from the document's map, and
+     (c) any token or rule that is not obvious. A component the kit lacks is its own earlier D
+     that adds it to the kit; the screen D then uses it and never carries its own styling for a
+     control. When `design-system` is `none` and the story builds or reshapes a screen, ask the
+     user in `## Open Questions`: start a design system first (the tech-rules skill
+     `design-system`), or build this story without one and name the gap in the story — never a
+     silent choice. Measured in one project: with a component kit in place but unnamed in the
+     plans, four sprints of UI stories produced 17 font sizes, 60 literal colours and 11 browser
+     popups, because every D mirrored the nearest screen and each of those had drifted already.
    - **`## Model Hints`** — here you fix the **agent tier** per deliverable that
      `/build` will use. There are exactly two tiers:
      - **Default (leave unmarked):** the session/Sonnet tier with `/build`'s effort (`medium`).
@@ -220,6 +233,9 @@ into memory. Everything has to be reviewable in the repository.
 - **The real surface**, if `ui-acceptance-required: true`: a criterion about a *user action*
   maps to the `e2e` command, not to a console call or a faked-backend test. Missing trigger or
   missing harness = deliverable, or a named gap; never a manual step.
+- **UI follows the design system:** a D that changes what the user sees names its archetype,
+  its reference and need → component; a missing component is a kit D before it. No design system
+  in a project with a UI = an open question, not an improvisation (step 4).
 - Keep the plan skimmable — the user wants to iterate, not read every detail.
 - Do not commit, do not push. Refine only writes the story file.
 - **Older story files** may use the previous German headings (`## Anforderung`,

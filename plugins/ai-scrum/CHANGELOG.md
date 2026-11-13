@@ -12,6 +12,19 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **UI is built from the design system while it is written, not fixed in a review afterwards.**
+  New profile section `## Design` with `design-system` (the design document) and `design-scan`
+  (a command that reports drift in given files), both default `none` and offered by setup on an
+  update. `/refine` plans every deliverable that changes what the user sees from the document: its
+  archetype and reference screen (the file to mirror, not the nearest screen), need → component
+  from the document's map, and a component the kit lacks as its own earlier deliverable. A UI
+  story in a project without a design document becomes an open question instead of an
+  improvisation. `/build` gives UI deliverables the document with the instruction to read the
+  archetype and its reference before coding, build only from its components and tokens and compare
+  the rendered screen with the reference; the narrow gate runs `design-scan` on the changed UI
+  files (a hit on a changed line is red); the code review gains item (f), the design system, with
+  findings by rule id.
+
 ## 4.10.0 — 2026-10-30
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

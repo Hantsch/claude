@@ -215,6 +215,28 @@ testplan: optional
   In no case is `testplan.md` an acceptance gate — the tests are.
 -->
 
+## Design
+
+Where the project's design system lives and how drift from it is found. `/refine` plans
+every deliverable that changes what the user sees from it, `/build` hands it to those
+deliverables and runs the scan in its narrow gate, and the code review checks the diff against it.
+
+design-system: none <!-- e.g. docs/design/README.md | none -->
+design-scan: none <!-- e.g. npx tsx tools/ui/design-scan.ts {files} | npm run lint:design -- {files} | none -->
+<!--
+  design-system = the design document: tokens, components (and which one serves which need),
+                  screen archetypes with their reference, states, voice. `none` in a project with
+                  a user-facing surface means UI is built without one: `/refine` then raises it as
+                  an open question (start one first, see the tech-rules skill `design-system`, or
+                  build this story without one and name the gap) instead of letting every story
+                  invent its own look.
+  design-scan   = a command that reports design-system breaks (literal colours and sizes, own
+                  control styles, native controls, browser dialogs, raw rich text) in the files
+                  given as {files}, one hit per line with its `file:line`. `/build` runs it on the
+                  UI files a story changed: a hit on a changed or added line is red, a hit on an
+                  untouched line of a touched file is listed, not blocking.
+-->
+
 ## Context to read before coding
 
 Files every implementation and review agent must read before touching code.

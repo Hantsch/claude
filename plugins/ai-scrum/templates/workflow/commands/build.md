@@ -179,6 +179,13 @@ finishes or quietly stops with nothing in the working tree to show for it.
        the perf lane's file or category, which `test` excludes.
      - the profile's `test-support` paths from `.claude/ai-scrum.md`, verbatim (`none`
        included),
+     - **for a D that changes what the user sees** (it names an archetype, a reference or
+       components, or touches UI files) and a profile with `design-system` set: that path and
+       the D's design lines, with the instruction to read the document's rules for the archetype
+       and its reference **before writing code**, to build only from its components and tokens
+       (a missing component goes into the kit, never into the screen's own styles), and — if the
+       screen can be rendered in its session — to compare it with the reference before
+       returning, saying so in its result if it could not,
      - for `deliverable-hard`, the risk justification from `## Model Hints`,
      - the instruction to read and honour `CLAUDE.md` plus every file listed under
        `## Context to read before coding` in `.claude/ai-scrum.md` **before writing code**,
@@ -235,6 +242,10 @@ finishes or quietly stops with nothing in the working tree to show for it.
    `missing from the run`. Its report is your verification result; you do not re-run anything
    to check it. The bullets below are its brief:
    - Run `build` (and `lint`/`typecheck`, if set) from the profile's `## Verify` section.
+   - **Design scan:** if the profile sets `design-scan` and the story changed UI files, run it
+     once with `{files}` = those files. A hit on a line the story changed or added (compare
+     `git diff -U0 HEAD`) is red — that screen was built past the design system. A hit on an
+     untouched line of a touched file is listed in the report, not blocking.
    - **Unit/integration tests:** run `test-story` if the profile sets it — the tests affected
      by this story's uncommitted changes. If it is missing or `none`, run the full `test`
      instead, as before. Run either one when tests exist or were touched.
@@ -342,6 +353,12 @@ finishes or quietly stops with nothing in the working tree to show for it.
            depends on the real clock, zone, temp path or a file a clean checkout lacks,
        (e) copied shapes: a block the diff adds that already exists elsewhere in the tree
            (search for its distinctive line) is a finding, with the existing location,
+       (f) **the design system**, if the profile sets `design-system` (give the reviewer that
+           path) and the diff changes what the user sees: each UI deliverable builds from the
+           document — the archetype it names and its reference, the component the document's
+           map names for each need, tokens instead of literal values, no own styling for a kit
+           control, no browser dialog, text a user or an agent wrote through the rich-text
+           component. Each break is a finding with the document's rule id,
      - the agent proposes no fixes and changes no files — it returns a verdict
        (PASS/FAIL/UNCLEAR) + a findings list (`file:line` + one line of reasoning).
    - **Handle findings:** fix confirmed ones (a fix is a delegated D like any other, with the

@@ -184,6 +184,16 @@ Cover, in this order of importance:
    profile's `## Notes` already describe a sprint-end release check or a "merge main back"
    ritual by hand, say that `/sprint` now does it and that the note can go — never edit `## Notes`
    yourself.
+1f. **Design** — `design-system` and `design-scan` (see their comment in the profile template).
+   Only for a project with a user-facing surface; a library, CLI, service or mod gets `none` for
+   both without a question. Suggest a design document you can see (`docs/design/README.md`,
+   `docs/design-system*`, `DESIGN.md`, a `design` pointer in `CLAUDE.md`) and a scan you can see
+   (a `design-scan` or `lint:design` script, a `tools/**/design-scan.*`), with the `{files}`
+   placeholder where it takes paths; otherwise `none`. When the project has a UI and no design
+   document, say so in the report and name the tech-rules skill `design-system`, which starts one
+   — without it every UI story invents its own look. **On an update these are keys an older
+   profile lacks — offer them, never fill them in silently, and never replace a value the profile
+   already has**, placeholder excepted. An answer left open becomes `none`.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
    - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an
