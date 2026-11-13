@@ -11,6 +11,17 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+- **New command `/design-review [scope]`** — reviews screens against the design system: starts
+  the app on throwaway data, screenshots each screen at desktop and phone width next to its
+  archetype's reference, runs `design-scan` for the metrics, and has `design-reviewer` agents
+  (Sonnet) judge up to four screens each, with findings by rule id, `file:line` and fix. Writes a
+  dated report with proposed stories next to the design document and updates its inventory; changes
+  no app code and commits nothing. In a project with a UI and no design document it asks two
+  questions (keep or replace the look; where the reference lives) and starts the new
+  `design-system-author` agent on Opus with high effort, which writes the document, a dev-only
+  reference page, a drift scan and a `## Review capture` section; the command then sets
+  `design-system` and `design-scan` in the profile and runs the baseline review. Setup installs the
+  command and both agents on the next update.
 
 ## 4.12.0 — 2026-11-13
 

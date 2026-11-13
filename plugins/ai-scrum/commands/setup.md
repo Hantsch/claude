@@ -15,13 +15,14 @@ Everything you write is in **English**, except artifacts whose language is gover
 
 The plugin ships this one command plus the workflow as **payload**. Setup copies that
 payload into the project, so the workflow belongs to the repository: everyone who clones it
-can run `/refine`, `/build`, `/sprint`, `/roadmap`, `/concept`, `/release-check` without installing anything.
+can run `/refine`, `/build`, `/sprint`, `/roadmap`, `/concept`, `/release-check`, `/design-review` without installing anything.
 The plugin is only needed to install or update those files — that is this command.
 
 Plugin-owned inside the project (refreshed on update, never hand-edited):
 
-1. `.claude/commands/{refine,build,sprint,roadmap,concept,release-check}.md` — the workflow.
-2. `.claude/agents/{deliverable-hard,story-review-hard}.md` — the two hard-tier agents.
+1. `.claude/commands/{refine,build,sprint,roadmap,concept,release-check,design-review}.md` — the workflow.
+2. `.claude/agents/{deliverable-hard,story-review-hard,design-reviewer,design-system-author}.md` — the two
+   hard-tier agents and the two that `/design-review` starts.
 3. `.claude/ai-scrum.lock` — version + hash per managed file, so an update can tell an
    untouched copy from one you edited.
 4. The generated docs: `_TEMPLATE` files, workflow READMEs, `done/INDEX.md`.

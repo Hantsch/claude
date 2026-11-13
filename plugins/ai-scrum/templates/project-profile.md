@@ -9,7 +9,8 @@
   the commands read both.
 
   The workflow itself lives in this repository: `.claude/commands/{refine,build,sprint,
-  roadmap,concept,release-check}.md` plus `.claude/agents/{deliverable-hard,story-review-hard}.md`.
+  roadmap,concept,release-check,design-review}.md` plus `.claude/agents/{deliverable-hard,
+  story-review-hard,design-reviewer,design-system-author}.md`.
   Everyone who clones the repo can use it; the plugin is only needed to install or
   update those files (`/ai-scrum:setup`). Hashes of the managed copies: .claude/ai-scrum.lock
 -->

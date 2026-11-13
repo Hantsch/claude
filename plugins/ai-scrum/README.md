@@ -13,8 +13,9 @@ run it without installing anything.
 /build <id> [--full]   implement it  (cheap)   -> code + tests + narrow gate + clean review + Done
 /sprint <id>           run a whole sprint      -> branch, all stories, regression gate, review.md, releasable
 /release-check [base]  will the PR + release pass -> merge into the release branch, every CI step, yes | NO | UNVERIFIED
+/design-review [scope] screens vs design system -> screenshots, verdict per screen, report + proposed stories
 
-/ai-scrum:setup        install / update        -> the six commands above, two agents, profile + docs
+/ai-scrum:setup        install / update        -> the seven commands above, four agents, profile + docs
 ```
 
 The plugin ships exactly one command — `setup`. Everything else is payload it copies into your
@@ -231,9 +232,9 @@ that did not write the code:
 ```
 .claude/
   commands/                    the workflow, plugin-owned
-    refine.md  build.md  sprint.md  roadmap.md  concept.md
+    refine.md  build.md  sprint.md  roadmap.md  concept.md  release-check.md  design-review.md
   agents/
-    deliverable-hard.md  story-review-hard.md
+    deliverable-hard.md  story-review-hard.md  design-reviewer.md  design-system-author.md
   ai-scrum.md                  project profile (facts, versioned)
   ai-scrum.lock                version + hash per managed file
 docs/
@@ -362,6 +363,23 @@ merged, and that is a repository setting `/ai-scrum:setup` recommends but never 
 `test(042): …` from each story's change type, and `docs(S07): …` for bookkeeping — for release
 scripts that derive the bump from Conventional-Commit types, which read `042: …` as a patch.
 
+## Design review — `/design-review`
+
+`/build` keeps new UI on the design system while it is written; `/design-review [scope]` checks
+what is already on screen. It runs in your session on Sonnet: it starts the app with throwaway
+data, screenshots every screen in scope at desktop and phone width next to its archetype's
+reference, runs `design-scan` for the metrics, and hands the judging to `design-reviewer` agents
+(Sonnet, up to four screens each, four at a time). The result is a dated report next to the design
+document — findings by rule id with `file:line` and fix, metrics against the last report, proposed
+stories — and an updated inventory in the document. It changes no app code and commits nothing.
+
+**No design system yet:** it asks you two things (keep the current look or design a new one; where
+the reference lives), then starts `design-system-author` on **Opus, high effort** — the inventory,
+the document with ids, archetypes and a need → component map, a dev-only reference page, a drift
+scan and a `## Review capture` section that says how a review renders the app. It sets
+`design-system` and `design-scan` in the profile, proposes the `CLAUDE.md` pointer, and reviews
+every screen as the baseline.
+
 ## Acceptance is the test suite
 
 **A sprint does not end with a list of things for you to click.** Every acceptance criterion is
@@ -386,7 +404,7 @@ Three switches in the profile:
   first), `/build` hands it to those deliverables, runs the scan in the narrow gate (a hit on a
   changed line is red) and has the review check the diff against it. In a project with a UI and
   no design document, refine asks before a story invents its own look; the tech-rules skill
-  `design-system` starts one.
+  `design-system` starts one, and so does `/design-review`.
 - `testplan` (default `optional`) — `testplan.md` is not a gate any more. `optional` writes only
   the criteria declared `manual residue`, and no file at all when there are none.
 
