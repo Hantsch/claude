@@ -1,5 +1,5 @@
 ---
-description: Runs a sprint (sprints/SNN/sprint.md) autonomously — branch, the release branch merged in, refine + build every story with its acceptance tests, one commit per story, a full regression gate, the review doc, then the release check on the merge of the final commit.
+description: Runs a sprint (sprints/SNN/sprint.md) autonomously — branch, the release branch merged in, refine + build every story with its acceptance tests, one commit per story, a full regression gate, the review doc, then — from stage stable on — the release check on the merge of the final commit.
 argument-hint: <sprint-id>
 model: sonnet
 effort: medium
@@ -13,7 +13,7 @@ Run sprint **$1**.
 ## Project profile
 
 Read `.claude/ai-scrum.md` first — paths, verify commands, branching, auto-commit,
-acceptance policy, `changelog-path`, the `## Release` keys (`release-branch`, `release-verify`,
+acceptance policy, `changelog-path`, `stage` and `core-journeys`, the `## Release` keys (`release-branch`, `release-verify`,
 `changelog-style`, `commit-style`) and doc language come from there. If it is missing, stop
 and say: run `/ai-scrum:setup` first. Below, `<sprints>` and `<requirements>` mean the
 corresponding paths from the profile.
@@ -53,7 +53,8 @@ shorten their wording or change their language, never drop them.
   Esc + /sprint S22 resumes`. The clock is never typed: it is the output of the `Bash` call
   that appends the step's line to `<sprints>/$1/progress.md` in the same command, exactly like
   the trail rule in `build.md` — `- <shell timestamp> · 107 · build · started` for a story,
-  `· refine · 106 107 108 109 · started` for the refine round, `· gate · e2e-all · started`
+  `· refine · 106 107 108 109 · started` for the refine round (every id spelled out, never a
+  range such as `106-109`: the scrum cockpit reads the ids), `· gate · e2e-all · started`
   for the long suite. **Phase 4 writes its lines elsewhere**: by then `progress.md` is
   committed in `<sprints>/done/$1/`, and a line appended after the review commit would leave the
   working tree dirty — the next `/sprint` refuses to start on it, or the line slips into someone
@@ -68,7 +69,8 @@ shorten their wording or change their language, never drop them.
 - **The first line of the sprint** (phase 0) names the shape once: `Refine (parallel, ~10 min)
   → Build 4 stories (one after another, 10–20 min each, silent while they run) → Regression
   gate (long suite in the background, log named when it starts) → Review → Releasable
-  (roadmap check, then the release check on the merge with main, in the background) ·
+  (roadmap check, then — from stage stable on — the release check on the merge with main, in
+  the background) ·
   next release from here: 1.4.0 (minor) · progress: docs/sprints/S22/progress.md`.
 
 Nothing else goes between delegations — no summary of what an agent did, that costs context —
@@ -413,10 +415,10 @@ story builds together.
    **`flaky` and `pre-existing` are quarantined, not just reported.** Each such test gets an
    entry in the list at the profile's `e2e-quarantine` — `{ flow, reason, story, since: $1 }`,
    `flow` being the test or flow name and the reason the agent's one-line cause — and one
-   follow-up line in phase 3's roadmap update. A quarantined test that fails again is an
+   tech-debt line in phase 3's roadmap update. A quarantined test that fails again is an
    expected failure: it does not turn the gate red and is not attributed again; one that
-   passes is reported as an unexpected pass. Still quarantined two sprints later, it is a story at the next
-   `/roadmap plan`, not a follow-up. With `e2e-quarantine: none` the follow-up line is all
+   passes is reported as an unexpected pass. Still quarantined two sprints later, it is a `kind: debt` story at the next
+   `/roadmap check`, not a roadmap line. With `e2e-quarantine: none` the tech-debt line is all
    there is, and the review says the project has no quarantine yet. Measured without this:
    four flows red for five sprints, re-attributed at ~10 minutes per gate.
 4. **Fix it on the work branch, or report it as a blocker.** Per attributed story, ONE fresh
@@ -458,7 +460,8 @@ story builds together.
      build feedback and the review findings — input for the next sprint planning
      (corrections, direction decisions). Every review finding left deliberately unfixed
      leaves the review in this step: as a story draft (`<requirements>/_TEMPLATE.md`,
-     `status: draft`) or, if small and decision-free, as a follow-up line for step 3. This
+     `status: draft`, `kind: debt` when it repairs rather than adds) or, if small and
+     decision-free, as a tech-debt line for step 3. This
      section links to them and keeps no list of its own. Measured without it: ~15 and ~25
      unfixed findings in two sprints' reviews, none of which ever left them.
    - **Blocked / open:** blocked stories with their reason and the question the user has to
@@ -505,9 +508,10 @@ story builds together.
      one sentence (a blocked story, a deliberate omission) or empty. Gaps, manual residue and
      criteria covered below the real surface stay in `review.md` — the roadmap **never** gets a
      "Gaps/notes" paragraph.
-   - **"Follow-ups worth doing":** one line per finding that is worth doing, needs no decision
-     and is not a story yet, with `[SNN review](…/review.md)` as its source. Remove lines this
-     sprint has made obsolete. Anything bigger is a story draft (step 1), not a roadmap line.
+   - **"Tech debt"** ("Follow-ups worth doing" in an older roadmap): one line per finding that
+     is worth doing, needs no decision and is not a story yet, with `[SNN review](…/review.md)`
+     as its source. Remove lines this sprint has made obsolete — a story that paid a debt
+     removes its line. Anything bigger is a story draft (step 1), not a roadmap line.
    - **"Where we stand"** and "As of": rewrite the block (max. five lines) — what was just
      finished, what is next, what is waiting on the user (the merge).
    If every milestone of a concept's phase is thereby `done`: `git mv` the concept to
@@ -549,6 +553,16 @@ commit is how a green gate turns into a red PR (measured: a green 93-minute gate
 roadmap line added by the review commit failed the PR's unit tests). So this phase runs last, and
 **nothing of the sprint is committed after its green run.**
 
+**The stage decides whether there is a release check at all.** In `stage: prototype` or `mvp`
+the project has no release to check yet — no pipeline, or one nobody relies on — and a check
+that can only answer `UNVERIFIED` is noise the user learns to ignore. There, run steps 1 and 2
+and skip 3 and 4: the verdict is `releasable: not tracked · stage <stage>`, written as the trail's
+`- <ts> · $1 · release-check · done · releasable: not tracked · stage <stage>` line and reported
+in step 5 without a step table and without a record line. The regression gate of phase 2b was
+this sprint's gate. In `stage: stable` or `live`, and in a profile without `stage`, every step
+runs. When the repository has outgrown its stage — a release workflow appeared, a tag — the
+roadmap check of step 1 says so in the roadmap's `## Stage`; you do not change the stage.
+
 1. **Roadmap check.** Status line and the `roadmap-check · started` line in `<trail>`
    (`## Status lines`), its `done` line when the agent has returned. ONE fresh
    `Agent` (`model: "sonnet"`, `run_in_background: false`) reads `.claude/commands/roadmap.md`
@@ -556,7 +570,8 @@ roadmap line added by the review commit failed the PR's unit tests). So this pha
    mode. It cannot ask the user: a step that needs them (an older-shape rebuild, a decision) is
    reported, not done. It commits nothing and returns its report in at most 15 lines. If it
    changed files, commit them with the roadmap-check subject (`## Commit subjects`). Its report
-   goes into the final report.
+   goes into the final report — the stage line with its advice and `tech debt <n>/<limit>`
+   included, never dropped by compaction.
 2. **The release branch, once more.** Part B of `.claude/commands/release-check.md` again: if
    `origin/<release-branch>` moved during the sprint (a release, a hotfix), merge it in exactly
    as phase 0 step 4 does — before the check, so nothing is committed after it. A conflict is
@@ -628,7 +643,10 @@ The first line is phase 4's verdict — `releasable: yes · …` with the planne
 or `releasable: NO — …` / `releasable: UNVERIFIED — …` with what unblocks it, loudly, because it
 decides whether the user can open a PR. Directly under it its warnings and its step table, the
 PR lane and the release lane step by step, and the record line (green cycles, missed, not
-confirmed — a missed one loudly). Then, short and complete: the work branch, stories done/blocked, the roadmap check's report
+confirmed — a missed one loudly). In stage `prototype` or `mvp` it is the one quiet line
+`releasable: not tracked · stage <stage>`, nothing under it. Second line: the stage line from the
+roadmap check with its open advice, and `tech debt <n>/<limit>` — each advice with its command,
+so the user does not have to read the roadmap to find it. Then, short and complete: the work branch, stories done/blocked, the roadmap check's report
 compacted, path to `review.md` (and to
 `testplan.md`, if one was written — otherwise say plainly that nothing needs walking by hand),
 the regression gate in one line (green, or which story broke what and whether it was fixed — a
@@ -659,11 +677,11 @@ the target of a sprint branch merge you make.
 - **Narrow per story, broad per sprint.** Each story runs only its own tests and flows; the full
   suites run once, in phase 2b, on the finished branch. Never skip that phase to save time and
   never widen a story's gate to compensate — the one is cheap because the other exists.
-- **The real surface (P1)**, if `ui-acceptance-required: true`: criteria about user actions are
-  proven through the profile's `e2e` command. Where a story could only cover one a level below
-  that — a missing harness, a missing trigger — it is named as a gap in `review.md` (and, if
-  closing it is worth doing, as one follow-up line in the roadmap), never quietly converted
-  into a manual step.
+- **The real surface (P1)**, if `ui-acceptance-required: true` (or `core`, for the criteria that
+  touch one of the `core-journeys`): criteria about user actions are proven through the
+  profile's `e2e` command. Where a story could only cover one a level below that — a missing
+  harness, a missing trigger — it is named as a gap in `review.md` (and, if closing it is worth
+  doing, as one tech-debt line in the roadmap), never quietly converted into a manual step.
 - **Manual residue is the exception and it is bounded.** Only criteria that cannot be automated
   for a real reason (an OS dialog, specific hardware, a paid external service) land on a human,
   each with that reason. They are listed in the review and, per the `testplan` setting, in

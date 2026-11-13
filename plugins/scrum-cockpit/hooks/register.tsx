@@ -1,11 +1,14 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementConstructor, EngineInterface, Register, SvgProps, Timer } from 'claude-code'
 
-import type { AgentRow, Branching, ReleaseRecord, Snapshot, Story, StoryStage } from '../types'
+import type { AgentRow, Branching, ReleaseRecord, ReleaseState, Snapshot, Story, StoryStage } from '../types'
 import {
   activeSprint,
   clockOf,
   currentMilestone,
+  isArchitectDue,
+  isDebtDue,
+  isDone,
   isRunning,
   knownStoryIds,
   launchLabel,
@@ -16,7 +19,6 @@ import {
   unplannedMilestones,
   unplannedStories,
   updateHints,
-  waitingItems,
   withProfileValue,
 } from './scan'
 import type { Reader } from './scan'
@@ -28,13 +30,14 @@ const MAIN = 'main'
 // Change a tag when the stored shape changes: an older value then reads as
 // the initial one instead of breaking the drawing after a reload.
 const snapshot = atom({ plugin: 'scrum-cockpit', key: 'snapshot' } as const, null, {
-  shape: 'snapshot-5',
+  shape: 'snapshot-6',
 })
 const agents = atom({ plugin: 'scrum-cockpit', key: 'agents' } as const, [], {
   shape: 'agents-2',
 })
 const isBandHidden = atom({ plugin: 'scrum-cockpit', key: 'isBandHidden' } as const, false)
 const openStory = atom({ plugin: 'scrum-cockpit', key: 'openStory' } as const, null)
+const openRows = atom({ plugin: 'scrum-cockpit', key: 'openRows' } as const, [])
 
 const WATCHED = /docs[\\/]|ROADMAP|sprint|requirement|\.claude[\\/](ai-scrum|tech-rules|commands)|ai-scrum[\\/]trail/i
 
@@ -64,7 +67,37 @@ const STEP_LABEL: Record<string, string> = {
   'roadmap-check': 'Roadmap check',
   'release-check': 'Release check',
 }
-const VERDICT_COLOR = { yes: 'success', NO: 'error', UNVERIFIED: 'warning' } as const
+// `not tracked` is no warning: the stage says the check is not due yet.
+const VERDICT_COLOR: Record<NonNullable<ReleaseState['kind']>, 'success' | 'error' | 'warning' | undefined> = {
+  yes: 'success',
+  NO: 'error',
+  UNVERIFIED: 'warning',
+  'not tracked': undefined,
+}
+// The idle view's row labels are padded to one column.
+const LABEL_WIDTH = 11
+// The stages in which `/sprint` skips the release check.
+const UNTRACKED_STAGES = ['prototype', 'mvp']
+
+// The verdict in a few words: `✓ yes · 1.2.0`, `✗ NO — Test: 1 red`, `not tracked (stage mvp)`.
+function verdictShort(rel: ReleaseState): string {
+  const verdict = rel.verdict ?? ''
+  const first = verdict.replace(/^releasable:\s*(yes|NO|UNVERIFIED|not tracked)\s*(·\s*)?/, '').split(/\s+·\s+/)[0] ?? ''
+  if (rel.kind === 'yes') {
+    const next = /next release (\S+)/.exec(verdict)?.[1]
+    return `✓ yes${next === undefined ? '' : ` · ${next}`}`
+  }
+  if (rel.kind === 'NO') return `✗ NO ${first}`.trim()
+  if (rel.kind === 'not tracked') {
+    const stage = /stage (\S+)/.exec(verdict)?.[1]
+    return `not tracked${stage === undefined ? '' : ` (stage ${stage})`}`
+  }
+  return `${rel.kind ?? ''} ${first}`.trim()
+}
+
+// Amber from 80 % of a threshold, red at it; no color below, and none without a threshold.
+const levelColor = (value: number, limit: number) =>
+  limit <= 0 ? undefined : value >= limit ? 'error' : value >= limit * 0.8 ? 'warning' : undefined
 
 // `record: 3 green cycles in a row · 1 missed · …`, the parts that are not zero.
 function recordLine(r: ReleaseRecord): string {
@@ -454,7 +487,7 @@ export const register: Register = on => {
     const ran = await next(e)
     const path = str(input['file_path']) ?? ''
     const command = str(input['command']) ?? ''
-    if (WATCHED.test(path) || /git mv|progress\.md|ROADMAP|sprints|requirements|\.lock|ai-scrum[\\/]trail|release-checks/i.test(command)) {
+    if (WATCHED.test(path) || /git mv|progress\.md|ROADMAP|sprints|requirements|INDEX\.md|solution-review|\.lock|ai-scrum[\\/]trail|release-checks/i.test(command)) {
       schedule($)
     }
 
@@ -515,10 +548,15 @@ export const register: Register = on => {
     }
     const rel = snap.release
     if (rel !== null && rel.isRunning && rel.sprint === null) parts.push(`${STEP_LABEL[rel.step] ?? rel.step} running`)
-    else if (rel !== null && !rel.isRunning && rel.kind !== null && sprint?.status !== 'in-progress') {
+    else if (rel !== null && !rel.isRunning && rel.kind !== null && rel.kind !== 'not tracked' && sprint?.status !== 'in-progress') {
       parts.push(`releasable: ${rel.kind}`)
     }
     const missed = snap.record?.missed.length ?? 0
+    // The two thresholds of the profile's stage: a hint, the pane has the button.
+    const due = [
+      isDebtDue(snap) ? `tech debt ${snap.techDebt.count}/${snap.techDebt.limit}` : '',
+      isArchitectDue(snap) ? `architect review due (${snap.architect.since} stories)` : '',
+    ].filter(d => d !== '')
     if (running.length > 0) {
       const oldest = Math.min(...running.map(a => a.startedAt))
       parts.push(`● ${running.length} agent${running.length > 1 ? 's' : ''} · ${minutes(oldest, now)}`)
@@ -539,6 +577,11 @@ export const register: Register = on => {
             <Text color="warning">
               {cut(`⚠ release check missed ${missed}× — said yes, then GitHub went red · /scrum for details`, width - 4)}
             </Text>
+          </Box>
+        )}
+        {snap.hasScrum && due.length > 0 && (
+          <Box key="due">
+            <Text color="warning">{cut(`⚠ ${due.join(' · ')}`, width - 4)}</Text>
           </Box>
         )}
         {snap.hasScrum && (
@@ -593,8 +636,13 @@ export const register: Register = on => {
     const running = list.filter(a => a.status === 'running' && a.key !== MAIN)
     const main = list.find(a => a.key === MAIN)
     const isIdle = running.length === 0 && main?.status !== 'running'
-    const waiting = waitingItems(snap.standing)
-    const standing = snap.standing.filter(l => !/^waiting on\b/i.test(l))
+    const rel = snap.release
+    const record = snap.record
+    const isChecking = rel?.isRunning === true
+    // No sprint running and no phase-4 step: a few rows say where the project stands instead.
+    const isIdleView = !isLive && !isChecking
+    const unfolded = await read($, openRows)
+    const toggle = (row: string) => update($, openRows, l => (l.includes(row) ? l.filter(r => r !== row) : [...l, row]))
     const doneCount = sprint === null ? 0 : sprint.stories.filter(s => s.isDone).length
     const rp = sprint !== null && phase === 'refine' ? refineProgress(snap, sprint) : null
     const progress =
@@ -644,11 +692,209 @@ export const register: Register = on => {
     const versionsOk = hints.length === 0 && snap.versions.some(v => v.inProject !== null)
     const scrumVersion = snap.versions.find(v => v.plugin === 'ai-scrum')?.inProject ?? null
     const [filled, empty] = progress === null ? ['', ''] : meter(progress.value, progress.total, Math.min(30, inner - 18))
+    const hasProgress = progress !== null && !isIdleView
+
+    // --- the rows: one line each, a number against its threshold, a button only when due ---
+
+    const label = (text: string) => <Text dimColor>{text.padEnd(LABEL_WIDTH)}</Text>
+    const indent = ' '.repeat(LABEL_WIDTH)
+    // A button label with the model and effort the command runs with, when it names them.
+    const withLaunch = (text: string, line: string) => {
+      const l = launchLabel(snap, line.replace(/^\//, '').split(' ')[0] ?? '')
+      return l === '' ? text : `${text} · ${l}`
+    }
+
+    const stage = snap.stage
+    const isStageOpen = unfolded.includes('stage')
+    const hasStageMore = stage.advice.length > 0 || stage.signals.length > 0
+    const stageValue = (
+      <Text>
+        {label('Stage')}
+        {stage.isDefault ? `${stage.name} (default)` : stage.name}
+        <Text color="claude">{stage.advice.length === 0 ? '' : ` · ${stage.advice.length} advice`}</Text>
+        <Text dimColor>{hasStageMore ? (isStageOpen ? '  ▾' : '  ▸') : ''}</Text>
+      </Text>
+    )
+    const stageRow = (
+      <Box key="row-stage" flexDirection="column">
+        {hasStageMore ? (
+          <Button key="stage-toggle" plain onPress={() => toggle('stage')}>
+            {stageValue}
+          </Button>
+        ) : (
+          stageValue
+        )}
+        {isStageOpen && stage.signals.length > 0 && (
+          <Text dimColor>{cut(`${indent}signals: ${stage.signals.join(', ')}`, inner)}</Text>
+        )}
+        {isStageOpen &&
+          stage.advice.map((a, i) => {
+            const command = a.command
+            const text = withLaunch(command ?? '', command ?? '')
+            return (
+              <Box key={`advice-${i}`} justifyContent="space-between">
+                <Text>{cut(`${indent}${a.text}${a.since === null ? '' : ` · since ${a.since}`}`, inner - (command === null ? 0 : text.length + 6))} </Text>
+                {command !== null && <Button key={`advice-go-${i}`} label={text} onPress={() => launch($, command)} />}
+              </Box>
+            )
+          })}
+      </Box>
+    )
+
+    // `1 · The King moves in · 4/6 milestones`, from the roadmap's "Current phase".
+    // An untouched template's `1 — <name>` is no phase yet.
+    const phaseName = (snap.phase ?? '').includes('<')
+      ? ''
+      : (snap.phase ?? '').replace(/^Phase\s+/i, '').replace(/\s+[—–]\s+/, ' · ').replace(/\.$/, '')
+    const milestonesDone = snap.milestones.filter(m => isDone(m.status)).length
+    const phaseText = [phaseName, snap.milestones.length === 0 ? '' : `${milestonesDone}/${snap.milestones.length} milestones`]
+      .filter(p => p !== '')
+      .join(' · ')
+    const phaseRow = phaseText === '' ? null : <Text key="row-phase">{label('Phase')}{cut(phaseText, inner - LABEL_WIDTH)}</Text>
+
+    // The last verdict, compact; a stage without the check says so before any verdict exists.
+    const releaseText =
+      rel !== null && rel.kind !== null
+        ? verdictShort(rel)
+        : UNTRACKED_STAGES.includes(stage.name)
+          ? `not tracked (stage ${stage.name})`
+          : null
+    const missedCount = record?.missed.length ?? 0
+    const releaseRow =
+      releaseText === null && missedCount === 0 ? null : (
+        <Box key="row-release" flexDirection="column">
+          <Text>
+            {label('Release')}
+            <Text
+              color={rel === null || rel.kind === null ? undefined : VERDICT_COLOR[rel.kind]}
+              dimColor={rel === null || rel.kind === null || rel.kind === 'not tracked'}
+            >
+              {cut(releaseText ?? '—', inner - LABEL_WIDTH)}
+            </Text>
+          </Text>
+          {record !== null && missedCount > 0 && <Text color="warning">{cut(`${indent}${recordLine(record)}`, inner)}</Text>}
+          {record?.missed.map((m, i) => (
+            <Text key={`missed-${i}`} color="warning">
+              {cut(`${indent}⚠ missed: yes on ${m.head} (${m.at.slice(0, 10)}) → ${m.red}`, inner)}
+            </Text>
+          ))}
+        </Box>
+      )
+
+    const debt = snap.techDebt
+    const debtColor = levelColor(debt.count, debt.limit)
+    const [debtFill, debtRest] = debt.limit > 0 ? meter(debt.count, debt.limit, 10) : ['', '']
+    const debtLabel = withLaunch('Plan tech-debt cleanup', '/roadmap')
+    const debtRow = (
+      <Box key="row-debt" justifyContent="space-between">
+        <Text>
+          {label('Tech debt')}
+          <Text color={debtColor}>{debt.limit > 0 ? `${debt.count} / ${debt.limit}  ` : `${debt.count} · no limit`}</Text>
+          <Text color={debtColor}>{debtFill}</Text>
+          <Text dimColor>{debtRest}</Text>
+        </Text>
+        {isDebtDue(snap) && (
+          <Button key="debt-plan" variant="primary" label={debtLabel} onPress={() => launch($, '/roadmap plan debt')} />
+        )}
+      </Box>
+    )
+
+    const arch = snap.architect
+    const isReviewDue = isArchitectDue(snap)
+    const archColor = levelColor(arch.since, arch.every)
+    const [archFill, archRest] = meter(arch.since, arch.every, 10)
+    const archLabel = withLaunch('Architect review', '/solution-architect')
+    const archNote = arch.lastReview === null ? 'stories · never reviewed' : `stories since review (${arch.lastReview})`
+    const archHint = 'needs tech-rules (/tech-rules:setup)'
+    const archCount = `${arch.since} / ${arch.every}  `
+    // What the note leaves room for: the label, the count, the bar and the button or hint.
+    const archSide = LABEL_WIDTH + archCount.length + 10 + (!isReviewDue ? 0 : arch.hasSkill ? archLabel.length + 4 : archHint.length + 1)
+    const archRow =
+      arch.every === 0 ? null : (
+        <Box key="row-architect" justifyContent="space-between">
+          <Text>
+            {label('Architect')}
+            <Text color={archColor}>{archCount}</Text>
+            <Text color={archColor}>{archFill}</Text>
+            <Text dimColor>{archRest}</Text>
+            <Text dimColor>{cut(`  ${archNote}`, Math.max(0, inner - archSide))}</Text>
+          </Text>
+          {isReviewDue && arch.hasSkill && (
+            <Button key="architect" variant="primary" label={archLabel} onPress={() => launch($, '/solution-architect')} />
+          )}
+          {isReviewDue && !arch.hasSkill && <Text color="warning">{archHint}</Text>}
+        </Box>
+      )
+
+    // The backlog, folded: what is open, and unfolded the rows that move it on.
+    const looseMilestones = unplannedMilestones(snap)
+    const looseStories = unplannedStories(snap)
+    const openStories = snap.stories.filter(s => s.status !== 'done')
+    const readyCount = openStories.filter(s => s.status === 'ready').length
+    const isBacklogOpen = unfolded.includes('backlog')
+    const hasBacklogMore = looseMilestones.length > 0 || looseStories.length > 0 || snap.openTopics.length > 0
+    const planLabel = `Plan · ${launchLabel(snap, 'roadmap')}`
+    const backlogValue = (
+      <Text>
+        {label('Backlog')}
+        {`${openStories.length} open · ${readyCount} ready · ${looseStories.length} unplanned`}
+        <Text dimColor>{hasBacklogMore ? (isBacklogOpen ? '  ▾' : '  ▸') : ''}</Text>
+      </Text>
+    )
+    const backlogRow = (
+      <Box key="row-backlog" flexDirection="column">
+        {hasBacklogMore ? (
+          <Button key="backlog-toggle" plain onPress={() => toggle('backlog')}>
+            {backlogValue}
+          </Button>
+        ) : (
+          backlogValue
+        )}
+        {isBacklogOpen &&
+          looseMilestones.map(m => (
+            <Box key={`m-${m.id}`} justifyContent="space-between">
+              <Text>{cut(`${indent}○ ${m.id} ${m.name} · no sprint`, inner - planLabel.length - 6)} </Text>
+              <Button key={`plan-${m.id}`} label={planLabel} onPress={() => launch($, '/roadmap plan')} />
+            </Box>
+          ))}
+        {isBacklogOpen &&
+          looseStories.map(s => {
+            const step = storyCommand(s)
+            const text = `${step.label} · ${launchLabel(snap, step.name)}`
+            return (
+              <Box key={`ls-${s.id}`} justifyContent="space-between">
+                <Text>{cut(`${indent}${storyLine(s)}`, inner - text.length - 6)} </Text>
+                <Button key={`go-${s.id}`} label={text} onPress={() => launch($, step.command)} />
+              </Box>
+            )
+          })}
+        {isBacklogOpen && snap.openTopics.length > 0 && (
+          <Text dimColor>{cut(`${indent}Open: ${snap.openTopics.join(' · ')}`, inner)}</Text>
+        )}
+      </Box>
+    )
+
+    // In the idle view the sprint is a planned one, or none.
+    const nextLabel =
+      sprint === null ? withLaunch('Plan next sprint', '/roadmap') : withLaunch(`Start ${sprint.id}`, '/sprint')
+    const nextRow = (
+      <Box key="row-next" justifyContent="space-between">
+        <Text>
+          {label('Next')}
+          {cut(sprint === null ? 'no sprint planned' : `${sprint.id} planned · ${sprint.stories.length} stories`, inner - LABEL_WIDTH - nextLabel.length - 6)}
+        </Text>
+        {sprint === null ? (
+          <Button key="plan-next" variant="primary" label={nextLabel} onPress={() => launch($, '/roadmap plan')} />
+        ) : (
+          <Button key="sprint-start" variant="primary" label={nextLabel} onPress={() => launch($, `/sprint ${sprint.id}`)} />
+        )}
+      </Box>
+    )
 
     const hero = (
       <Box key="hero" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
         <Box flexDirection="row" gap={1}>
-          {Svg !== null && progress !== null && (
+          {Svg !== null && progress !== null && hasProgress && (
             <Svg
               source={ring(progress.value / progress.total, `${progress.value}/${progress.total}`)}
               alt={`${progress.value} of ${progress.total} ${progress.unit}`}
@@ -657,11 +903,15 @@ export const register: Register = on => {
             />
           )}
           <Box flexDirection="column" flexGrow={1}>
-            <Box justifyContent="space-between">
-              <Text color="claude" bold>{cut(`✻ ${snap.phase ?? 'ai-scrum'}`, inner - 18)}</Text>
-              {versionsOk && scrumVersion !== null && <Text color="success">{scrumVersion} ✓</Text>}
-            </Box>
-            {milestone !== null && (
+            <Text>
+              <Text color="claude" bold>✻ ai-scrum</Text>
+              {scrumVersion !== null && (
+                <Text color={versionsOk ? 'success' : undefined} dimColor={!versionsOk}>
+                  {` ${scrumVersion}${versionsOk ? ' ✓' : ''}`}
+                </Text>
+              )}
+            </Text>
+            {!isIdleView && milestone !== null && (
               <Text>
                 <Text color="claude">▶ {milestone.id} {milestone.name}</Text>
                 <Text dimColor>{cut(sprint === null ? '' : ` · ${sprint.id} ${sprint.title}`, Math.max(0, inner - milestone.name.length - 8))}</Text>
@@ -677,7 +927,7 @@ export const register: Register = on => {
                 ))}
               </Text>
             )}
-            {progress !== null && (
+            {progress !== null && hasProgress && (
               <Text>
                 <Text color={rp !== null ? 'success' : 'claude'}>{filled}</Text>
                 <Text dimColor>{empty}</Text>
@@ -694,18 +944,19 @@ export const register: Register = on => {
             )}
           </Box>
         ))}
-        {standing.map((l, i) => (
-          <Text key={`st-${i}`} dimColor>{l}</Text>
-        ))}
+        {stageRow}
+        {phaseRow}
+        {isIdleView && releaseRow}
+        {isIdleView && debtRow}
+        {isIdleView && archRow}
+        {isIdleView && backlogRow}
+        {isIdleView && nextRow}
         {snap.branching !== null && <Text dimColor>{cut(branchingLine(snap.branching), inner)}</Text>}
       </Box>
     )
 
     // --- the release check: running, or its last verdict and how verdicts fared ---
 
-    const rel = snap.release
-    const record = snap.record
-    const isChecking = rel?.isRunning === true
     const verdictColor = rel === null || rel.isRunning || rel.kind === null ? undefined : VERDICT_COLOR[rel.kind]
     const releaseCard =
       rel === null && record === null ? null : (
@@ -733,7 +984,7 @@ export const register: Register = on => {
           </Box>
           {rel !== null && isChecking && rel.watch !== null && <Text dimColor>{cut(`watch ${rel.watch}`, inner)}</Text>}
           {rel !== null && rel.verdict !== null && (
-            <Text key="verdict" color={verdictColor} dimColor={isChecking}>
+            <Text key="verdict" color={verdictColor} dimColor={isChecking || rel.kind === 'not tracked'}>
               {cut(`${isChecking ? 'last: ' : ''}${rel.verdict}`, inner)}
             </Text>
           )}
@@ -976,7 +1227,7 @@ export const register: Register = on => {
     const longest = [...refineRunning].sort((a, b) => a.startedAt - b.startedAt)[0]
     const models = [...new Set(refineRunning.map(setting).filter(m => m !== ''))].join(', ')
     const hasAgentsCard =
-      sprintAgents.length > 0 || others.length > 0 || finished.length > 0 || main?.status === 'running' || !isLive
+      sprintAgents.length > 0 || others.length > 0 || finished.length > 0 || main?.status === 'running'
 
     const agentsCard = hasAgentsCard ? (
       <Box key="agents" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
@@ -984,7 +1235,7 @@ export const register: Register = on => {
           <Text bold>Agents</Text>
           <Text color="claude">
             {sprintAgents.length > 0
-              ? `${refineRunning.length} running · ${refineDone.length} done`
+              ? `${refineRunning.length + others.length} running · ${refineDone.length} done`
               : others.length > 0
                 ? `${others.length} running`
                 : ''}
@@ -1023,64 +1274,16 @@ export const register: Register = on => {
             {cut(`${a.status === 'failed' ? '✗' : '✓'} ${agentLine(a)} · ${a.tools} tools`, inner)}
           </Text>
         ))}
-        {sprintAgents.length === 0 && others.length === 0 && main?.status !== 'running' && finished.length === 0 && (
-          <Text dimColor>Nothing running.</Text>
-        )}
-      </Box>
-    ) : null
-
-    // --- what waits on the person, and what comes next ---
-
-    const waitingCard =
-      waiting.length > 0 ? (
-        <Box key="waiting" flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1}>
-          <Text color="warning" bold>⚠ Waiting on you</Text>
-          {waiting.map((w, i) => (
-            <Text key={`w-${i}`}>{cut(`· ${w}`, inner)}</Text>
-          ))}
-        </Box>
-      ) : null
-
-    const looseMilestones = unplannedMilestones(snap)
-    const looseStories = unplannedStories(snap)
-    const hasNext =
-      looseMilestones.length > 0 || looseStories.length > 0 || snap.openTopics.length > 0 || snap.followUps > 0
-    const planLabel = `Plan · ${launchLabel(snap, 'roadmap')}`
-    const nextCard = hasNext ? (
-      <Box key="next" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
-        <Box justifyContent="space-between">
-          <Text bold>Next</Text>
-          <Text dimColor>{snap.followUps > 0 ? `${snap.followUps} follow-ups` : ''}</Text>
-        </Box>
-        {looseMilestones.map(m => (
-          <Box key={`m-${m.id}`} justifyContent="space-between">
-            <Text>{cut(`○ ${m.id} ${m.name} · no sprint`, inner - planLabel.length - 6)} </Text>
-            <Button key={`plan-${m.id}`} label={planLabel} onPress={() => launch($, '/roadmap plan')} />
-          </Box>
-        ))}
-        {looseStories.map(s => {
-          const step = storyCommand(s)
-          const label = `${step.label} · ${launchLabel(snap, step.name)}`
-          return (
-            <Box key={`ls-${s.id}`} justifyContent="space-between">
-              <Text>{cut(storyLine(s), inner - label.length - 6)} </Text>
-              <Button key={`go-${s.id}`} label={label} onPress={() => launch($, step.command)} />
-            </Box>
-          )
-        })}
-        {snap.openTopics.length > 0 && <Text dimColor>{cut(`Open: ${snap.openTopics.join(' · ')}`, inner)}</Text>}
       </Box>
     ) : null
 
     return (
       <Box flexDirection="column" gap={1}>
         {hero}
-        {chips}
-        {focus}
-        {focus === releaseCard ? null : releaseCard}
+        {isIdleView ? null : chips}
+        {isIdleView ? null : focus}
+        {isIdleView || focus === releaseCard ? null : releaseCard}
         {agentsCard}
-        {waitingCard}
-        {nextCard}
         <Box>
           <Button key="roadmap-check" label={`Roadmap check · ${launchLabel(snap, 'roadmap')}`} onPress={() => launch($, '/roadmap check')} />
           {(snap.launch['release-check']?.model ?? null) !== null && !isChecking && (

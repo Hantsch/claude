@@ -14,7 +14,7 @@
       "name": "ai-scrum",
       "source": "./plugins/ai-scrum",
       "description": "Installs a spec-driven AI Scrum workflow into your repository: roadmap -> concept -> story -> refine -> build -> sprint. Commands, agents and state all live in the project, so the plugin is only needed to install and update them.",
-      "version": "4.10.0",
+      "version": "4.11.0",
       "author": {
         "name": "Hantsch"
       },
@@ -31,7 +31,7 @@
       "name": "tech-rules",
       "source": "./plugins/tech-rules",
       "description": "Installs the house rules for a project's tech stack into the repository itself: /tech-rules:setup detects the stack and writes the matching skills to .claude/skills/, maintains a managed block in CLAUDE.md and keeps both up to date. Contributors need no plugin - the rules are in the repo.",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "author": {
         "name": "Hantsch"
       },
@@ -67,7 +67,7 @@
       "name": "scrum-cockpit",
       "source": "./plugins/scrum-cockpit",
       "description": "A mod for projects that run ai-scrum: shows the milestone, sprint, stories and running subagents beside the chat, says when ai-scrum or tech-rules is out of date, and offers buttons that start the next command with its own model and effort.",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "author": {
         "name": "Hantsch"
       },

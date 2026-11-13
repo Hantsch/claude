@@ -57,6 +57,8 @@ export type Story = {
   id: string
   title: string
   status: string
+  // `debt` for a tech-debt story, else `feature`.
+  kind: string
   deliverablesDone: number
   deliverablesTotal: number
   // The `## Requirement` and `## Acceptance Criteria` text, as paragraphs.
@@ -93,7 +95,48 @@ export type ReleaseState = {
   watch: string | null
   // The last verdict line, `releasable: yes · …`, and its first word.
   verdict: string | null
-  kind: 'yes' | 'NO' | 'UNVERIFIED' | null
+  // `not tracked`: `/sprint` skipped the check in stage prototype or mvp.
+  kind: 'yes' | 'NO' | 'UNVERIFIED' | 'not tracked' | null
+}
+
+// One advice bullet of the roadmap's `## Stage`, as `/roadmap check` wrote it.
+export type StageAdvice = {
+  text: string
+  // The first backticked `/command` of the line, run by its button.
+  command: string | null
+  // The sprint since which the advice stands, `S07`.
+  since: string | null
+}
+
+// The profile's stage and what `/roadmap check` last made of it.
+export type StageState = {
+  // `prototype | mvp | stable | live`; a profile without the key is `live`, `isDefault` then.
+  name: string
+  isDefault: boolean
+  signals: string[]
+  advice: StageAdvice[]
+}
+
+// The roadmap's `## Tech debt` bullets plus the open stories with `kind: debt`.
+export type TechDebt = {
+  count: number
+  // The profile's `tech-debt-limit`, 10 without the key; 0 = no limit.
+  limit: number
+  roadmapItems: number
+  stories: string[]
+}
+
+// Stories done since the newest solution-architect review.
+export type ArchitectReview = {
+  // The profile's `architect-review-every`, 20 without the key; 0 = off.
+  every: number
+  // Story lines of done/INDEX.md now, less the `stories-done` the review noted; all of them
+  // when there is no review yet.
+  since: number
+  // The newest review's date, null when there is none.
+  lastReview: string | null
+  // Whether tech-rules installed the `/solution-architect` skill in the project.
+  hasSkill: boolean
 }
 
 // The verdicts in `.git/ai-scrum/release-checks.jsonl`, against what GitHub then did.
@@ -122,14 +165,15 @@ export type Snapshot = {
   hasScrum: boolean
   versions: VersionCheck[]
   phase: string | null
-  standing: string[]
+  stage: StageState
   milestones: Milestone[]
   sprints: Sprint[]
   doneSprints: number
   stories: Story[]
   doneStories: number
   openTopics: string[]
-  followUps: number
+  techDebt: TechDebt
+  architect: ArchitectReview
   launch: Record<string, Launch>
   // Null when the project has no profile.
   branching: Branching | null
@@ -169,6 +213,8 @@ declare module 'claude-code' {
       isBandHidden: boolean
       // The story whose text the build card shows unfolded.
       openStory: string | null
+      // The idle view's rows shown unfolded: `stage`, `backlog`.
+      openRows: string[]
     }
   }
 }

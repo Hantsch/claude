@@ -23,6 +23,23 @@ is empty, so no version ever ships without notes.
   read-only inventory, the direction asked from the user, a design document with rule ids, a
   dev-only reference page built from the real components, a drift scan and a baseline review.
 
+## 2.5.0 — 2026-11-03
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+- `solution-architect` (group `all`, user-invoked, never model-invoked): `/solution-architect
+  [<question or focus>]`, a technology-agnostic solution architect. From cheap evidence - CI and
+  release workflows, releases and tags, the test inventory, the roadmap phase, churn - it decides
+  the project's stage (`prototype` / `mvp` / `stable` / `live`), the core journeys, the gate set
+  for that stage and whether release pipeline and tests fit together. Stack-specific questions go
+  to at most three tech-lead subagents, each applying one installed stack skill; timings it leaves
+  to `/common:architecture-review tests`. Writes `<architecture-path>/<date>-solution-review.md`
+  (frontmatter `date`, `stage`, `stories-done`) with an ai-scrum profile diff, a proposed
+  `## Test lanes` table and - with an ai-scrum profile - the catch-up stories as drafts marked
+  `kind: debt`. Applies nothing: no profile, `CLAUDE.md` or code edits.
+- `setup`: the `CLAUDE.md` block names `/solution-architect` next to `/test-review` and
+  `/release-prep`; the report's test-lanes line names it as a source of the table.
+
 ## 2.4.0 — 2026-10-27
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

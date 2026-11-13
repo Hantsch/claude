@@ -10,6 +10,7 @@ import type {
   Sprint,
   SprintFlow,
   SprintStory,
+  StageAdvice,
   Story,
   VersionCheck,
 } from '../types'
@@ -26,6 +27,10 @@ export type Reader = {
 
 const PLUGINS: ScrumPlugin[] = ['ai-scrum', 'tech-rules']
 const COMMANDS = ['refine', 'build', 'sprint', 'roadmap', 'concept', 'release-check']
+// A user-invocable skill tech-rules installs; it runs as `/solution-architect` like a command.
+const ARCHITECT_SKILL = '.claude/skills/solution-architect/SKILL.md'
+// The review files `/solution-architect` writes, `2026-10-12-solution-review.md`.
+const REVIEW_FILE = /^(\d{4}-\d{2}-\d{2})-solution-review\.md$/
 
 const lines = (text: string) => text.split(/\r?\n/)
 
@@ -125,16 +130,35 @@ export function parseRoadmap(text: string) {
       })
     }
   }
-  const standing = (section(text, /^Where we stand/i)?.body ?? [])
-    .map(l => stripLinks(l).replace(/^\s*[-*]\s+/, '').trim())
-    .filter(l => l !== '' && !l.startsWith('<'))
   const openTopics = table(section(text, /^Open/i)?.body ?? []).rows
     .map(r => stripLinks(at(r, 0)))
     .filter(t => t !== '' && !isPlaceholder(t))
-  const followUps = (section(text, /^Follow-ups/i)?.body ?? []).filter(
-    l => /^\s*-\s+/.test(l) && !/^\s*-\s+</.test(l),
+  // "Tech debt" was "Follow-ups worth doing" before stages; a placeholder line has a `<`.
+  const debtItems = (section(text, /^(Tech debt|Follow-ups)/i)?.body ?? []).filter(
+    l => /^\s*[-*]\s+/.test(l) && !l.includes('<'),
   ).length
-  return { phase, milestones, standing, openTopics, followUps }
+  // `/roadmap check` writes `## Stage`: a `Stage: mvp · signals: a, b` line, then its advice.
+  const stageBody = section(text, /^Stage\b/i)?.body ?? []
+  const stageLine = stageBody.find(l => /^\s*Stage:/i.test(l) && !l.includes('<')) ?? ''
+  const signals = (/·\s*signals:\s*(.*)$/i.exec(stageLine)?.[1] ?? '')
+    .split(/\s*,\s*/)
+    .map(x => stripLinks(x).trim())
+    .filter(x => x !== '' && x !== 'none')
+  const advice = stageBody
+    .filter(l => /^\s*[-*]\s+/.test(l))
+    .map(parseAdvice)
+    .filter((a): a is StageAdvice => a !== null)
+  return { phase, milestones, openTopics, debtItems, signals, advice }
+}
+
+// One advice bullet of the roadmap's `## Stage`, `- <advice> — `/command` · since S07`. The
+// command is the first backticked span that starts with `/`; a placeholder line has a `<`.
+export function parseAdvice(line: string): StageAdvice | null {
+  const l = line.replace(/^\s*[-*]\s+/, '').trim()
+  if (l === '' || l.includes('<')) return null
+  const since = /·\s*since\s+(\S+)\s*$/i.exec(l)?.[1] ?? null
+  const text = stripLinks(l.replace(/\s*·\s*since\s+\S+\s*$/i, '').replace(/\s+[—–-]+\s+`\/[^`]*`.*$/, '')).trim()
+  return { text, command: /`(\/[^`]+)`/.exec(l)?.[1]?.trim() ?? null, since }
 }
 
 // Minutes since an arbitrary epoch, from a trail timestamp (`2026-10-28 10:41`,
@@ -148,6 +172,16 @@ export function clockMinutes(text: string): number | null {
 
 // The `HH:mm` of a trail timestamp.
 export const clockOf = (text: string | null) => (text === null ? null : (/\d{1,2}:\d{2}/.exec(text)?.[0] ?? text))
+
+// The story ids a trail line names, a range such as `001-007` expanded with its padding.
+function idsOf(text: string): string[] {
+  return [...text.matchAll(/(\d+)(?:\s*[-–]\s*(\d+))?/g)].flatMap(([, from = '', to]) => {
+    const a = Number(from)
+    const b = Number(to)
+    if (to === undefined || b < a || b - a > 100) return to === undefined ? [from] : [from, to]
+    return Array.from({ length: b - a + 1 }, (_, i) => String(a + i).padStart(from.length, '0'))
+  })
+}
 
 // Walks progress.md. Its lines are fixed by ai-scrum's sprint.md and build.md:
 // `- <ts> · refine · 106 107 · started`, `- <ts> · 107 · build · started`,
@@ -176,7 +210,7 @@ export function parseTrail(text: string | null, status: string): SprintFlow {
     const isStart = event === 'started'
     if (subject === 'refine') {
       flow.phase = 'refine'
-      flow.refineIds = what.match(/\d+/g) ?? []
+      flow.refineIds = idsOf(what)
       continue
     }
     if (subject === 'gate') {
@@ -265,13 +299,15 @@ export function parseReleaseTrail(text: string | null): ReleaseState | null {
     const [at = '', sprint = '', step = '', event = ''] = parts
     if (parts.length < 4 || !/^(roadmap|release)-check$/.test(step)) continue
     const detail = parts.slice(4).join(' · ')
-    const isSame = state !== null && state.step === step && state.sprint === (sprint === '-' ? null : sprint)
+    // Asserted: TypeScript narrows `state` to its initial null across the loop.
+    const prev = state as ReleaseState | null
+    const isSame = prev !== null && prev.step === step && prev.sprint === (sprint === '-' ? null : sprint)
     if (event === 'done' && step === 'release-check') verdict = detail === '' ? null : detail
     state = {
       sprint: sprint === '-' || sprint === '' ? null : sprint,
       step,
       isRunning: event === 'started',
-      startedAt: event === 'started' ? at : isSame ? (state?.startedAt ?? null) : null,
+      startedAt: event === 'started' ? at : isSame ? (prev?.startedAt ?? null) : null,
       endedAt: event === 'started' ? null : at,
       watch: event === 'started' && detail.startsWith('watch ') ? detail.slice(6).trim() : null,
       verdict,
@@ -279,8 +315,13 @@ export function parseReleaseTrail(text: string | null): ReleaseState | null {
     }
   }
   if (state === null) return null
-  const kind = /releasable:\s*(yes|NO|UNVERIFIED)\b/.exec(verdict ?? '')?.[1]
-  return { ...state, verdict, kind: kind === 'yes' || kind === 'NO' || kind === 'UNVERIFIED' ? kind : null }
+  // `not tracked`: `/sprint` skipped the check, as it does in stage prototype and mvp.
+  const kind = /releasable:\s*(yes|NO|UNVERIFIED|not tracked)\b/.exec(verdict ?? '')?.[1]
+  return {
+    ...state,
+    verdict,
+    kind: kind === 'yes' || kind === 'NO' || kind === 'UNVERIFIED' || kind === 'not tracked' ? kind : null,
+  }
 }
 
 // Sums up `.git/ai-scrum/release-checks.jsonl` the way `/release-check` B7 does: the streak
@@ -356,6 +397,7 @@ export function parseStory(fileName: string, text: string): Story {
     id: fm['id'] || (/^(\d+)/.exec(fileName)?.[1] ?? fileName),
     title: fm['title'] || fileName.replace(/\.md$/, ''),
     status: fm['status'] || 'draft',
+    kind: fm['kind'] || 'feature',
     deliverablesDone: done,
     deliverablesTotal: total,
     requirement: paragraphs(section(text, /^Requirement/i)?.body ?? []),
@@ -495,6 +537,25 @@ export function parseReleaseProfile(profile: string): ReleaseProfile {
   }
 }
 
+// The profile's `## Stage` keys, defaults filled in. A profile from before stages has none:
+// `live` is how ai-scrum behaved before them.
+export function parseStageProfile(profile: string) {
+  const count = (key: string, fallback: number) => {
+    const n = parseInt(profileValue(profile, key) ?? '', 10)
+    return Number.isNaN(n) || n < 0 ? fallback : n
+  }
+  const stage = profileValue(profile, 'stage') ?? ''
+  return {
+    stage: stage === '' ? 'live' : stage,
+    isDefault: stage === '',
+    debtLimit: count('tech-debt-limit', 10),
+    architectEvery: count('architect-review-every', 20),
+  }
+}
+
+// The stories `<requirements>/done/INDEX.md` lists, one `- NNN — title · sprint · result` each.
+export const indexCount = (text: string | null) => (text ?? '').match(/^- \d+/gm)?.length ?? 0
+
 // The repository's local branches, from the ref folders and packed-refs.
 async function localBranches(r: Reader, root: string): Promise<string[]> {
   const out = new Set<string>()
@@ -521,6 +582,7 @@ async function profilePaths(r: Reader, root: string) {
     requirements: value('requirements-path', 'docs/requirements'),
     sprints: value('sprints-path', 'docs/sprints'),
     roadmap: value('roadmap-path', 'docs/ROADMAP.md'),
+    architecture: value('architecture-path', 'docs/architecture'),
   }
 }
 
@@ -583,6 +645,23 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     const fm = frontmatter((await r.read(`${root}/.claude/commands/${name}.md`)) ?? '')
     launch[name] = { model: fm['model'] ?? null, effort: fm['effort'] ?? null }
   }
+  const skill = await r.read(`${root}/${ARCHITECT_SKILL}`)
+  const skillFm = frontmatter(skill ?? '')
+  launch['solution-architect'] = { model: skillFm['model'] ?? null, effort: skillFm['effort'] ?? null }
+
+  // Tech debt: the roadmap's list, and the open stories written as `kind: debt`.
+  const stageProfile = parseStageProfile(profile ?? '')
+  const debtStories = stories.filter(s => s.kind === 'debt' && s.status !== 'done').map(s => s.id)
+
+  // The solution-architect review: stories done since the newest one, by the INDEX count it noted.
+  const doneIndex = indexCount(await r.read(`${paths.requirements}/done/INDEX.md`))
+  const reviews = (await r.list(paths.architecture))
+    .filter(f => !f.isDir && REVIEW_FILE.test(f.name))
+    .map(f => f.name)
+    .sort()
+  const newest = reviews[reviews.length - 1]
+  const review = newest === undefined ? null : frontmatter((await r.read(`${paths.architecture}/${newest}`)) ?? '')
+  const doneAtReview = parseInt(review?.['stories-done'] ?? '', 10)
 
   // A sprint from before the trail rules, already past its refine round:
   // the first unticked story is the one being built.
@@ -601,14 +680,30 @@ export async function scan(r: Reader, root: string, now: number): Promise<Snapsh
     hasScrum: hasLock || roadmapText !== null || sprintDirs.length > 0,
     versions: checks,
     phase: roadmap?.phase ?? null,
-    standing: roadmap?.standing ?? [],
+    stage: {
+      name: stageProfile.stage,
+      isDefault: stageProfile.isDefault,
+      signals: roadmap?.signals ?? [],
+      advice: roadmap?.advice ?? [],
+    },
     milestones: roadmap?.milestones ?? [],
     sprints,
     doneSprints,
     stories,
     doneStories,
     openTopics: roadmap?.openTopics ?? [],
-    followUps: roadmap?.followUps ?? 0,
+    techDebt: {
+      count: (roadmap?.debtItems ?? 0) + debtStories.length,
+      limit: stageProfile.debtLimit,
+      roadmapItems: roadmap?.debtItems ?? 0,
+      stories: debtStories,
+    },
+    architect: {
+      every: stageProfile.architectEvery,
+      since: Math.max(0, doneIndex - (Number.isNaN(doneAtReview) ? 0 : doneAtReview)),
+      lastReview: newest === undefined ? null : review?.['date'] || (REVIEW_FILE.exec(newest)?.[1] ?? null),
+      hasSkill: skill !== null,
+    },
     launch,
     branching,
     releaseProfile: profile === null ? null : parseReleaseProfile(profile),
@@ -717,14 +812,11 @@ export function storyIdIn(text: string, ids: string[]): string | null {
   return (text.match(/\d+/g) ?? []).find(n => ids.includes(n)) ?? null
 }
 
-// "Waiting on the user: a; b; c." from "Where we stand", as single items.
-export function waitingItems(standing: string[]): string[] {
-  return standing
-    .filter(l => /^waiting on\b/i.test(l))
-    .flatMap(l => l.replace(/^waiting on[^:]*:\s*/i, '').split(/;\s*/))
-    .map(t => t.trim().replace(/\.$/, ''))
-    .filter(t => t !== '')
-}
+// The two thresholds the profile's `## Stage` sets: tech debt at its limit (0 = no limit), and
+// a solution-architect review due (every 0 = off).
+export const isDebtDue = (snap: Snapshot) => snap.techDebt.limit > 0 && snap.techDebt.count >= snap.techDebt.limit
+export const isArchitectDue = (snap: Snapshot) =>
+  snap.architect.every > 0 && snap.architect.since >= snap.architect.every
 
 export const launchLabel = (snap: Snapshot, name: string) => {
   const l = snap.launch[name]

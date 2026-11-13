@@ -95,10 +95,10 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   exists twice is extracted before it is used a third time. Deliverable agents stop on a copied
   shape, tests are named after behaviour rather than stories and use the profile's
   `test-support` first, and the review flags copied blocks and comments that narrate history.
-- **Findings leave the review.** A finding left unfixed becomes a follow-up line in the roadmap
-  or a story draft, never a list that stays in `review.md`. `/roadmap check` turns follow-ups
-  older than three sprints into stories, and moves concepts whose milestones are all `done` to
-  `systems/`. A story that changes a documented system updates that system's doc too.
+- **Findings leave the review.** A finding left unfixed becomes a tech-debt line in the roadmap
+  or a story draft, never a list that stays in `review.md`. Tech debt is counted, not aged out:
+  at the profile's `tech-debt-limit`, `/roadmap plan debt` cuts a cleanup sprint. `/roadmap
+  check` moves concepts whose milestones are all `done` to `systems/`. A story that changes a documented system updates that system's doc too.
 - **A sprint is observable from outside.** `/sprint` commits `SNN: sprint started` on the base
   branch before it cuts the sprint branch, frames every long step with a status line (what
   runs, since when, how long it took last time, which file to watch, how to stop), grows
@@ -278,6 +278,40 @@ built. Tests, refactors and internal changes get no entry, and a story with no u
 adds nothing.
 
 Default is `none`, and then the rule is dormant — nothing asks for a changelog that does not exist.
+
+## Stage — gates that grow with the project
+
+A project that has just started has no test suite, no e2e harness and no release pipeline, and
+nobody can decide on day one which of them runs where. So the profile carries a `stage`, and the
+gates follow it:
+
+| | prototype | mvp | stable | live |
+| --- | --- | --- | --- | --- |
+| acceptance criteria proven by tests | — | ✓ | ✓ | ✓ |
+| e2e through the real surface | — | — | core journeys | core journeys |
+| sprint ends with `/release-check` | — (`not tracked`) | — (`not tracked`) | ✓ | ✓ |
+
+Three roles keep it honest, none of them expensive:
+
+- **`/roadmap check` tracks.** At every sprint end it looks, by rule and with a few Globs, at
+  what the repository has — CI, a release workflow, tags, a test suite, an e2e config — and at
+  the done stories since the last solution review and the tech debt. A mismatch becomes one line
+  of advice in the roadmap's `## Stage`, with the command that acts on it, once — not every
+  sprint. It never changes the profile.
+- **`/solution-architect` decides** (tech-rules, technology-agnostic, on demand). It reads the
+  evidence, consults the project's stack skills as tech leads where a question is
+  stack-specific, and writes a dated `docs/architecture/<date>-solution-review.md`: the stage,
+  the core journeys, the gate set as an exact profile diff, and draft stories for what is missing.
+- **`/ai-scrum:setup` applies** — it offers the newest review's profile diff as the preselected
+  answers. Below `stable`, setup asks nothing about things that do not exist yet; those keys are
+  written as `none` and reported as `dormant`.
+
+A profile without `stage` runs as `live`, exactly as before.
+
+**Tech debt** is the roadmap's `## Tech debt` section plus the open stories with `kind: debt`. It
+is counted against `tech-debt-limit` (default 10) instead of being aged out; at the limit,
+`/roadmap plan debt` cuts a cleanup sprint from it. The scrum cockpit shows the count, the stage
+and the stories since the last solution review as one line each.
 
 ## Releasable — `/release-check`
 

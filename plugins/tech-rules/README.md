@@ -29,7 +29,7 @@ every session.
 
 | Group | Skills | Installed when |
 | --- | --- | --- |
-| `all` | `karpathy`, `test-gates`, `test-review`, `release-prep` | always |
+| `all` | `karpathy`, `test-gates`, `test-review`, `release-prep`, `solution-architect` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` |
 | `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
@@ -41,6 +41,7 @@ every session.
 | `test-gates` | Which test runs where - PR lane (core functionality, ≤ 6 min on CI), release smoke, release prep (everything), perf (advisory, never blocks) - and what a test in a blocking lane may do: no wall-clock assertions, timeouts only as hang detectors, clock/zone/paths from the config, one runtime version for local and CI. The procedure for a test that is red on CI and green locally. |
 | `test-review` | `/test-review [all\|staged\|branch [<base>]\|<path>]` — the test engineer: classifies every test (proves a function, measures speed, depends on the machine, brittle, wiring, duplicate), checks its lane and its cost, and writes a report of what to delete, merge, move or fix. Read-only. |
 | `release-prep` | `/release-prep [<release branch>]` — runs everything before a release (all lanes, every e2e flow, perf, packaging, release dry run) in a throwaway worktree of the merge result, under CI-like conditions, fastest first, and writes a report with a GO / NO-GO verdict. Changes nothing in the repository. |
+| `solution-architect` | `/solution-architect [<question or focus>]` — the technology-agnostic solution architect: decides from evidence (CI and release workflows, test inventory, releases, roadmap phase, churn) the project's stage (`prototype` / `mvp` / `stable` / `live`), its core journeys, the gate set that fits the stage and whether release pipeline and tests fit together. Stack-specific questions go to at most three tech-lead subagents, each briefed with one installed stack skill. Writes `<architecture-path>/<date>-solution-review.md` with a profile diff for ai-scrum's `## Stage`, a proposed `## Test lanes` table, and - in an ai-scrum project - the catch-up stories as drafts (`kind: debt`). Applies nothing; measurements it leaves to `/common:architecture-review tests`. Runs only when invoked, in the top-level session. |
 | `backend-guidelines` | Layering, dependency direction, type placement and naming for modular ASP.NET Core backends, with the review checklist. |
 | `composition-root` | A readable entry point: one named static registration class per concern, called by name — no authored extension methods. |
 | `csharp-unittest` | Per-domain test projects, one file per use case, AAA, snake_case names, hand-written fakes, blackbox assertions. |

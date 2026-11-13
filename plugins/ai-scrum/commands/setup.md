@@ -89,6 +89,18 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    - **Protection of the release branch** (only if `gh` is available and authenticated):
      `gh api repos/{owner}/{repo}/branches/<release-branch>/protection` — `404` / `Branch not
      protected` means a red PR can be merged. Reported in Phase 5; never changed.
+5c. **Stage** — how far the project is, from what exists, not from what is planned:
+   - the signals `/roadmap check` uses (its mode `check`, step 5, in
+     `${CLAUDE_PLUGIN_ROOT}/templates/workflow/commands/roadmap.md`): `ci`, `release-workflow`, `unit-tests`,
+     `e2e-config`, `tag`;
+   - the detected stage: no `unit-tests` and no `ci` → `prototype`; tests but no
+     `release-workflow` → `mvp`; a `release-workflow` without a `tag` → `stable`; a
+     `release-workflow` and a `tag` → `live`. A fresh repository is a `prototype`;
+   - **the newest solution review**: `<architecture-path>/*-solution-review.md` (default
+     `docs/architecture`), written by `/solution-architect` (tech-rules). If one exists, its
+     recommended stage and its profile diff (exact `key: value` lines) are the recommendation
+     for every key it names — it is a decision someone already thought through, the detection
+     above is only a guess.
 6. **Doc language:** if requirement/story files already exist, sample one or two and
    detect the language actually used — that is the default for `doc-language`, so an
    existing German project stays German.
@@ -120,8 +132,42 @@ for things you could not determine or that are genuine decisions**. Never invent
 silently; a value you could not determine goes into the profile as an explicit
 `<placeholder>` and is named in the final report.
 
+**Ask about what exists, not about what is planned.** A project that has not started has no
+test suite, no e2e harness and no release pipeline, and nobody can decide today which of them
+runs where. Below stage `stable`, a key whose thing the survey did not find — an e2e command, a
+narrow gate, a quarantine list, a release plan or dry run — is written as `none` **without a
+question** and listed in the report as `dormant`: `/roadmap check` notices when the thing
+appears and says so in the roadmap's `## Stage`, and the next `/ai-scrum:setup` asks about it
+then. That is the one exception to "never fill in silently", and `none` is the only value it
+writes.
+
 Cover, in this order of importance:
 
+0. **Stage** — first, because it sets the recommendation for everything after it. Offer the
+   stage from step 5c with its evidence in one line ("no tests, no CI → prototype"), or the
+   newest solution review's stage with its date. The four values with one line each, as in the
+   profile template's comment. Then the defaults that follow from it, as the recommended answer
+   of each later question:
+
+   | key | prototype | mvp | stable | live |
+   | --- | --- | --- | --- | --- |
+   | `ac-tests-required` | `false` | `true` | `true` | `true` |
+   | `ui-acceptance-required` (with a surface) | `false` | `false` | `core` | `core` |
+   | `e2e` | `none` | `none` | the core-journey suite | the suite |
+   | `release-verify` | `none` | `none` | `auto` | `auto` |
+   | `release-plan`, `release-dry-run` | `none` | `none` | detected | detected |
+   | sprint ends with `/release-check` | no | no | yes | yes |
+
+   `core-journeys` is asked only from `stable` on, and only when `ui-acceptance-required` is
+   `core`: a short `;`-separated list, the solution review's list as the recommendation.
+   `tech-debt-limit` (10), `architect-review-every` (20) and `architecture-path`
+   (`docs/architecture`) are written with their defaults without a question and named in the
+   report — they are tuning, not decisions.
+   **On an update** a profile without `stage` has run as `live` so far: offer the detected
+   stage and `live` ("keep everything as it is") side by side, the detected one recommended
+   only when it is lower and the survey shows the gates would answer `none`/`UNVERIFIED`
+   anyway. A profile whose `stage` is older than the newest solution review gets the review's
+   profile diff offered key by key — the user confirms each, nothing is applied unasked.
 1. **Verify commands** — build/test (+ lint/typecheck if the project has them), offered as
    the detected suggestion with "correct" as the recommended option.
 1b. **`e2e`** — the command that runs functional tests against the real app. Suggest a
@@ -163,8 +209,11 @@ Cover, in this order of importance:
    excepted. An answer left open becomes `none`.
 1e. **Release** — the `## Release` keys (see their comment in the profile template), from step
    5b. They are what makes `/sprint` end releasable: it merges `release-branch` in at its start
-   and runs `/release-check` — the merge, a clean clone, every blocking CI step, the release as
-   a dry run — as its last step. Ask, bundled:
+   and, from stage `stable` on, runs `/release-check` — the merge, a clean clone, every blocking
+   CI step, the release as a dry run — as its last step. Below `stable`, ask only
+   `release-branch` (it decides what the sprint merges in) and write the rest per the stage
+   table; `commit-style` is still asked when the survey found a Conventional-Commit signal.
+   From `stable` on, ask, bundled:
    - `release-branch`, `release-plan`, `release-dry-run`: the detected values, "correct" as the
      recommended option. A project with a release workflow but no dry-run mode: say plainly
      that the release step will be reported as not run, so a due release is never `yes` — the
@@ -196,12 +245,14 @@ Cover, in this order of importance:
    already has**, placeholder excepted. An answer left open becomes `none`.
 2. **Acceptance policy** — three values, and together they are this workflow's promise that a
    sprint needs no manual acceptance round:
-   - `ac-tests-required` (default `true`): every acceptance criterion is mapped to an
-     automated test in refine and proven by it in build. Turn it off only for a spike or a
-     throwaway project.
+   - `ac-tests-required` (default per stage, `true` from `mvp` on): every acceptance criterion
+     is mapped to an automated test in refine and proven by it in build. `false` in a
+     prototype, a spike or a throwaway project.
    - `ui-acceptance-required`: does this project have a user-facing surface whose criteria
      must be proven through it? For a library, CLI, service or mod the answer is usually no.
-     If yes, `e2e` from step 1b is the command that does it.
+     If yes, `e2e` from step 1b is the command that does it — for every user-facing criterion
+     (`true`) or only for those on a core journey (`core`, the default from `stable` on).
+     Below `stable` it is `false` without a question: the journeys still move every sprint.
    - `manual-residue-allowed` (default `true`): may a criterion be declared unautomatable
      with a reason (an OS dialog, specific hardware, a paid external service)? `false` forces
      refine to reformulate or drop it instead. Do not ask unless the user brings it up — the
@@ -325,6 +376,9 @@ Short and complete:
 - Placeholders still in the profile that the user has to fill in.
 - Profile keys **added** on this update, with the value each one got (`none` included), so a
   new key never appears unannounced.
+- **Stage**, one line: the stage, its evidence or the solution review it came from, and the
+  `dormant` keys written as `none` because their thing does not exist yet — `/roadmap check`
+  will say when one of them should wake up.
 - **Release readiness**, one line each: the `## Release` values, and what `/release-check` will
   not be able to check (no `release-dry-run` while a release workflow exists, a `release-verify:
   none`). If step 5b found the release branch unprotected, recommend a branch protection rule
