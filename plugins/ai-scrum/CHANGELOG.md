@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.12.0 — 2026-11-13
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **UI is built from the design system while it is written, not fixed in a review afterwards.**
   New profile section `## Design` with `design-system` (the design document) and `design-scan`
   (a command that reports drift in given files), both default `none` and offered by setup on an
