@@ -11,6 +11,10 @@ is empty, so no version ever ships without notes.
 ## Unreleased
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 4.13.0 — 2026-11-13
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 - **New command `/design-review [scope]`** — reviews screens against the design system: starts
   the app on throwaway data, screenshots each screen at desktop and phone width next to its
   archetype's reference, runs `design-scan` for the metrics, and has `design-reviewer` agents
