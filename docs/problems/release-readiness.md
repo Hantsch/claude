@@ -5,8 +5,10 @@ or a release of a project that runs ai-scrum goes red, or a fix commit is needed
 sprint's end and its release (§8).*
 
 **Status:** open — C1–C6, C8, C9 built into ai-scrum (`/release-check`, under `## Unreleased`, not yet
-released) · **Incidents:** 9 (I1–I9) · **Last:** I9, 2026-10-30, claude-control (resolved) ·
-**Next:** release ai-scrum, `/ai-scrum:setup` in the projects (§6), then count green cycles (§1)
+released); C10–C13 built into tech-rules (unreleased) and T-T-Agent-Kingdom (`0cc93eb`) ·
+**Incidents:** 10 (I1–I10) · **Last:** I10, 2026-11-14, T-T-Agent-Kingdom (open) ·
+**Next:** release ai-scrum, `/ai-scrum:setup` in the projects (§6), then count green cycles (§1);
+for I10: release tech-rules, `/tech-rules:setup` and `/test-review all` in T-T-Agent-Kingdom (§6)
 
 ## 1. The problem
 
@@ -16,7 +18,9 @@ In practice the PR or the release is red more often than not, and every time on 
 gate. So each fix feels like progress, and the next release fails anyway.
 
 The question this record answers over time: **which mechanisms make "green at the end of the
-sprint" differ from "green on GitHub", and which of them are closed?**
+sprint" differ from "green on GitHub", and which of them are closed?** Since I10 it has a second
+form, for a project with no CI at all: green in the sprint gate, red in the release script twenty
+minutes later, on the same machine (M8–M11).
 
 **Solved when** five consecutive sprint → PR → release cycles, in projects with an automatic
 release workflow, are green on the PR's first run and release without a fix commit in between,
@@ -39,6 +43,7 @@ Oldest first; append new rows at the bottom. Mechanisms: §3.
 | I7 | 10-29 | q2-launcher PR #24 → [release](https://github.com/Hantsch/q2-launcher/actions/runs/40886812877) | Release step "Package the unpacked Windows app" | ? | not classified (the log needs a token) | `52d7ea9` "release fix" |
 | I8 | 10-30 | claude-control PR #6, head `5778747` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41051446781), [release](https://github.com/Hantsch/claude-control/actions/runs/41051628005)) | Test, N5: `expected 2061 to be less than 2000`; merged 40 s after the red run, release red the same way (2053 ms) | S06: `releasable: yes · a21373f · build + full test + typecheck` | M3, M2, M6 | S07/023 moved the budgets to the perf lane; S06 still unreleased on main |
 | I9 | 10-30 | claude-control PR dev→main, head `e70e7af` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41064355449)) | Check release notes: "'## Unreleased' in CHANGELOG.md is empty … would release 1.1.2 (patch), but the notes are not ready" | S07: `releasable: yes · e70e7af · npm run build && npm run typecheck && npm test` | M1, M2, M4, M5 | `3499fed` merged origin/main into dev, `612487d` moved the notes; PR #7 [green](https://github.com/Hantsch/claude-control/actions/runs/41069375210) → [release](https://github.com/Hantsch/claude-control/actions/runs/41070172479) v1.1.2 — a **patch** for S06's features (M5) |
+| I10 | 11-14 | T-T-Agent-Kingdom, `npm run deploy` on the dev PC (no CI, no PR), head `3afb763` | Deploy step "Tests (npm test)", exit 1: `chat.test.ts:428` `vi.waitFor(() => expect(started).toEqual(["claude", "codex"]))` - "Compared values have no visual difference" (the value arrived after the wait's 1 s default) - plus an unhandled `fetch failed` from the requests left open at teardown. 1 of 3,913 tests, 238 s | S34: `npm test` 7 red → 2 fixed, 2 pre-existing, 3 "flaky under load", "no blocker"; then two fix commits that afternoon, `4b9e8aa` and `3afb763` "Tests green under full load", 8 min before the red deploy | M8, M9, M10, M11; M3 (gate on Node 25, deploy on Node 22) | wait budget and full-run lock in the project (`0cc93eb`), tech-rules `test-gates` / `test-review` / `solution-architect` (unreleased); the deploy itself re-ran on the green note |
 
 All dates 2026. Window: claude-control's whole CI history (7 PRs to main, 3 red); q2-launcher
 only from 2026-10-27 (the API's last 100 runs) plus what its script's header records.
@@ -98,6 +103,38 @@ notes. `CLAUDE.md`'s lane table says the PR lane blocks the merge — nothing en
 roadmap edit then broke a test (I6). *Status: closed by ai-scrum 4.8.0 phase 4 (runs last,
 commits nothing after a green run). Necessary, not sufficient: I8 and I9 came after it.*
 
+**M8 — The verdict depends on what else the machine is doing.** M3 with the dev machine as its
+own slow runner. T-T-Agent-Kingdom, 2026-11-14: three full runs red on three different sets of
+tests (6 tests in 4 files, 4 in 4, then I10's 1). In a full run about 200 of 3,900 tests take over
+5 s, 25–34 over 20 s and 5–14 over 40 s of a 60 s timeout; `chat.test.ts` takes 102 s alone and
+237 s inside the full run; 80 % of the test time is in tests that start a real server (78 files) or
+a child process (18). The same suite took 238 s, 438 s and 533 s that day. A verification run after
+the fixes - alone under the lock, Node 22 - still lost one process-starting test
+(`line-endings.test.ts`, four child processes, timed out at 60 s) while a game and seven other
+agent sessions held the CPU at 100 %. *Status: partly closed - the doubled load (C11) and the 1 s
+waits (C10); the thin margins and the groups by cost are open (C12, the project's story 247).*
+
+**M9 — A default is a budget nobody wrote.** `vi.waitFor` gives up after 1 s; the step I10 waited
+for takes 0.03–0.57 s on the idle PC. tech-rules `test-gates` (2.4.0, rule 2 and the Vitest note)
+already said "async waits 10 s" and "wrap it once in the setup file" - the project had 90 raw calls
+in 17 files, one with a timeout, and its own hygiene guard test did not look for them: the skill
+"gates nothing" and setup installed no enforcement. M6's shape (a rule in a table nothing
+enforces), one level down. *Status: closed in the project (setup file + a counted guard test);
+tech-rules offers the file (C10, unreleased).*
+
+**M10 — Two runs of the gate at once.** The agent session that fixed the tests started `npm test`
+in the background at 14:50 (green at 14:59:53 after 533 s). The user started the deploy at 14:57;
+it found no green note for the commit yet and ran its own `npm test` beside the first. Nothing
+serialised the two, and the note that would have let the deploy skip the suite came 2.5 min too
+late. *Status: closed in the project (C11); a rule only in tech-rules; ai-scrum unchanged (C14).*
+
+**M11 — The specialist exists and nobody sends it.** `/test-review` (the test engineer) has
+shipped since tech-rules 2.4.0 and never ran in this project (no report). The solution review of
+the same morning saw "the full suite is not green on the dev PC" and cut a story to make it green -
+without naming the cause, and commissioning only timings. So the afternoon's two fix commits
+repaired the tests that were red in that run (§4's pattern, inside one day). *Status: closed in
+tech-rules (C13, unreleased); not yet run on a real review.*
+
 ## 4. Why the fixes so far did not stick
 
 Each fix closed the mechanism of the latest incident, in the project where it happened.
@@ -111,13 +148,17 @@ Each fix closed the mechanism of the latest incident, in the project where it ha
 | 10-29 | ai-scrum 4.8.0: phase 4 + `release-verify` key | M7; M1–M3 only with a real key | 1 of 4 projects on ≥ 4.8.0 has one |
 | 10-30 | claude-control S07: N4/N5 to the perf lane, release lane tests only a due release, lanes in `CLAUDE.md` | M3 for N4/N5 | claude-control |
 | 10-30 | ai-scrum `/release-check` + `/sprint` phase 0/4 + `changelog-style` + `Change type:` + `commit-style` (unreleased) | M1, M2, M4, M5 in ai-scrum; M3 partly (CI env, short TEMP — not runner speed) | every ai-scrum project, from its next `/ai-scrum:setup`, with no tech-rules |
+| 11-14 | T-T-Agent-Kingdom `4b9e8aa`, `3afb763`: a green note so the deploy skips a proven commit; fewer processes in three safety tests; three more tests repaired | one instance of M8 each - the tests red in that run | that project; red on another test 8 min later (I10) |
+| 11-14 | T-T-Agent-Kingdom `0cc93eb`: a 10 s wait budget in a Vitest setup file with a counted guard test; a machine-wide heartbeat lock around every full run; the deploy waits for a running full run, then reads the green note | M9, M10; M8 only for the doubled load | that project |
+| 11-14 | tech-rules (unreleased): `test-gates` "Load" section, the runner's wait defaults in rule 2, the enforcement list; one-time file `vitest-waits.ts`; `test-review` load sweeps, margins and "causes, not casualties"; `solution-architect` gate health → test engineer → commission | M9 (the first enforcement setup offers), M11; M8 and M10 as rules | projects with tech-rules, from their next `/tech-rules:setup` |
 
-The pattern (before the last row): the answer to M1–M3 exists three times — q2-launcher's script, tech-rules'
+The pattern (before the last row of 10-30): the answer to M1–M3 exists three times — q2-launcher's script, tech-rules'
 `/release-prep`, ai-scrum's phase-4 hook — none wired to the others, and the one that runs by
 default (phase 4 with `none`) is the weakest and the only one that says "yes". M4 and M5 were
 never named, so each recurrence looked new. Fixes also travel in neither direction (the
-placeholder strip in M4). Hence this record: classify a new incident against M1–M7 first, fix
-second.
+placeholder strip in M4). Hence this record: classify a new incident against M1–M11 first, fix
+second. I10 repeated the pattern in one afternoon: the rule existed (M9), the specialist existed
+(M11), and each fix repaired the tests of the last red run.
 
 ## 5. Countermeasures
 
@@ -132,6 +173,12 @@ second.
 | C7 | This repo's `release.ps1` replaces heading *and* body on promotion (as claude-control's does), and the 18 stray placeholders go | M4 (here) | `scripts/release.ps1` | proposed — not part of this change (`scripts/`, this repo only) |
 | C8 | The plan's completeness is checked by a script, not trusted to the agent: every `run:` line of every push/pull_request workflow must be named in `plan.md` by `file:line`; a missing one is re-planned once, then `UNVERIFIED` (F3b). Tested on claude-control: a plan without `validate.yml:42` (check-notes — I9's step) is caught | an agent's plan silently dropping a step (M2 again, one level up) | ai-scrum `release-check.md` | done (unreleased); GitHub Actions only — other CI is warning W5 |
 | C9 | Every verdict leaves a record in `.git/ai-scrum/release-checks.jsonl`; the next run (every sprint start) finds where that tree went on the release branch, reads the PR and release runs from the GitHub API and reports `green cycle` / **`missed`** (yes → red, with an incident row for §2) / `not confirmed` (NO → green) / `superseded`. Tested against PR #7: the dev run's NO on `612487d` resolves to merge `154ddee`, validate and release green → `not confirmed` | a wrong verdict going unnoticed; the §1 count done by hand | ai-scrum `release-check.md` B7, `sprint.md` phase 0 | done (unreleased) |
+| C10 | The wait budget ships as a file, not a sentence: a Vitest setup file that puts `vi.waitFor` / `vi.waitUntil` on 10 s, plus a guard test that needs more tries than the 1 s default allows (counted, not timed) | M9 | tech-rules setup (one-time file `vitest-waits.ts`), `test-gates` Enforcement | done (unreleased) - Vitest only; Testing Library, Playwright and .NET stay prose. In T-T-Agent-Kingdom done by hand |
+| C11 | One full run per machine: a lock file in the temp folder that its holder touches every 5 s (stale after 60 s - no process ids), taken by the lane's command; the release waits for it, then reads the green note | M10, M8 (the doubled load) | the project's test launcher and deploy; `test-gates` "Load" as the rule | done in T-T-Agent-Kingdom (`0cc93eb`); tech-rules ships the rule, not a lock |
+| C12 | Margin is a finding while the test is green: every test over a third of the timeout in a full run, the alone / full-run ratio of the slowest file, tests grouped by what they cost to start (in-process, server, child process) | M8 | `test-gates` "Load", `test-review` Phase 1 and the report's "Load and margins" | rule and review done (unreleased); in T-T-Agent-Kingdom open as story 247 - 25 tests over 20 s in the last run |
+| C13 | The architect checks gate health and sends the test engineer; the first story repairs the cause with a guard, tighter gates wait behind it, `/test-review all` is commissioned in the report | M11, and §4's "each fix closed the latest incident" | tech-rules `solution-architect`, `test-review` short form | done (unreleased); untested on a real review |
+| C14 | An agent's gate run and the user's release share one machine: `/sprint`, `/build` and `/release-check` say when a full run is going in the background and never start a second | M10 | ai-scrum `sprint.md`, `build.md`, `release-check.md` | proposed - not part of this change |
+| C15 | The test command refuses another runtime major than the version file instead of warning | M3 (runtime) | the project's launcher; `test-gates` "Load", last bullet | proposed - T-T-Agent-Kingdom story 247 (its open question) |
 
 ## 6. Open
 
@@ -150,6 +197,22 @@ second.
 6. **User:** required check on main (C6).
 7. main again carries a release commit dev lacks (`2c4b390 chore(release): 1.1.2`): the next
    sprint's phase 0 merges it — the first live test of C2.
+
+**I10 — T-T-Agent-Kingdom**
+1. Done, `0cc93eb`: C10 and C11 in the project (`tests/setup/waits.ts`, `tools/test-lock.mjs`,
+   `tools/test-full.mjs` as `npm test`, the deploy's wait). Their own tests, typecheck and lint are
+   green; the guard was shown to fail with the wrapper switched off (14 tries in 1 s).
+2. **Not proven:** a green full run. The verification run (Node 22, alone under the lock) was
+   3,918 of 3,919 in 438 s, with the CPU at 100 % from other programs - the one red is M8, not the
+   change (`line-endings.test.ts` passes alone).
+3. Open: the next deploy runs the suite once more - the green note covers `3afb763`, not
+   `0cc93eb` - and can meet item 2's timeout while the PC is that busy.
+4. Open: story 247 with C12 and C15 - process-starting tests serial, the 25 tests over 20 s,
+   refuse Node 25.
+5. Open: release tech-rules, `/tech-rules:setup` in the project, then `/test-review all` - its
+   first run there.
+6. Not explained: the same server start takes 70–120 ms under plain Node and 270–1,780 ms inside a
+   Vitest worker on the idle PC.
 
 **Acceptance of `/release-check` (2026-10-30)** — throwaway clones of claude-control, an origin
 mirror with `main = 0f1bdb8` (the base of both PRs), the profile as setup would write it
