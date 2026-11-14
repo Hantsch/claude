@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.7.0 — 2026-11-14
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - `test-gates`: **load** is a fifth cause next to time, environment and the two CI ones, from a
   project with no CI whose suite was green in the sprint gate and red in the release twenty minutes
   later on the same machine. New section "Load: green on a busy machine": margin to the timeout (a
