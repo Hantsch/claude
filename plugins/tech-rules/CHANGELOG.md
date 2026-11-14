@@ -12,6 +12,34 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- `test-gates`: **load** is a fifth cause next to time, environment and the two CI ones, from a
+  project with no CI whose suite was green in the sprint gate and red in the release twenty minutes
+  later on the same machine. New section "Load: green on a busy machine": margin to the timeout (a
+  test over a third of it in a full run is a finding while still green), what a test costs to start
+  (a server or a child process makes it an integration test), groups by cost in the runner config,
+  one full run per machine at a time (a lock with a heartbeat; a release that waited reads the
+  green note instead of running again), proof on the runtime that ships. Rule 2 names the runner's
+  own wait defaults (`vi.waitFor`, `vi.waitUntil`, `expect.poll`, Testing Library 1 s; Playwright
+  `expect` 5 s) as per-wait timeouts below the central one. The lanes say what "provably ran on the
+  released commit" means without CI. `load` joins the dependency classes; the red-on-CI procedure
+  also covers red in one run and green in the next. Enforcement gains the wait budget with a
+  counted guard test, the lock and a margin list.
+- New one-time file `vitest-waits.ts`, offered by `setup` to a project that tests with Vitest and
+  has no central wait budget: a setup file that puts `vi.waitFor` and `vi.waitUntil` on 10 s. Setup
+  prints the config lines and the guard test; it does not edit the Vitest config.
+- `test-review`: sweeps for waits on a runner default, server- and process-starting tests,
+  whether full runs are serialised and a gate history of accepted red gates; measures the slowest
+  file alone against the full run and lists every test over a third of the timeout; a new report
+  section "Load and margins"; the rule "causes, not casualties" - tests that fail for one reason
+  are one finding with one guard. A short form (the sweeps only, one question) for the solution
+  architect's test engineer.
+- `solution-architect`: a "gate health" evidence step (a red gate that was accepted, test fixes
+  between a sprint's end and its release, a `missed` release check, one test command run by several
+  actors on one machine, runtime drift, no test review). An unhealthy gate gets a test-engineer
+  subagent first, briefed with `test-review`; the first story then repairs the cause it names with
+  a guard, tighter gates wait behind that story, and the report's new "Specialists" section
+  (replacing "Measurements wanted") commissions `/test-review all` with its brief.
+
 ## 2.6.0 — 2026-11-13
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

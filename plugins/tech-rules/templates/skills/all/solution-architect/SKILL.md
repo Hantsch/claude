@@ -1,6 +1,6 @@
 ---
 name: solution-architect
-description: Solution architect review - decides where the project stands (stage prototype, mvp, stable or live), which user journeys are core, which test and release gates fit that stage and whether release pipeline and tests fit together; consults a tech lead per installed stack skill only for stack-specific questions, writes a dated solution review with a profile diff and drafts the catch-up stories. Applies nothing. Invoked as /solution-architect [<question or focus>].
+description: Solution architect review - decides where the project stands (stage prototype, mvp, stable or live), which user journeys are core, which test and release gates fit that stage and whether release pipeline and tests fit together; notices a gate that goes red without a defect and commissions the test engineer; consults a tech lead per installed stack skill only for stack-specific questions, writes a dated solution review with a profile diff and drafts the catch-up stories. Applies nothing. Invoked as /solution-architect [<question or focus>].
 argument-hint: [<question or focus>]  (default: the whole stage review)
 disable-model-invocation: true
 model: opus
@@ -19,7 +19,9 @@ breakage. Your job is the right amount for the stage - and saying when the stage
 
 You are technology-agnostic. Solution and architecture questions you answer yourself; a question
 that depends on one stack's rules goes to a **tech lead** - a subagent briefed to apply one of the
-project's installed stack skills.
+project's installed stack skills. A gate that goes red without a defect is not yours to diagnose
+from the outside either: that goes to the **test engineer** - a subagent briefed with the
+`test-review` skill - and the full review of the suite is commissioned in the report.
 
 **What this is not.** `/common:architecture-review` (plugin `common`) is the heavy whole-codebase
 audit with dozens of agents and measured findings. This is one reasoning pass plus at most three
@@ -56,7 +58,8 @@ review still records a stage, but spends its depth there. Empty means the whole 
 3. The previous decision: the newest `<architecture-path>/*-solution-review.md` - its stage, its
    profile block and its stories (which are still open, which are done). Also, if present, the
    newest `*-codebase-review.md`, `*-test-review.md` and `*-release-prep.md` under the docs folder:
-   reuse their numbers, never re-derive them.
+   reuse their numbers, never re-derive them. Note the date of the newest test review, or that
+   there is none.
 4. The installed stack skills: every `.claude/skills/<name>/SKILL.md` (and nested
    `<subdir>/.claude/skills/`) - name and description only. These are the tech leads you can
    call.
@@ -89,8 +92,32 @@ source (`file:line`, the command):
    `<requirements-path>/done/INDEX.md` (`0` if the file is missing) - and the open tech debt as
    `tech-debt-limit` counts it: the items in the roadmap's `## Tech debt` section plus the open
    stories with `kind: debt` in their frontmatter.
+7. **Gate health** - is a red gate a defect, every time? Each of these is a signal, with its
+   source:
+   - a sprint review, the roadmap's tech debt or a release note that says a gate was red and the
+     work went on: `flaky`, `under load`, `timeout`, `pre-existing`, `waved through`, a
+     skip-the-gate flag in a release script;
+   - commits after a sprint's end and before the next release or tag whose subject fixes tests
+     (`git log --format="%h %s" <sprint end>..<tag>`), and the same sentence in two sprint reviews;
+   - a `missed` in `.git/ai-scrum/release-checks.jsonl`; quarantine entries and their age;
+   - the same test command run by more than one actor on one machine (a sprint gate, a release
+     script, a release check in a clone) with nothing that serialises them;
+   - the local runtime major against the version file; the gate's duration `not measured`;
+   - no test review, or one older than `architect-review-every` stories.
 
-## Phase 2 - tech leads (only for stack-specific questions, at most three)
+   One signal is a note. A red gate that was accepted, or test fixes between a sprint and its
+   release, is an **unhealthy gate**: people have started to work around it, and every gate the
+   stage adds on top will be worked around the same way.
+
+## Phase 2 - tech leads and the test engineer (at most three subagents)
+
+**An unhealthy gate gets the test engineer first**, before any stack question: one subagent
+briefed like a tech lead (below). The skill to apply is `.claude/skills/test-review/SKILL.md`, in
+its short form for this case (the evidence sweeps only), plus `test-gates`. Its paths are the tests
+and fix commits from the gate-health evidence; its one question: *which dependency class
+(clock, zone, path, speed, load, order, artefact, runtime version) makes these tests fail, how many
+tests in the suite share it, and which one guard keeps the class out?* It counts as one of the
+three.
 
 Call one when a decision hinges on a stack's own rules and you cannot settle it from the evidence:
 "can the core journeys run in the existing UI harness, or is a new one needed?" (`ui-verify`,
@@ -167,6 +194,21 @@ the release derives its bump from Conventional Commits; a release without user-f
 only with commands that exist or that a story creates (`(story NNN)` in the cell). Where to put a
 test whose value or runtime is unknown is not guessed: that is `/common:architecture-review tests`.
 
+**Gate health** - with an unhealthy gate, three things follow, in this order:
+
+1. The first story repairs the **class** the test engineer named, and its acceptance criteria name
+   the guard (a config default, a guard test, a lock) and a search that must return nothing - never
+   "these five tests pass". A story of that second kind is what the earlier fixes were.
+2. No gate is tightened on top of it: a stage step that adds a release check or a core-journey
+   gate is still recommended, but its keys wait behind that story (`after story NNN`), and the
+   report says so.
+3. The full review is **commissioned**, not just mentioned: `/test-review all` with measuring,
+   and the brief - what to look at first - written out under Specialists. The user types it; a
+   review that needs dozens of agents is not started from inside this one.
+
+A healthy gate with no test review yet, at stage `stable` or `live`, still gets the commission -
+as a line, without a story.
+
 **What to build** - the catch-up from today to the recommended stage, as at most five stories in
 build order, each one refine's worth (S or M). A story of an earlier solution review that is still
 open is referenced, not written again.
@@ -193,7 +235,8 @@ stories-done: <done stories from Phase 1 step 6; 0 without ai-scrum>
 Then a decision record, not an essay - about one screen:
 
 1. **Title and one line** - commit, current stage (or `live (default)`) → recommended stage, the
-   tech leads consulted with their skills, `no tech lead` where you answered alone.
+   tech leads and the test engineer consulted with their skills, `no tech lead` where you answered
+   alone.
 2. **Where the project stands** - at most eight evidence bullets, each with its source.
 3. **Recommended stage** - the stage and why in three to five lines; then the one signal that
    would move it to the next stage, so `/roadmap check` and the next review can watch for it.
@@ -206,11 +249,15 @@ Then a decision record, not an essay - about one screen:
    `release-dry-run`. The block holds the whole gate set, valid today. Below it, one line:
    `Changes: <key> <now> -> <new>, ...`, plus each target value waiting for a story
    (`e2e: none -> npm run test:core after story 051`).
-6. **Release and tests** - the fit verdict and the misfits.
+6. **Release and tests** - the fit verdict and the misfits; then **gate health**: `healthy`, or
+   `unhealthy` with its signals and the class the test engineer named.
 7. **Test lanes** - the proposed table, when relevant, marked as a proposal for `CLAUDE.md`.
 8. **Stories** - `| Id | Story | Kind | After |`, then `Open tech debt: <n> + <new> / limit
    <tech-debt-limit>`; over the limit is said plainly, it is the user's call.
-9. **Measurements wanted** - what `/common:architecture-review tests` should settle, or nothing.
+9. **Specialists** - who was consulted in this review and their answer in one line each; then who
+   is commissioned next, as the exact command with its brief: `/test-review all` (measure: yes;
+   look first at ...) for an unhealthy gate or a suite never reviewed,
+   `/common:architecture-review tests` for the measurements a lane decision waits on. Or `none`.
 10. **Next step** - always last: `/ai-scrum:setup` reads the newest solution review and offers its
     profile diff as the preselected answers. Without ai-scrum: paste the block once the project
     adopts it. The `## Test lanes` table goes into `CLAUDE.md` by hand - no plugin writes that file.
@@ -243,7 +290,8 @@ links the review.
 ## In the chat
 
 At most eight lines: the review path; current → recommended stage; the core journeys in one line;
-the `Changes:` line; the misfit that matters most; the story range; the next step.
+the `Changes:` line; the misfit that matters most; the gate's health and the specialist to run
+next; the story range; the next step.
 
 ## Rules
 
@@ -253,6 +301,8 @@ the `Changes:` line; the misfit that matters most; the story range; the next ste
   history, or are `not measured` and go to `/common:architecture-review tests`.
 - **Evidence, not taste.** Every stage claim, misfit and story cites a file, a command or a
   report. A deviation recorded in `CLAUDE.md` is respected, not re-litigated.
-- **At most three tech leads**, one question each, all in one message. No reviewer fan-out - that
-  is the architecture review.
+- **At most three subagents** - tech leads and the test engineer together - one question each,
+  all in one message. No reviewer fan-out - that is the architecture review and the test review.
+- **A red gate is never waved through in a review.** It is a defect or an unhealthy gate; the
+  report says which.
 - **One question round**, only for direction decisions.

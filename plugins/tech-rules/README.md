@@ -34,9 +34,9 @@ flowchart LR
 | write, move or fix a test — or a test is red on CI but green locally | `test-gates` | 🤖 |
 | build or change a screen | `design-system` | 🤖 |
 | review a C# diff | `/dotnet-review [staged \| branch \| <path>]` | ⌨️ |
-| clean up a slow or flaky test suite | `/test-review` → report: delete / merge / move / fix | ⌨️ |
+| clean up a slow or flaky test suite, or one that is red only when the PC is busy | `/test-review` → report: delete / merge / move / fix | ⌨️ |
 | know whether you can release | `/release-prep` → report with GO / NO-GO | ⌨️ |
-| decide which gates fit the project's stage (prototype → live) | `/solution-architect` | ⌨️ |
+| decide which gates fit the project's stage (prototype → live) - it also notices a gate people work around and sends the test engineer | `/solution-architect` | ⌨️ |
 
 ## What you get — by stack
 

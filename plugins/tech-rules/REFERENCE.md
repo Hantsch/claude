@@ -52,10 +52,10 @@ the skill is a command (`disable-model-invocation: true`) and runs only when you
 | Skill | Runs | What it covers |
 | --- | --- | --- |
 | `karpathy` | auto | The four behavioral rules against the recurring LLM coding mistakes: think before coding, simplicity first, surgical changes, goal-driven execution. |
-| `test-gates` | auto | Which test runs where - PR lane (core functionality, ≤ 6 min on CI), release smoke, release prep (everything), perf (advisory, never blocks) - and what a test in a blocking lane may do: no wall-clock assertions, timeouts only as hang detectors, clock/zone/paths from the config, one runtime version for local and CI. The procedure for a test that is red on CI and green locally. |
-| `test-review` | `/test-review [all\|staged\|branch [<base>]\|<path>]` | The test engineer: classifies every test (proves a function, measures speed, depends on the machine, brittle, wiring, duplicate), checks its lane and its cost, and writes a report of what to delete, merge, move or fix. Read-only. |
+| `test-gates` | auto | Which test runs where - PR lane (core functionality, ≤ 6 min on CI), release smoke, release prep (everything), perf (advisory, never blocks) - and what a test in a blocking lane may do: no wall-clock assertions, timeouts only as hang detectors (the runner's 1 s wait defaults included), clock/zone/paths from the config, one runtime version for local and CI. Load: green on a busy machine - margin to the timeout, tests grouped by what they cost to start, one full run per machine at a time. The procedure for a test that is red on CI and green locally, or red in one run and green in the next. |
+| `test-review` | `/test-review [all\|staged\|branch [<base>]\|<path>]` | The test engineer: classifies every test (proves a function, measures speed, depends on the machine or its load, brittle, wiring, duplicate), checks its lane and its cost, sweeps for waits on a runner default, thin timeout margins, server- and process-starting tests and a history of accepted red gates, and writes a report of what to delete, merge, move or fix - causes with their guard, not a list of tests to nurse. Read-only. Also the short form the solution architect briefs a subagent with. |
 | `release-prep` | `/release-prep [<release branch>]` | Runs everything before a release (all lanes, every e2e flow, perf, packaging, release dry run) in a throwaway worktree of the merge result, under CI-like conditions, fastest first, and writes a report with a GO / NO-GO verdict. Changes nothing in the repository. |
-| `solution-architect` | `/solution-architect [<question or focus>]` (Opus, high effort) | The technology-agnostic solution architect: decides from evidence (CI and release workflows, test inventory, releases, roadmap phase, churn) the project's stage (`prototype` / `mvp` / `stable` / `live`), its core journeys, the gate set that fits the stage and whether release pipeline and tests fit together. Stack-specific questions go to at most three tech-lead subagents, each briefed with one installed stack skill. Writes `<architecture-path>/<date>-solution-review.md` with a profile diff for ai-scrum's `## Stage`, a proposed `## Test lanes` table, and - in an ai-scrum project - the catch-up stories as drafts (`kind: debt`). Applies nothing; measurements it leaves to `/common:architecture-review tests`. Runs in the top-level session. |
+| `solution-architect` | `/solution-architect [<question or focus>]` (Opus, high effort) | The technology-agnostic solution architect: decides from evidence (CI and release workflows, test inventory, releases, roadmap phase, churn) the project's stage (`prototype` / `mvp` / `stable` / `live`), its core journeys, the gate set that fits the stage and whether release pipeline and tests fit together. It checks the gate's health (a red gate that was accepted, test fixes between a sprint and its release) and, when it is unhealthy, has a test-engineer subagent name the cause, makes the first story repair that cause with a guard, holds tighter gates back behind it and commissions `/test-review all` in the report. Stack-specific questions go to at most three subagents (tech leads and the test engineer together), each briefed with one installed skill. Writes `<architecture-path>/<date>-solution-review.md` with a profile diff for ai-scrum's `## Stage`, a proposed `## Test lanes` table, and - in an ai-scrum project - the catch-up stories as drafts (`kind: debt`). Applies nothing; measurements it leaves to `/common:architecture-review tests`. Runs in the top-level session. |
 
 ### Group `dotnet`
 
@@ -90,10 +90,12 @@ the skill is a command (`disable-model-invocation: true`) and runs only when you
 
 ### One-time files
 
-Two **one-time files** ship as well and are offered only for an Electron project, only when the
-target is missing: `templates/oneshot/launch.js` (env-scrubbing dev launcher, so `npm run dev`
+Three **one-time files** ship as well, each offered only when its target is missing. For an
+Electron project: `templates/oneshot/launch.js` (env-scrubbing dev launcher, so `npm run dev`
 works inside VS Code) and `templates/oneshot/json-store.ts` (atomic, self-healing JSON store with
-`.bak` and quarantine). They are code: copied once, then yours forever, with no marker and no lock
+`.bak` and quarantine). For a project that tests with Vitest: `templates/oneshot/vitest-waits.ts`
+(a setup file that puts `vi.waitFor` and `vi.waitUntil` on a central 10 s budget instead of the
+runner's 1 s; its header names the two config lines and the guard test that go with it). They are code: copied once, then yours forever, with no marker and no lock
 entry.
 
 ## What setup writes
@@ -103,7 +105,7 @@ entry.
 | `.claude/skills/<name>/SKILL.md` | plugin — refreshed on update, never hand-edit |
 | `.claude/tech-rules.lock` | plugin — version, groups, and a hash per file |
 | the `tech-rules:managed` block in `CLAUDE.md` | yours, block maintained with your explicit yes |
-| `scripts/launch.js`, a JSON store | yours from the moment it lands |
+| `scripts/launch.js`, a JSON store, the Vitest wait setup file | yours from the moment it lands |
 
 It never writes `.claude/settings.json`, never touches `.gitignore`, never commits, and never
 changes a line of `CLAUDE.md` outside its two markers.

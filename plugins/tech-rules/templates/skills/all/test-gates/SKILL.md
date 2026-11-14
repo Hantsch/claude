@@ -23,6 +23,15 @@ from four causes:
 - **The gate did not run before the push** - or ran in another shape than CI runs it.
 - **The first CI signal came at release time**, so a sprint's worth of these arrived at once.
 
+A third project showed a fifth cause with no CI involved - green in the sprint gate, red twenty
+minutes later in the release, on the same machine:
+
+- **Load.** A second full run was going at the same time (an agent's gate in the background, the
+  user's release in front). A wait gave up at the runner's default of 1 s for a step that takes
+  0.3 s alone, and in a full run 10 of 3,900 tests already needed more than 40 s of their 60 s
+  timeout. Three full runs that day were red on three different sets of tests: every fix repaired
+  the tests that had just tipped over, and the next run tipped others.
+
 ## The lanes
 
 | Lane | Runs | Blocks | Holds | Budget |
@@ -45,6 +54,11 @@ check, and the branch must be up to date before merging (or a merge queue does t
 (`gh api repos/<owner>/<repo>/rules/branches/<branch>` for rulesets,
 `gh api repos/<owner>/<repo>/branches/<branch>/protection` for classic protection); unknown counts
 as unprotected. Unprotected → the release lane runs the PR lane too.
+
+**Without CI** the command before the merge (the sprint gate) is the PR lane and the release script
+is the release lane, on the same machine. "Provably ran on the released commit" is then a note the
+green run leaves for its commit, written only on a clean tree; the release reads it and runs the
+suite only when the note is missing or code changed since. Both run under the load rules below.
 
 ### The lane map
 
@@ -106,7 +120,10 @@ budget. The release smoke picks a handful of them (one per product promise, at m
    (test 60 s, hooks 60 s, async waits such as `findBy`/`waitFor`/`vi.waitFor`/Playwright `expect`
    10 s, a `timeout-minutes` on every CI job). A per-test timeout may only be longer than the
    central one. Never lower one to express a speed expectation, and never raise one to rescue a
-   slow test - move or fix the test instead.
+   slow test - move or fix the test instead. **The runner's own defaults are per-wait timeouts
+   too**, and short ones: `vi.waitFor`, `vi.waitUntil` and `expect.poll` 1 s, Testing Library's
+   `findBy`/`waitFor` 1 s, Playwright's `expect` 5 s. A wait that does not run on the central
+   budget is a speed limit nobody wrote down.
 3. **Fixed clock, zone and locale, set in the test config** - not in a shell, not in a CI step. A
    fixed `NOW`, a fake timer or `TimeProvider`, the zone pinned in the config file, an explicit
    locale wherever text is formatted.
@@ -163,6 +180,31 @@ budget. The release smoke picks a handful of them (one per product promise, at m
 - Release prep runs under the runner's conditions: `CI=true`, a clean checkout and install of what
   will be released, and on Windows a temp directory given by its 8.3 short name.
 
+## Load: green on a busy machine
+
+A gate runs while the machine does other things - the other test files of the same run, an IDE, a
+build, a second agent. A test that is green only on an idle machine is an `env` test.
+
+- **Margin, not just green.** In a full run no test needs more than a third of the central timeout
+  (20 s of 60 s) and no wait more than a third of the wait budget. One that does is a finding while
+  it is still green: it is the next to fail. Fix the cost, never the number - share the fixture per
+  file, start fewer processes, prove the rule in-process and keep one test through the real
+  boundary, or move the test to release prep.
+- **Know what a test costs.** A test that starts a server, a browser or a child process is an
+  integration test, whatever folder it sits in. Count them per lane; they are where a loaded
+  machine loses time first. One per behaviour at the boundary is the aim, not one per case.
+- **Split the run by cost, in the runner config**: in-process tests in one group (no process per
+  file), tests that start a server in a second with fewer parallel workers, tests that start child
+  processes serially. Which test is in which group follows from its file name or folder, like a
+  lane.
+- **One full run per machine at a time.** The command that runs a blocking lane takes a
+  machine-wide lock and waits for a run already going; a lock whose holder died must free itself
+  (a heartbeat, not a process id). Where a green run leaves a note for its commit, the run that
+  waited reads the note instead of running again. An agent that starts a full run in the background
+  says so, and does not start a second one.
+- **Proven on the runtime that ships.** A green run on another runtime major than the version file
+  proves a different product; the test command refuses it, or the report says which runtime ran.
+
 ## Time budget
 
 - **What is measured:** the blocking CI job's wall-clock from start to verdict, install included -
@@ -192,8 +234,9 @@ budget. The release smoke picks a handful of them (one per product promise, at m
 - **Pointless** - no defect a user could notice would make it fail: a tautology, a wiring check, a
   pinned constant or locale string, a mock asserting its own return, a duplicate. Delete it and name
   the test that keeps the coverage. A suite that is never pruned only grows slower.
-- **Red on CI, green locally** - the test depends on its environment. In this order:
-  1. classify the dependency: clock, zone, path, speed, order, artefact, runtime version;
+- **Red on CI, green locally - or red in one run and green in the next on the same machine** - the
+  test depends on its environment. In this order:
+  1. classify the dependency: clock, zone, path, speed, load, order, artefact, runtime version;
   2. reproduce it under the runner's conditions (the release-prep settings above);
   3. fix the class, not this one test - every test with the same dependency;
   4. add the guard that keeps the class out (a lint rule, a guard test, a config default);
@@ -201,8 +244,26 @@ budget. The release smoke picks a handful of them (one per product promise, at m
 
 ## Enforcement
 
-This skill makes Claude aware; it gates nothing, and `/tech-rules:setup` installs none of the
-following. Each is something the project adds itself, and each catches only what it checks:
+This skill makes Claude aware; it gates nothing. Each of the following is something the project
+adds itself, and each catches only what it checks. `/tech-rules:setup` offers one of them as a
+one-time file - the wait budget for Vitest - and installs none of the others:
+
+- **The central wait budget, with a counted guard.** One setup file wraps the runner's waits so
+  every call inherits the budget (Vitest: `vitest-waits.ts` from setup, named in `setupFiles`, plus
+  `expect: { poll: { timeout: 10_000 } }`). A guard test proves the wrapper is live by needing more
+  tries than the default allows - counted, not timed:
+
+  ```ts
+  // At one try per 50 ms the 1 s default ends after about 20 tries.
+  let tries = 0;
+  await vi.waitFor(() => expect(++tries).toBeGreaterThan(25));
+  ```
+
+- **A lock around the full run** (see Load): a file in the temp folder that the holder touches
+  every few seconds; the full-run command waits while it is fresh, and the release waits for it
+  before it reads the green note.
+- **A margin list after every full run:** from the machine-readable report, every test over a third
+  of the central timeout. A list, not a failure - until it is empty, then a guard.
 
 - **A lint rule against elapsed time in non-perf tests.** It catches the common shape -
   `Date.now() - start`, `performance.now() - t0` - not `t1 - t0` or `process.hrtime`; review
@@ -236,7 +297,10 @@ following. Each is something the project adds itself, and each catches only what
 `hookTimeout` in the config, `process.env.TZ` set at the top of the config file (the workers
 inherit it), a second config for the perf lane that includes only the perf files with
 `fileParallelism: false`. Testing Library: `configure({ asyncUtilTimeout: 10_000 })` in the setup
-file. `vi.waitFor` has no global default - wrap it once in the setup file.
+file. `vi.waitFor` and `vi.waitUntil` have no global default - wrap them once in a setup file
+(`vitest-waits.ts`, see Enforcement); `expect.poll` takes its default from
+`expect: { poll: { timeout } }`. Groups by cost are `projects`, each with its own `include`,
+`isolate`, `maxWorkers` or `fileParallelism: false`.
 
 **Playwright:** `retries: 0`, `forbidOnly: true`, `expect: { timeout: 10_000 }` (the default is
 5 s), a central `timeout`, a suite-wide `globalTimeout`, one worker for a single-instance desktop
@@ -259,3 +323,6 @@ perf exclusion in the `.runsettings` above so `dotnet test` stays the PR lane, t
 - [ ] A new test sits in the lane the lane map gives it; a speed check sits in a perf file whose
       exclusion the config already has.
 - [ ] CI reads the runtime version from the version file; the PR lane fits its budget.
+- [ ] No wait runs on the runner's default; a new test that starts a server or a process says why a
+      function call would not prove the same; nothing needs more than a third of the timeout in a
+      full run.

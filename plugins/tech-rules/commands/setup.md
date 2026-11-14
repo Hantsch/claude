@@ -95,7 +95,10 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `<!-- tech-rules:managed:end -->`? Note the version in the start marker and whether the block
    content still matches what you would write now.
 7. **One-time files:** for `electron`, do `scripts/launch.js`-style launcher and a JSON store
-   already exist anywhere in the project? Only a missing file is ever offered.
+   already exist anywhere in the project? For a project with `vitest` in a `package.json`: does a
+   setup file already give waits a central budget (search the test sources and configs for
+   `vi.waitFor =`, `asyncUtilTimeout` or a `setupFiles` entry that wraps waits)? Only a missing
+   file is ever offered.
 8. **Gitignore safety** — two checks, opposite directions:
    - **Must not be ignored.** Run `git check-ignore -q .claude/skills` and the same for
      `.claude/tech-rules.lock` and any nested target from step 3. An ignored `.claude/` means the
@@ -128,9 +131,13 @@ could not determine or that are genuine decisions. On an update, ask only about 
 3. **`CLAUDE.md` block**: may setup maintain a marked block there? Show the exact text first.
    A no is fine and changes nothing else — the skills work either way, the block only raises the
    odds that Claude reads the right one at the right time.
-4. **One-time files** (`electron`, and only when the target is missing): copy the env-scrubbing
-   launcher `templates/oneshot/launch.js` and/or the self-healing store
-   `templates/oneshot/json-store.ts`? Name the target path in the question. Default no.
+4. **One-time files**, only when the target is missing; name the target path in the question.
+   Default no.
+   - `electron`: the env-scrubbing launcher `templates/oneshot/launch.js` and/or the self-healing
+     store `templates/oneshot/json-store.ts`.
+   - `vitest`, when no setup file gives waits a central budget: `templates/oneshot/vitest-waits.ts`,
+     which puts `vi.waitFor` and `vi.waitUntil` on 10 s instead of the runner's 1 s — the first
+     enforcement `test-gates` names. Propose the folder the project's test helpers live in.
 
 ## Phase 3 — Install the skills
 
@@ -234,7 +241,9 @@ Only with the yes from Phase 2 and only when the target does not exist: these ar
 from the moment they land, so an existing copy is never touched. Copy verbatim, carry no marker, get
 no lock entry. Say in the report which target you wrote and, for the launcher, the `package.json`
 script line the user may want (`"dev": "node scripts/launch.js electron-vite dev"`) — you do not
-edit `package.json`.
+edit `package.json`. For `vitest-waits.ts`, print the two config lines from the file's header
+(`setupFiles`, `expect.poll.timeout`) and the guard test it names — you do not edit the Vitest
+config either; until the file is listed in `setupFiles` it does nothing, so say that.
 
 ## Phase 6 — Report
 

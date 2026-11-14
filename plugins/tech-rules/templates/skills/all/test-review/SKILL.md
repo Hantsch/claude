@@ -1,6 +1,6 @@
 ---
 name: test-review
-description: Test engineer review of this project's test suite against the test-gates rules - per test, whether it proves a function or measures speed, whether it is relevant, deterministic, robust, in the right lane and worth its runtime - and a report of what to delete, merge, move or fix. Invoked as /test-review [all | staged | branch [<base>] | <path>].
+description: Test engineer review of this project's test suite against the test-gates rules - per test, whether it proves a function or measures speed, whether it is relevant, deterministic, robust, green on a busy machine, in the right lane and worth its runtime - and a report of what to delete, merge, move or fix. Invoked as /test-review [all | staged | branch [<base>] | <path>].
 argument-hint: [all | staged | branch [<base>] | <path>]  (default: all)
 disable-model-invocation: true
 ---
@@ -12,8 +12,9 @@ disable-model-invocation: true
 You are the test engineer. You read the test suite the way a reviewer reads code: every test has
 to earn its place by catching a defect a user or caller would notice, deterministically, in the
 lane where it belongs, at a cost the lane can afford. You find the tests that do not - the ones
-that measure the machine instead of the code, prove nothing, break on harmless changes, duplicate
-each other or make the PR lane slow - and you write down what to do with each.
+that measure the machine instead of the code, pass only while the machine is idle, prove nothing,
+break on harmless changes, duplicate each other or make the PR lane slow - and you write down what
+to do with each.
 
 The yardstick is the `test-gates` skill, a `SKILL.md` next to this one in the same
 `.claude/skills/` folder. Read it first, completely; do not review from memory. A deviation the
@@ -49,7 +50,10 @@ asks for it.
 3. **Map the suite:** test roots; per area (directory or test project) its files, tests and lines;
    **which command runs which files** - from the runner configs' include/exclude and the scripts -
    and through that each file's current lane (by the table, or by `test-gates`' rule for a project
-   without one); every file no command runs.
+   without one); every file no command runs. Per area also **what its tests cost to start**: the
+   files that start a server (`createServer`, `listen(`, a server-start helper), a browser or a child
+   process (`spawn`, `exec`, `fork`), and how the runner parallelises them (pool, a process per file,
+   workers, groups or projects).
 4. **Cut the areas by size, not by folder count:** about 4,000 test lines per agent, a large folder
    split, small ones merged. At most 8 agents per message; more areas run in further batches of 8.
 5. Paths: the report is `<docs>/reviews/<date>-test-review.md` and the work directory
@@ -72,7 +76,14 @@ tool moves it to the background at the ceiling, stop it with `TaskStop` at once 
 behind can hold a single-instance lock - and record "PR lane runner over 10 minutes locally", which
 is itself the budget finding; continue without per-test numbers.
 
-Extract: total minutes, per-file and per-test durations, the 20 slowest tests, any failure. The
+**Margins need the load of the full run:** measure the whole lane, not a sample. Then run the
+slowest test file once more, alone, and note both numbers - a file that takes more than twice as
+long inside the full run than alone means the run loads the machine past what its tests were
+written for. If the lane's command waits on a lock held by another full run, wait; never measure
+beside one.
+
+Extract: total minutes, per-file and per-test durations, the 20 slowest tests, **every test over a
+third of the central timeout**, the alone / full-run ratio, any failure. The
 budget is measured on the runner (`test-gates`, Time budget): with `gh` available and
 authenticated, the median wall-clock of the PR job's last ten runs
 (`gh run list --workflow <file> --limit 10 --json startedAt,updatedAt,conclusion`); always show the
@@ -86,6 +97,15 @@ Count each with the exact search you used, per area, with `file:line` for every 
   `performance.now() -`, `process.hrtime`, `Stopwatch`, `time.perf_counter() -`, followed by a
   less-than);
 - per-test or per-wait timeouts below the central ones; retries; skips without a recorded reason;
+- **waits on the runner's default:** every `vi.waitFor(`, `vi.waitUntil(`, `expect.poll(`,
+  Testing Library `findBy`/`waitFor`, Playwright `expect` - and whether a setup file or the config
+  gives them the central budget (a wrapper named in `setupFiles`, `expect.poll.timeout`,
+  `asyncUtilTimeout`, `expect.timeout`). Without one, every call is a finding of one cause; name the
+  default it runs on (1 s, 1 s, 5 s);
+- **load:** the tests that start a server, a browser or a child process, per area, and those that
+  start one per test where one per file would do; whether the full-run command serialises with
+  another full run (a lock) and what else starts one (a sprint gate, a release script, a pre-push
+  hook, a release check in a clone);
 - the real clock, zone or locale: unfrozen `new Date()` / `DateTime.Now` in assertions,
   `toLocale*String()` without a locale, time-zone offsets hard-coded in expectations;
 - temp directories created without resolving the long form (`mkdtemp(tmpdir())` without
@@ -99,7 +119,11 @@ Count each with the exact search you used, per area, with `file:line` for every 
 - history: per test file, the commits whose subject names a test or CI fix -
   `git log --format=%s -- <file> | grep -iE '(^|[^a-z])(ci|flaky|flake|timeout)([^a-z]|$)|fix(es|ed)? (the )?tests?'`
   (a bare `ci` substring also matches "decision" and "cites") - and the age of every quarantine
-  entry.
+  entry;
+- **gate history:** the commits between a sprint's end and the next release or tag whose subject
+  fixes tests, and the lines in sprint reviews and the roadmap that say a red gate was accepted
+  (`flaky`, `under load`, `timeout`, `pre-existing`, `waved through`, a skip-the-gate flag). Two
+  sprints with such a line are one finding: the fixes so far repaired tests, not their cause.
 
 ## Phase 3 - classify (one agent per area)
 
@@ -112,8 +136,9 @@ area, and its output file `<work>/area-<name>.md`. The rules, verbatim:
 - Open every test file of the area and read each test. Per test (or per group of tests that share
   one verdict), decide:
   - **kind** - `function` (proves behaviour a user or caller relies on), `perf` (measures speed),
-    `env` (the result depends on the machine: clock, zone, path, speed, order, artefact, runtime
-    version), `brittle` (deterministic, but breaks on a change no user notices: a literal config
+    `env` (the result depends on the machine: clock, zone, path, speed, load, order, artefact,
+    runtime version - `load` is a wait on the runner's default, or more than a third of the timeout
+    in the full run), `brittle` (deterministic, but breaks on a change no user notices: a literal config
     value, an element count, a fixture ordinal, a call order, a full snapshot), `wiring` (a
     registration, a constant, a mock's own return), `duplicate` (proves what a named neighbouring
     test proves);
@@ -121,13 +146,16 @@ area, and its output file `<work>/area-<name>.md`. The rules, verbatim:
     `duplicate`;
   - **lane now** (from the map you were given) and **lane it belongs in** - `pr`, `release`
     (smoke), `release-prep`, `perf`, or `delete` - by the order of questions in `test-gates`;
-  - **cost** - its duration and setup weight, where measured.
+  - **cost** - its duration and setup weight, where measured; a test that starts a server or a
+    process for what a function call would prove is a finding (`costs time`), and so is a start
+    per test where the file could share one.
 - Report only what needs a change: one block per finding with `title`, `kind`, `files`
   (`file:line`), `evidence` (counted), `problem` (what it costs: a blocked release, budget
   minutes, noise), `recommendation` (delete and name the test that keeps the coverage / merge into
   X / move to lane Y / make deterministic: how / remove the environment dependency: how / assert
   the user-visible outcome instead / quarantine with reason), `effort` (S hours, M a day, L more).
-- Severity: **blocks releases** (a `perf` or `env` test in a blocking lane, a flaky history),
+- Severity: **blocks releases** (a `perf` or `env` test in a blocking lane, a wait on the
+  runner's default, a test over a third of the timeout in the full run, a flaky history),
   **costs time** (budget: slow, oversized setup, wrong lane), **noise** (`brittle`, `wiring`,
   `duplicate`).
 - Instances of one cause are one finding. Change nothing; write only your output file; end it with
@@ -146,12 +174,16 @@ area, and its output file `<work>/area-<name>.md`. The rules, verbatim:
    what exists.
 3. **Blocks releases.** Every `perf` and `env` test in a blocking lane and every test with a flaky
    history, each with its fix - these go first.
-4. **Budget.** The 20 slowest tests with their seconds and the move or change for each; the lane's
+4. **Load and margins.** The waits on a runner default (count, default, the one fix); the tests
+   over a third of the timeout; the alone / full-run ratio; server- and process-starting tests per
+   area; whether full runs are serialised; the gate history. Each as a cause with the guard that
+   keeps it out, never as a list of tests to nurse one by one.
+5. **Budget.** The 20 slowest tests with their seconds and the move or change for each; the lane's
    projected time after those changes.
-5. **Brittle, pointless and duplicate tests.** The rewrite, delete or merge list; every deletion
+6. **Brittle, pointless and duplicate tests.** The rewrite, delete or merge list; every deletion
    names the test that keeps the coverage.
-6. **Per area.** One table per area: `| Test | Kind | Lane now → belongs | Finding | Effort |`.
-7. **Method and limits.** Searches used, agents, batches and minutes, measured or not, the commit
+7. **Per area.** One table per area: `| Test | Kind | Lane now → belongs | Finding | Effort |`.
+8. **Method and limits.** Searches used, agents, batches and minutes, measured or not, the commit
    and dirty state, the files no agent opened.
 
 Delete the work directory once the report exists. In the chat, at most ten lines: the report path,
@@ -159,12 +191,24 @@ the counts per severity, the two things to do first, and the next step -
 `/common:architecture-review tests` to decide lane moves and cut stories, or a direct fix for a
 handful of small findings.
 
+## As the solution architect's test engineer
+
+`/solution-architect` may brief a subagent with this skill when a project's gate is unhealthy. That
+run is the short form: Phase 2 only, on the tests and commits the brief names - no question, no
+measuring, no agents, no report file. It answers the brief's one question in the form asked:
+which dependency class from `test-gates` makes those tests fail, how many tests share it (the
+search and its count), and the one guard that keeps the class out. The full review stays this
+command, typed by the user.
+
 ## Rules
 
 - **Read-only.** No agent edits a test, a source file, a config or a workflow. The run writes only
   the work directory and the report, and commits nothing.
 - **Measured, not imagined.** A finding without a location and a count is dropped. "Slow" names
   its seconds; "flaky" names the commits or runs that show it.
+- **Causes, not casualties.** Tests that fail for one reason are one finding with one fix and one
+  guard. A recommendation to repair the tests that were red last time, without the cause they
+  share, is not a finding.
 - **A deletion names its replacement.** Recommending to delete a test without naming the test that
   keeps the coverage - or saying that nothing needs to - is not a finding.
 - **A documented deviation is not a finding.**
