@@ -25,6 +25,7 @@ plugins/<name>/
   README.md                       at a glance: what, when, how
   REFERENCE.md                    the details (optional)
   CHANGELOG.md
+apps/scrum-control/              the Scrum Control tray app (Electron) - not a plugin, see "Releasing the app"
 scripts/validate.ps1              manifests, versions, frontmatter, shipped references
 scripts/plan-release.ps1          derives the semver bump from commit messages
 scripts/check-notes.ps1           refuses a push that would release without release notes
@@ -32,6 +33,8 @@ scripts/release.ps1               version bump in both manifests + changelog pro
 scripts/ci-release.ps1            release orchestration (commit, tag, push, GitHub release)
 .github/workflows/validate.yml    CI on every push and PR
 .github/workflows/release.yml     CI on main: releases every plugin with releasable commits
+.github/workflows/scrum-control-validate.yml   CI for the app: typecheck, tests, release notes
+.github/workflows/scrum-control-release.yml    CI on main: releases the app (portable EXE)
 ```
 
 ## Adding another plugin
@@ -126,6 +129,39 @@ pwsh -File scripts/release.ps1 -Plugin ai-scrum -Bump minor # bump by hand, no C
 
 The `release` workflow can also be started manually from the Actions tab (`workflow_dispatch`),
 optionally forcing a plugin and a bump level.
+
+## Releasing the app
+
+[Scrum Control](apps/scrum-control/) is released separately from the plugins, by
+`.github/workflows/scrum-control-release.yml` and the scripts in `apps/scrum-control/scripts/`.
+Same habits, different paths:
+
+- **What counts:** commits that touched `apps/scrum-control/`, `plugins/scrum-cockpit/hooks/scan.ts`
+  or `plugins/scrum-cockpit/types/index.d.ts` since the last `scrum-control-v*` tag - the app
+  imports those two plugin files, so changing them changes the app. Same Conventional-Commit rules
+  as above decide the bump.
+- **Notes:** `apps/scrum-control/CHANGELOG.md`, under `## Unreleased`. The same no-release-without-notes
+  rule applies; the pre-push hook and `scrum-control-validate.yml` both check it.
+- **Result:** a `chore(release): scrum-control <version> [skip ci]` commit, the tag
+  `scrum-control-v<version>`, and a GitHub release carrying `ScrumControl-<version>-portable.exe`
+  and `SHA256SUMS.txt`. The app's opt-in self-update looks for exactly that tag shape and those two
+  assets, which is why the plugins' tags (`ai-scrum-v…`, ...) never matter to it.
+- **The first release is started by hand**, because there is no tag to derive a bump from: run the
+  `scrum-control-release` workflow from the Actions tab with `version` = `0.1.0` (the version
+  `package.json` already carries), or locally `pwsh -File apps/scrum-control/scripts/ci-release.ps1
+  -Version 0.1.0 -DryRun` first. Until that tag exists a push releases nothing.
+- **One release at a time:** the app's and the plugins' release workflows share the concurrency
+  group `release-${{ github.ref }}`, so they queue instead of pushing to `main` together. GitHub
+  keeps only one *waiting* run per group; if a release was skipped because a third run replaced it,
+  start the workflow again from the Actions tab.
+
+```
+pwsh -File apps/scrum-control/scripts/plan-release.ps1      # what would be released, and why
+pwsh -File apps/scrum-control/scripts/check-notes.ps1       # ... and are the notes written?
+pwsh -File apps/scrum-control/scripts/ci-release.ps1 -DryRun
+```
+
+The app's own tests, lanes and conventions are in [apps/scrum-control/CLAUDE.md](apps/scrum-control/CLAUDE.md).
 
 ## Conventions
 

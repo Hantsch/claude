@@ -9,6 +9,7 @@ import {
   parseSha256Sums,
   portableExeUrl,
   releaseTag,
+  selectLatestRelease,
   sha256For,
   sumsFileUrl,
 } from '../../src/core/updates/releaseInfo.ts';
@@ -40,21 +41,21 @@ describe('isUpdateAvailable', () => {
 });
 
 describe('parseSha256Sums', () => {
-  it('parses a line in the exact producing format written by ci-release.ps1:133', () => {
+  it('parses a line in the exact producing format written by scripts/ci-release.ps1', () => {
     const content =
-      'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6 *ClaudeControl-1.3.0-portable.exe\n';
+      'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6 *ScrumControl-1.3.0-portable.exe\n';
     const sums = parseSha256Sums(content);
-    expect(sums['ClaudeControl-1.3.0-portable.exe']).toBe(
+    expect(sums['ScrumControl-1.3.0-portable.exe']).toBe(
       'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6',
     );
-    expect(sha256For(sums, 'ClaudeControl-1.3.0-portable.exe')).toBe(
+    expect(sha256For(sums, 'ScrumControl-1.3.0-portable.exe')).toBe(
       'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6',
     );
   });
 
   it('returns null from sha256For when the filename is absent', () => {
     const sums = parseSha256Sums(
-      'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6 *ClaudeControl-1.3.0-portable.exe\n',
+      'a3f5c1e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6 *ScrumControl-1.3.0-portable.exe\n',
     );
     expect(sha256For(sums, 'nope.exe')).toBeNull();
   });
@@ -67,11 +68,11 @@ describe('parseSha256Sums', () => {
 
 describe('release asset URL extraction', () => {
   const validRelease = {
-    tag_name: 'v1.3.0',
+    tag_name: 'scrum-control-v1.3.0',
     assets: [
       {
-        name: 'ClaudeControl-1.3.0-portable.exe',
-        browser_download_url: 'https://example.com/ClaudeControl-1.3.0-portable.exe',
+        name: 'ScrumControl-1.3.0-portable.exe',
+        browser_download_url: 'https://example.com/ScrumControl-1.3.0-portable.exe',
       },
       {
         name: 'SHA256SUMS.txt',
@@ -81,7 +82,7 @@ describe('release asset URL extraction', () => {
   };
 
   it('extracts the portable exe url by pattern, not exact name', () => {
-    expect(portableExeUrl(validRelease)).toBe('https://example.com/ClaudeControl-1.3.0-portable.exe');
+    expect(portableExeUrl(validRelease)).toBe('https://example.com/ScrumControl-1.3.0-portable.exe');
   });
 
   it('extracts the sums file url', () => {
@@ -89,12 +90,12 @@ describe('release asset URL extraction', () => {
   });
 
   it('extracts the release tag', () => {
-    expect(releaseTag(validRelease)).toBe('v1.3.0');
+    expect(releaseTag(validRelease)).toBe('scrum-control-v1.3.0');
   });
 
   it('returns null (not throw) when the exe asset is missing', () => {
     const missingExe = {
-      tag_name: 'v1.3.0',
+      tag_name: 'scrum-control-v1.3.0',
       assets: [{ name: 'SHA256SUMS.txt', browser_download_url: 'https://example.com/SHA256SUMS.txt' }],
     };
     expect(portableExeUrl(missingExe)).toBeNull();
@@ -108,5 +109,70 @@ describe('release asset URL extraction', () => {
     expect(sumsFileUrl({})).toBeNull();
     expect(releaseTag({})).toBeNull();
     expect(releaseTag(null)).toBeNull();
+  });
+});
+
+describe('selectLatestRelease', () => {
+  const release = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, assets: [], ...extra });
+
+  it('takes the highest scrum-control version, not the first or the most recently published', () => {
+    const picked = selectLatestRelease([
+      release('scrum-control-v0.9.0'),
+      release('scrum-control-v0.10.0'),
+      release('scrum-control-v0.2.5'),
+    ]);
+    expect(picked?.tag).toBe('scrum-control-v0.10.0');
+    expect(picked?.version).toBe('v0.10.0');
+  });
+
+  it('ignores plugin releases, however high their number', () => {
+    const picked = selectLatestRelease([
+      release('ai-scrum-v4.13.0'),
+      release('tech-rules-v2.7.0'),
+      release('scrum-control-v0.1.0'),
+      release('common-v99.0.0'),
+    ]);
+    expect(picked?.tag).toBe('scrum-control-v0.1.0');
+  });
+
+  it('skips drafts and pre-releases', () => {
+    const picked = selectLatestRelease([
+      release('scrum-control-v3.0.0', { draft: true }),
+      release('scrum-control-v2.0.0', { prerelease: true }),
+      release('scrum-control-v1.0.0', { draft: false, prerelease: false }),
+    ]);
+    expect(picked?.tag).toBe('scrum-control-v1.0.0');
+  });
+
+  it('returns the release object itself, usable with the asset helpers', () => {
+    const entry = {
+      tag_name: 'scrum-control-v0.1.0',
+      assets: [
+        { name: 'ScrumControl-0.1.0-portable.exe', browser_download_url: 'https://example.com/a.exe' },
+        { name: 'SHA256SUMS.txt', browser_download_url: 'https://example.com/sums' },
+      ],
+    };
+    const picked = selectLatestRelease([release('ai-scrum-v1.0.0'), entry]);
+    expect(portableExeUrl(picked?.release)).toBe('https://example.com/a.exe');
+    expect(sumsFileUrl(picked?.release)).toBe('https://example.com/sums');
+  });
+
+  it('accepts only an exact scrum-control-v<semver> tag', () => {
+    expect(
+      selectLatestRelease([
+        release('scrum-control-v1.0.0-rc1'),
+        release('scrum-control-v1.0'),
+        release('v1.0.0'),
+        release('my-scrum-control-v1.0.0'),
+        release('scrum-control-v1.0.0 '),
+      ]),
+    ).toBeNull();
+  });
+
+  it('returns null, not throw, for an empty list, a non-list and malformed entries', () => {
+    expect(selectLatestRelease([])).toBeNull();
+    expect(selectLatestRelease(null)).toBeNull();
+    expect(selectLatestRelease({ tag_name: 'scrum-control-v1.0.0' })).toBeNull();
+    expect(selectLatestRelease([null, 7, 'x', {}, { tag_name: 5 }])).toBeNull();
   });
 });

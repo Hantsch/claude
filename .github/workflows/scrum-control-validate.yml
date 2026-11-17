@@ -1,0 +1,69 @@
+name: scrum-control-validate
+
+# The Scrum Control app (apps/scrum-control/). The plugin marketplace has its own lane in
+# validate.yml; this one runs only when the app, or one of the two plugin files it imports,
+# changes. If this check is ever made a required status check, a PR that touches none of these
+# paths never starts it and would wait forever - require it through a ruleset that is aware of
+# path filters, or not at all.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scrum-control/**'
+      - 'plugins/scrum-cockpit/hooks/scan.ts'
+      - 'plugins/scrum-cockpit/types/index.d.ts'
+      - '.github/workflows/scrum-control-validate.yml'
+  pull_request:
+    paths:
+      - 'apps/scrum-control/**'
+      - 'plugins/scrum-cockpit/hooks/scan.ts'
+      - 'plugins/scrum-cockpit/types/index.d.ts'
+      - '.github/workflows/scrum-control-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Typecheck, tests, release notes
+    # windows-latest, not ubuntu: the test suite covers Windows-specific behaviour (registry
+    # paths, PID liveness, tray tile rendering) and this is the only OS the app ships on.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/scrum-control
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # check-notes.ps1 needs tags and history to derive the bump level
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/scrum-control/.node-version
+          cache: npm
+          cache-dependency-path: apps/scrum-control/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-timings
+          path: apps/scrum-control/test-results/vitest.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # Same verdict the release workflow reaches after the merge - here it fails the PR instead.
+      - name: Check release notes
+        shell: pwsh
+        run: ./scripts/check-notes.ps1
+
+      # Proves the artifact still builds before main promises a release that has to produce it.
+      - name: Package
+        run: npm run package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'

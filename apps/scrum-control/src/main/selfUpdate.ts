@@ -99,7 +99,7 @@ export interface NoticeOptions extends SelfUpdateHost {
 
 /** What a completed swap reports back, so the caller can suppress this run's toast. */
 export interface AppliedUpdate {
-  /** The release tag that is now on disk, e.g. `v1.3.0` — not what this session is running. */
+  /** The release tag that is now on disk, e.g. `v0.1.0` — not what this session is running. */
   version: string;
   /** The user's own exe path that was replaced. */
   target: string;
@@ -227,7 +227,7 @@ export function showAppliedNotice(options: NoticeOptions): string | null {
     // notice, while a marker that survives is a toast on every start forever.
     discard(fs, file);
     if (marker === null) return null;
-    notify('Claude Control', `Updated to ${withV(marker.appliedVersion)}`);
+    notify('Scrum Control', `Updated to ${withV(marker.appliedVersion)}`);
     return marker.appliedVersion;
   } catch {
     return null;

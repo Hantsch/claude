@@ -1,6 +1,8 @@
 #!/bin/sh
 # Refuses a push whose commits would trigger a release without release notes - the check the
-# release workflow runs after the merge, run before the push instead.
+# release workflows run after the merge, run before the push instead. Two lanes, two checks:
+# the plugins (scripts/check-notes.ps1) and the Scrum Control app
+# (apps/scrum-control/scripts/check-notes.ps1). Both only read git history, so they are cheap.
 #
 # Enable once, per clone:  git config core.hooksPath .githooks
 # Bypass once:             git push --no-verify
@@ -14,4 +16,10 @@ else
 fi
 
 root=$(git rev-parse --show-toplevel)
-exec "$shell" -NoProfile -File "$root/scripts/check-notes.ps1"
+status=0
+"$shell" -NoProfile -File "$root/scripts/check-notes.ps1" || status=1
+# Absent in a checkout from before the app existed.
+if [ -f "$root/apps/scrum-control/scripts/check-notes.ps1" ]; then
+  "$shell" -NoProfile -File "$root/apps/scrum-control/scripts/check-notes.ps1" || status=1
+fi
+exit $status

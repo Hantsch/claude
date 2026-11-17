@@ -1,0 +1,130 @@
+name: scrum-control-release
+
+# Releases Scrum Control (apps/scrum-control/) as tag scrum-control-v<version> with the portable
+# EXE and SHA256SUMS.txt - the two files the app's opt-in self-update looks for. The plugins have
+# their own release workflow (release.yml) and their own tags in the same repository.
+#
+# The first release has no tag to derive a bump from: start it by hand with workflow_dispatch and
+# the input `version` (0.1.0). Until then a push to main releases nothing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scrum-control/**'
+      - 'plugins/scrum-cockpit/hooks/scan.ts'
+      - 'plugins/scrum-cockpit/types/index.d.ts'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release exactly this version (required for the first release: 0.1.0)'
+        required: false
+        type: string
+      bump:
+        description: 'Force this bump level instead of reading commit messages'
+        required: false
+        type: choice
+        options: ['', 'patch', 'minor', 'major']
+        default: ''
+      dry_run:
+        description: 'Build and print, but do not commit, tag, push or publish'
+        required: false
+        type: boolean
+        default: false
+
+# Needed to push the release commit + tag and to create the GitHub release.
+permissions:
+  contents: write
+
+# The SAME group as release.yml (the plugin releases), on purpose: both push a release commit and
+# tags to main, and two such pushes must never run at once. A run waits for the other to finish
+# instead of cancelling it. (GitHub keeps one waiting run per group, so a third run arriving
+# while two are queued replaces the waiting one - re-run it with workflow_dispatch if a release
+# was skipped that way.)
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    # electron-builder produces the Windows portable target, so this has to be a Windows runner.
+    runs-on: windows-latest
+    # The release commit itself is chore(release) and would be skipped anyway; the marker
+    # makes it explicit and saves a run.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # plan-release.ps1 needs tags and history
+          # Check out the branch, not the bare SHA: on a push event the default is a detached
+          # HEAD, and the release commit could not be pushed from there. It also means a run
+          # that waited behind a plugin release sees that release's commit.
+          ref: ${{ github.ref_name }}
+
+      # Plan first: most pushes to these paths release nothing (chore:/docs:/test:), and those
+      # should not pay for a Node install and `npm ci`. A manual run is always "due" - the person
+      # who started it asked, and ci-release.ps1 answers "nothing to release" itself if so.
+      - name: Plan
+        id: plan
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          $plan = & ./apps/scrum-control/scripts/plan-release.ps1
+          $plan | ForEach-Object { Write-Host $_ }
+          $bumpLine = $plan | Where-Object { $_ -match '^bump=' } | Select-Object -First 1
+          if (-not $bumpLine) { throw 'plan-release.ps1 returned no bump level' }
+          $bump = ($bumpLine -split '=', 2)[1].Trim()
+          $due = ($env:EVENT -eq 'workflow_dispatch') -or ($bump -ne 'none')
+          Write-Host "due=$due"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "due=$($due.ToString().ToLower())" -Encoding UTF8
+          if (-not $due) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'No releasable commits for scrum-control - nothing released.' -Encoding UTF8
+          }
+
+      # Everything below runs only when a release is due. ci-release.ps1 runs the test suite
+      # itself, once, before it writes or commits anything, then builds with `npm run package`.
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.due == 'true'
+        with:
+          node-version-file: apps/scrum-control/.node-version
+          cache: npm
+          cache-dependency-path: apps/scrum-control/package-lock.json
+
+      - name: Install
+        if: steps.plan.outputs.due == 'true'
+        run: npm ci
+        working-directory: apps/scrum-control
+
+      - name: Configure git identity
+        if: steps.plan.outputs.due == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Release
+        if: steps.plan.outputs.due == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The app is shipped unsigned; without this electron-builder still probes for a
+          # certificate on every build and logs a misleading warning.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Inputs go through the environment, never into the script text.
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          $params = @{}
+          if ($env:INPUT_VERSION) { $params['Version'] = $env:INPUT_VERSION }
+          if ($env:INPUT_BUMP) { $params['ForceBump'] = $env:INPUT_BUMP }
+          if ($env:INPUT_DRY_RUN -eq 'true') { $params['DryRun'] = $true }
+          ./apps/scrum-control/scripts/ci-release.ps1 @params
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.plan.outputs.due == 'true'
+        with:
+          name: vitest-timings
+          path: apps/scrum-control/test-results/vitest.json
+          retention-days: 14
+          if-no-files-found: ignore

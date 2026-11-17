@@ -5,9 +5,13 @@ plugins, see [README.md](README.md) and each plugin's own README.
 
 ## What this repository is
 
-A public plugin marketplace for Claude Code. There is no application and no build step: the
-product is markdown (commands, agents, templates) plus two JSON manifests. The PowerShell
-scripts in [scripts/](scripts/) only validate and release that content.
+A public plugin marketplace for Claude Code. The marketplace content has no build step: the
+product is markdown (commands, agents, templates) plus two JSON manifests, and the PowerShell
+scripts in [scripts/](scripts/) only validate and release that content. The one exception to
+"no application" lives apart in [apps/scrum-control/](apps/scrum-control/): **Scrum Control**, a
+standalone Windows tray app (Electron, portable EXE) with its own `CLAUDE.md`, its own test lanes
+and its own releases (`scrum-control-v*` tags). Nothing under `plugins/` depends on it, and the
+plugin tooling ignores it.
 
 ```
 .claude-plugin/marketplace.json   marketplace manifest — lists every plugin
@@ -28,8 +32,12 @@ plugins/<name>/
   README.md                       at a glance, for the user: what, when, how
   REFERENCE.md                    the details behind the README (optional)
   CHANGELOG.md
-scripts/*.ps1                     validate, plan-release, release, ci-release
-.github/workflows/                validate (push + PR), release (push to main)
+apps/scrum-control/               the Scrum Control tray app: its own CLAUDE.md, package.json,
+                                  scripts/*.ps1 (release lane) and CHANGELOG.md; imports
+                                  plugins/scrum-cockpit/hooks/scan.ts
+scripts/*.ps1                     validate, plan-release, release, ci-release (the plugins)
+.github/workflows/                validate (push + PR), release (push to main) - the plugins;
+                                  scrum-control-validate, scrum-control-release - the app
 CONTRIBUTING.md                   layout, adding a plugin, testing, releasing (for maintainers)
 docs/troubleshooting.md           the full diagnosis behind the README's short fixes
 inbox/                            staging area for drafts, not shipped by any plugin
@@ -51,6 +59,29 @@ Four plugins, in three shapes:
   files, and `.git/ai-scrum/trail.md` + `release-checks.jsonl` from `/sprint` phase 4 and
   `/release-check`), so a change to those formats in ai-scrum is a change to `hooks/scan.ts` too. Mods run in
   the terminal, the desktop app's local sessions and the VS Code extension.
+
+**The app is a different kind of thing.** [apps/scrum-control/](apps/scrum-control/) is not a
+plugin and is not listed in `marketplace.json`; it is built, tested and released on its own. Read
+its `CLAUDE.md` before touching it. What couples it to the rest of this repository:
+
+- **It imports `plugins/scrum-cockpit/hooks/scan.ts`** (and the state contract in
+  `plugins/scrum-cockpit/types/index.d.ts`) to read a project's ai-scrum state. So a change to
+  the ai-scrum file formats is a change to `scan.ts`, and `scan.ts` now serves **two consumers**:
+  the scrum-cockpit mod and the app. Check both when you edit it, and give both a changelog note
+  (`plugins/scrum-cockpit/CHANGELOG.md` and `apps/scrum-control/CHANGELOG.md`) when it changes what
+  users see.
+- **Its releases are separate**: tags `scrum-control-v<semver>`, a GitHub release with the portable
+  EXE and `SHA256SUMS.txt`, cut by `.github/workflows/scrum-control-release.yml` through
+  `apps/scrum-control/scripts/` on pushes that touch `apps/scrum-control/`,
+  `plugins/scrum-cockpit/hooks/scan.ts` or `plugins/scrum-cockpit/types/index.d.ts`. The first
+  release is started by hand (workflow input `version`). The app's self-update reads exactly those
+  releases, and the plugin releases in the same repository never concern it - nor it them: the
+  root `scripts/` look only at `plugins/<name>/` paths and `<name>-v*` tags.
+- **One release at a time**: both release workflows share the concurrency group
+  `release-${{ github.ref }}`, so the app and the plugins never push to `main` at once. Keep that
+  group name identical in both if you ever touch either file.
+- **Its notes follow the same rule**: `apps/scrum-control/CHANGELOG.md` needs `## Unreleased`
+  bullets before a releasable commit, and the pre-push hook checks both lanes.
 
 **Why the stack rules are payload and not plugin skills.** A plugin is installed per user, so a
 contributor who never installed it gets none of the rules and nothing says so. Project skills in
@@ -166,6 +197,10 @@ a single push with `git push --no-verify`.
   the tooling strips.
 
 ## Versions and releases — do not do this by hand
+
+(This section is about the plugins. The app releases the same way in spirit - notes under
+`## Unreleased`, a Conventional-Commit subject - but from `apps/scrum-control/`; see above and
+that app's `CLAUDE.md`.)
 
 Releases are automatic on merge to `main`. The version fields in `plugin.json` and
 `marketplace.json` are **owned by the release workflow**; bumping them in a normal commit

@@ -159,7 +159,7 @@ describe('architecture boundaries', () => {
     expect(body).toMatch(/signal: controller\.signal/);
     // Against the one endpoint the story named, and only it.
     expect(body).toMatch(
-      /RELEASES_LATEST_URL =\s*'https:\/\/api\.github\.com\/repos\/Hantsch\/claude-control\/releases\/latest'/,
+      /RELEASES_LIST_URL =\s*'https:\/\/api\.github\.com\/repos\/Hantsch\/claude\/releases\?per_page=100'/,
     );
     expect(body.match(/https?:\/\//g) ?? []).toHaveLength(1);
 

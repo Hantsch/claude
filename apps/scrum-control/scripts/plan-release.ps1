@@ -3,8 +3,11 @@
 .SYNOPSIS
     Decides whether the app needs a release, and which semver bump, from commit messages.
 .DESCRIPTION
-    Looks at every commit since the last release tag (v*) and derives the bump level from
-    Conventional-Commit style subjects:
+    Looks at every commit that touched the app since its last release tag (scrum-control-v*)
+    and derives the bump level from Conventional-Commit style subjects. "Touched the app" means
+    apps/scrum-control/, plugins/scrum-cockpit/hooks/scan.ts or
+    plugins/scrum-cockpit/types/index.d.ts - the app imports those two files, so a change to
+    them is a change to the app. The plugins' own tags (ai-scrum-v*, ...) are never looked at.
 
         <type>!: ... | body contains "BREAKING CHANGE"  -> major
         feat: ...                                       -> minor
@@ -15,6 +18,11 @@
     The highest level across all commits wins. Prints key=value lines and, inside GitHub
     Actions, appends the same keys to $env:GITHUB_OUTPUT.
 
+    Before the first release there is no scrum-control-v* tag to measure against, and deriving a
+    bump from the whole history would not land on the version the app calls its first. The plan
+    is then "none": the first release is started by hand (ci-release.ps1 -Version 0.1.0, or the
+    workflow_dispatch input `version`).
+
     This script only reports - it changes nothing.
 .EXAMPLE
     pwsh -File scripts/plan-release.ps1
@@ -23,9 +31,19 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$appRoot = Split-Path -Parent $PSScriptRoot
+# apps/scrum-control/scripts -> apps/scrum-control -> apps -> the repository root, where git works.
+$gitRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
 
-$manifestPath = Join-Path $repoRoot 'package.json'
+$tagPrefix = 'scrum-control-v'
+# What counts as a change to the app. Paths relative to the repository root.
+$appPaths = @(
+    'apps/scrum-control',
+    'plugins/scrum-cockpit/hooks/scan.ts',
+    'plugins/scrum-cockpit/types/index.d.ts'
+)
+
+$manifestPath = Join-Path $appRoot 'package.json'
 if (-not (Test-Path $manifestPath)) { throw "not found: $manifestPath" }
 
 $current = (Get-Content -Path $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json).version
@@ -33,17 +51,22 @@ if ($current -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "current version '$curre
 $major = [int]$Matches[1]; $minor = [int]$Matches[2]; $patch = [int]$Matches[3]
 
 # --- commit range ---------------------------------------------------------------------
-$tags = @(git -C $repoRoot tag --list 'v*' --sort=-v:refname)
+# Exact scrum-control-v<semver> only: a tag with a suffix is not a release of this app. All tags
+# share the prefix, so the version sort orders them by version.
+$tags = @(git -C $gitRoot tag --list "$tagPrefix*" --sort=-v:refname | Where-Object { $_ -match '^scrum-control-v\d+\.\d+\.\d+$' })
 $lastTag = ''
 if ($tags.Count -gt 0) { $lastTag = $tags[0] }
 
-$range = @()
-if ($lastTag) { $range = @("$lastTag..HEAD") }
-
-$rs = [char]0x1e
-$us = [char]0x1f
-$raw = (git -C $repoRoot log @range "--format=%s$us%b$rs") -join "`n"
-$records = @($raw -split $rs | Where-Object { $_.Trim() -ne '' })
+$records = @()
+if ($lastTag) {
+    $range = @("$lastTag..HEAD")
+    $rs = [char]0x1e
+    $us = [char]0x1f
+    $raw = (git -C $gitRoot log @range "--format=%s$us%b$rs" -- @appPaths) -join "`n"
+    $records = @($raw -split $rs | Where-Object { $_.Trim() -ne '' })
+} else {
+    $us = [char]0x1f
+}
 
 # --- derive the bump ------------------------------------------------------------------
 $noReleaseTypes = @('chore', 'docs', 'ci', 'test', 'style', 'build')
@@ -51,6 +74,9 @@ $rank = @{ 'none' = 0; 'patch' = 1; 'minor' = 2; 'major' = 3 }
 $level = 'none'
 $reasons = @()
 $considered = 0
+if (-not $lastTag) {
+    $reasons += "none    <- no $tagPrefix* tag yet: the first release is started by hand (-Version)"
+}
 
 foreach ($record in $records) {
     $parts = $record -split $us
@@ -95,7 +121,7 @@ switch ($level) {
 }
 
 # --- report ---------------------------------------------------------------------------
-$since = 'the start of history'
+$since = 'no tag yet'
 if ($lastTag) { $since = $lastTag }
 
 # Write-Output on purpose: callers (ci-release.ps1) capture these key=value lines.
