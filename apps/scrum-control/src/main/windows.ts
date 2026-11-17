@@ -31,7 +31,7 @@ const POPOVER_BG = { dark: '#17171a', light: '#ffffff' };
  */
 const POPOVER_WIDTH = 620;
 const POPOVER_MIN_HEIGHT = 120;
-const POPOVER_MAX_HEIGHT = 560;
+const POPOVER_MAX_HEIGHT = 640;
 /** Margin kept between the popover and the edges of the work area. */
 const SCREEN_MARGIN = 8;
 

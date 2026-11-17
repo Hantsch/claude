@@ -1,0 +1,282 @@
+/* The popover's project rows (CONCEPT section 6): the section labels, the scrum project row, the
+   compact scrum block and the small pieces both project kinds share (WSL badge, Open window).
+   Colours come from the variables in styles.css only, so the light scheme needs nothing here.
+
+   Every row is one line that ellipsizes: milestone names can be very long, and a row that wraps
+   uncontrolled would make the window jump in height on every update. */
+
+/* ---------------------------------------------------------------- sections */
+
+.pj-section {
+  padding: 8px 6px 2px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pj-section:first-child {
+  padding-top: 4px;
+}
+
+/* ---------------------------------------------------------------- scrum project row */
+
+.pj-row {
+  display: block;
+  padding: 5px 6px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.pj-row:hover {
+  background: var(--bg-hover);
+}
+
+.pj-row:focus {
+  outline: 2px solid var(--accent);
+  background: var(--bg-hover);
+}
+
+.pj-l1,
+.pj-l2,
+.pj-l3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pj-l1 {
+  font-size: 12px;
+}
+
+/* Under the name, indented past the chevron and the dot so it lines up with the name. */
+.pj-l2,
+.pj-l3 {
+  padding-left: 27px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.pj-chev {
+  display: inline-block;
+  width: 9px;
+  flex: none;
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+  transition: transform 0.12s ease;
+}
+
+.pj-chev.open {
+  transform: rotate(90deg);
+}
+
+.pj-l1 > .dot {
+  flex: none;
+}
+
+.pj-name {
+  flex: 0 1 auto;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* The sprint line takes the rest of the first line. */
+.pj-line {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pj-bar {
+  flex: none;
+  width: 96px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+
+.pj-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--status-working);
+}
+
+/* Dim, and the one cell that shrinks: the whole milestone name is in its tooltip. */
+.pj-milestone {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+.pj-l2 .rollup {
+  margin-left: auto;
+}
+
+.pj-l3 {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 2px;
+}
+
+.pj-attn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.pj-attn.warn {
+  color: var(--status-waiting);
+}
+
+.pj-attn.bad {
+  color: var(--band-red);
+}
+
+/* ---------------------------------------------------------------- shared pieces */
+
+.pj-wsl {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 14px;
+}
+
+.pj-open {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
+.pj-open:hover {
+  color: var(--text);
+}
+
+.pj-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The Other group head already ends in a count; keep the button off it. */
+.popover-group-head .pj-open {
+  margin-left: 4px;
+  align-self: center;
+}
+
+.popover-group-head .pj-wsl {
+  align-self: center;
+}
+
+.popover-group-head {
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------- expanded body */
+
+/* Session rows and the scrum block hang under their project row, indented past its chevron. */
+.pj-body {
+  margin: 1px 0 4px 14px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+
+.pj-nosessions {
+  padding: 3px 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.pj-scrum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 16px;
+  padding: 5px 8px 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.pj-fact {
+  display: inline-flex;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pj-fact .k {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.pj-fact .v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pj-fact .v.warn {
+  color: var(--status-waiting);
+}
+
+.pj-fact .v.bad {
+  color: var(--band-red);
+}
+
+.pj-fact .v.good {
+  color: var(--status-done);
+}
+
+.pj-hint {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+.pj-hint code {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--bg-active);
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+
+/* styles.css's `.empty` (the "nothing here" message, padding 24px 12px) also matches a session's
+   `.ctx.empty` (no usage recorded yet) and made that row 64px tall in the popover. */
+.popover-row .ctx.empty,
+.popover-subagent-row .ctx.empty {
+  padding: 0;
+}
