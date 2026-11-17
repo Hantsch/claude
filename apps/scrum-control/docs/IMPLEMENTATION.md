@@ -224,7 +224,7 @@ first. Covered by the burst test in `test/unit/pipeline.test.ts`.
 
 ---
 
-## WSL hosts
+## 5. WSL hosts
 
 How CONCEPT §2 is built. One `ClaudeAdapter` per *root*, composed by `MultiRootAdapter`; the
 engine still sees a single `AgentAdapter`.
@@ -259,3 +259,45 @@ Decisions:
 - **IDE locks** are read from Windows roots only: a lock in a WSL root names a Linux pid.
 - **Known gap.** A distro that stops between two discoveries (up to 60 s) is still read through
   its share, which starts it again. `wsl.exe` is deliberately not run per tick to close that.
+
+---
+
+## 6. Scrum state
+
+`src/core/scrum/` is the pure core behind CONCEPT §4 and the decision logic of §8. No Electron, no
+writes; chokidar is the only dependency, as in `core/watch`.
+
+| File | Job |
+| --- | --- |
+| `parser.ts` | The single door to the scrum-cockpit mod's `hooks/scan.ts` (relative import, bundled with the app); re-exports the functions and types the rest of `core/scrum` uses. |
+| `reader.ts` | `createFsReader(configDir)`: scan.ts's `Reader` on `fs/promises`. Missing file is `null`, missing directory is `[]`; other errors throw. Listings of 64 entries or fewer carry `mtimeMs` (the trail's heartbeat); a requirements folder with hundreds of stories skips the `stat` calls. |
+| `types.ts` | `ProjectScrumSummary` and the notification types and defaults. Self-contained so the renderer can import it (it is in `tsconfig.web.json`). |
+| `summarize.ts` | `summarize(snapshot, { now, hasWorkingSession })`, pure. Band line, stall rule (trail silent 15 minutes or more, sprint in progress, no working session), time left at the average. |
+| `events.ts` | `scrumEvents(prev, next)`, `filterByToggles`, `DEFAULT_SCRUM_NOTIFICATIONS`. |
+| `monitor.ts` | `ScrumMonitor`: per-project refresh policy (add, debounced watch, 15 s or 60 s poll). Clock, timers, reader, watcher factory and scanner are injectable. |
+
+Decisions:
+
+- **Compiling the cross-folder import.** `tsconfig.node.json` lists `plugins/scrum-cockpit/hooks/scan.ts`
+  and `types/index.d.ts`, plus `src/types/claude-code.d.ts`, an ambient stand-in for the engine's
+  `Shaped<T>` that `types/index.d.ts` names. The plugin is not edited. The plugin's own `tsconfig.json`
+  extends a file the engine writes (`.claude-plugin/types/tsconfig.json`, absent in a clean checkout), and
+  esbuild looks up the nearest tsconfig of every file it transforms, so `vitest.config.ts` and the main and
+  preload sections of `electron.vite.config.ts` pass `esbuild.tsconfigRaw` as a string, which turns that
+  lookup off.
+- **What counts as "the sprint".** `sprint` is the one with `status: in-progress`; a planned one is
+  `nextPlanned`, a finished one in phase 4 is `releasing` (the band line shows it as
+  `S09 Release 2/2 · Release check`).
+- **Errors keep the last read.** A scan that throws sets `error` on the previous summary instead of blanking
+  the project; a project whose first scan fails has an empty summary with `error`. `scrumEvents` skips any
+  summary with an error.
+- **Story durations over 12 hours are ignored** for the average and the time left: scan.ts measures
+  `build · started` to `story · done` with a clock that may or may not carry the date, and a trail that mixes
+  `08:30:50` with `2026-11-17 08:36` otherwise yields differences of years.
+- **Watch scope.** `.claude/` and the profile's `sprints-path` (re-read after each scan), depth 3, local
+  drive-letter paths only; Claude Code's own `worktrees`, `projects`, `plugins` and `todos` folders under
+  `.claude/` are ignored. `.git/ai-scrum/` is not watched (the spec names two roots); a release check that
+  starts is found by the next poll, within 60 seconds, then polled every 15.
+- **Notification dedupe keys** are `projectKey|kind|sprintId|storyId|discriminator`. The discriminator is
+  empty except for `stalled` (the trail's mtime, so a second stall after the trail moved on is a new event)
+  and `releaseVerdict` (verdict kind and the check's end time).

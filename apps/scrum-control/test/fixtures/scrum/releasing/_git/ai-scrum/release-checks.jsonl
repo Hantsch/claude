@@ -1,0 +1,2 @@
+{"head":"aaaaaaa1","verdict":"yes","at":"2026-11-10T10:00:00Z","outcome":{"result":"green","pr":"green","release":"green"}}
+{"head":"bbbbbbb2","verdict":"yes","at":"2026-11-17T11:15:00Z","outcome":{"result":"missed","pr":"red: validate - Test","release":"pending"}}

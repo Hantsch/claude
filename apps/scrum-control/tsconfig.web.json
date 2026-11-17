@@ -26,6 +26,7 @@
     "src/renderer/**/*.tsx",
     "src/shared/**/*.ts",
     "src/core/model/**/*.ts",
-    "src/core/state/**/*.ts"
+    "src/core/state/**/*.ts",
+    "src/core/scrum/types.ts"
   ]
 }

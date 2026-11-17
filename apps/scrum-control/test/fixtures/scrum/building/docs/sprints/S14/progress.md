@@ -1,0 +1,7 @@
+- 2026-11-17 09:00 · refine · 025 026 027 028 · started
+- 2026-11-17 09:20 · 025 · build · started
+- 2026-11-17 09:30 · 025 · D1 Lamp housing · started
+- 2026-11-17 09:50 · 025 · story · done
+- 2026-11-17 09:51 · 026 · build · started
+- 2026-11-17 10:05 · 026 · D1 Gear train · done
+- 2026-11-17 10:06 · 026 · D2 Motor mount · started
