@@ -8,8 +8,17 @@ import { BrowserWindow, app, clipboard, ipcMain, shell } from 'electron';
 import type { WindowSource } from '../core/context/windowSource.ts';
 import type { UpdateSource } from '../core/updates/updateSource.ts';
 import type { ControlEngine } from '../core/engine.ts';
+import type { HostRoot } from '../core/hosts/roots.ts';
+import type { ProjectsService } from '../core/projects/service.ts';
 import type { HistoryQuery, SessionId } from '../core/model/types.ts';
-import { IPC, type AppState, type DiagnosticsInfo, type FocusResult } from '../shared/ipc.ts';
+import {
+  IPC,
+  type AppState,
+  type DiagnosticsInfo,
+  type FocusResult,
+  type HostRootInfo,
+  type ProjectActionResult,
+} from '../shared/ipc.ts';
 import type { WindowFocuser } from './focus/focuser.ts';
 import type { SettingsStore } from './settings.ts';
 import type { ShortcutManager } from './shortcuts.ts';
@@ -32,6 +41,10 @@ export interface IpcDeps {
   windowSource: WindowSource | null;
   /** Null unless this is a packaged portable install (story 019, D4) — no update is possible otherwise. */
   updateSource: UpdateSource | null;
+  projects: ProjectsService;
+  /** The Claude state roots in use right now, Windows first. */
+  hostRoots: () => HostRoot[];
+  focusProject: (key: string) => Promise<FocusResult>;
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -62,6 +75,39 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(IPC.setSessionMuted, (_event, id: SessionId, muted: boolean) => {
     deps.engine.setMuted(id, muted === true);
   });
+
+  ipcMain.handle(IPC.getProjects, () => deps.projects.getProjects());
+
+  ipcMain.handle(IPC.focusProject, async (_event, key: unknown) => {
+    if (typeof key !== 'string') return noProjectResult();
+    return deps.focusProject(key);
+  });
+
+  // The path comes from our own project list, never from the renderer: it only names the project.
+  ipcMain.handle(IPC.openProjectFolder, async (_event, key: unknown): Promise<ProjectActionResult> => {
+    const project = typeof key === 'string' ? deps.projects.getProject(key) : undefined;
+    if (!project) return { ok: false, message: 'That project is no longer shown.' };
+    const failure = await shell.openPath(project.path);
+    return failure === '' ? { ok: true, message: `Opened ${project.path}` } : { ok: false, message: failure };
+  });
+
+  ipcMain.handle(IPC.hideProject, (_event, key: unknown) => {
+    if (typeof key !== 'string' || key.trim() === '') return;
+    const hidden = deps.settings.get().projects.hidden;
+    if (hidden.includes(key)) return;
+    deps.settings.set({ projects: { hidden: [...hidden, key] } });
+  });
+
+  ipcMain.handle(IPC.unhideProject, (_event, key: unknown) => {
+    if (typeof key !== 'string') return;
+    const hidden = deps.settings.get().projects.hidden;
+    if (!hidden.includes(key)) return;
+    deps.settings.set({ projects: { hidden: hidden.filter((entry) => entry !== key) } });
+  });
+
+  ipcMain.handle(IPC.getHostRoots, (): HostRootInfo[] =>
+    deps.hostRoots().map((root) => ({ id: root.id, kind: root.kind, distro: root.distro, claudeDir: root.claudeDir })),
+  );
 
   ipcMain.handle(IPC.getSettings, () => deps.settings.get());
 
@@ -158,6 +204,10 @@ export function registerIpc(deps: IpcDeps): void {
     }
     return next;
   });
+}
+
+function noProjectResult(): FocusResult {
+  return { ok: false, method: 'none', flashed: false, target: null, message: 'That project is no longer shown.', cwd: '' };
 }
 
 export function broadcast(channel: string, payload: unknown): void {

@@ -301,3 +301,53 @@ Decisions:
 - **Notification dedupe keys** are `projectKey|kind|sprintId|storyId|discriminator`. The discriminator is
   empty except for `stalled` (the trail's mtime, so a second stall after the trail moved on is a new event)
   and `releaseVerdict` (verdict kind and the check's end time).
+
+---
+
+## 7. Projects and tray
+
+How CONCEPT §3, §5 and §8 are wired. `src/core/projects/` is pure apart from the service's use of the
+engine, the monitor and a liveness probe, all injected; the only Electron-side pieces are the window
+lister and the focuser.
+
+| File | Job |
+| --- | --- |
+| `core/projects/titles.ts` | `titleMatches` (segment, substring, title) and `folderBaseName`; `main/focus/win32.ts` uses the same function, so focusing and detection agree. |
+| `core/projects/openWindows.ts` | `findOpenFolders`: IDE locks (pid alive, title cross-check) and the title fallback for known project paths. Output `OpenFolder { path, key, pid, via }`. |
+| `core/projects/projects.ts` | `groupIntoProjects` (session to open folder, longest match) and `buildProjects` (sections, attention, order) to `ProjectView[]`. |
+| `core/projects/trayState.ts` | `trayStateFromProjects` to `{ tile, badge, tooltip }`, `TRAY_TILE_ICON`, `fitTooltip` (127 characters). |
+| `core/projects/types.ts` | `ProjectView`, `TrayProjectsState`; renderer-importable. |
+| `core/projects/service.ts` | `ProjectsService`: recomputes on every engine refresh, monitor change and settings change; drives `ScrumMonitor`; emits `projects` and `scrumNotifications`. |
+| `main/focus/windowList.ts` | The 2 s cached, never-throwing list of top-level windows with their executable names (`processImageName` in `win32.ts`, koffi `QueryFullProcessImageNameW`). |
+| `main/focus/focuser.ts` | `focusProject({ path, windowPid })`. |
+| `main/tray.ts`, `main/notifier.ts`, `main/toast-protocol.ts` | Tile, badge and tooltip from the projects; scrum toasts; `scrum-control://project/<encoded key>`. |
+
+Renderer API (`window.claudeControl`, see `shared/ipc.ts`): `getProjects()`, `onProjectsChanged(cb)`,
+`focusProject(key)`, `openProjectFolder(key)`, `hideProject(key)`, `unhideProject(key)`, `getHostRoots()`.
+
+Decisions:
+
+- **Which windows count.** A lock counts when its pid is alive and the pid owns a visible window titled
+  after one of its folders (whole title segment, so `claude` never matches `claude-control`). When the
+  pid owns no window at all (an extension host rather than the main process) every VS Code window is
+  checked instead. The fallback matches known project paths only (live sessions and the history index),
+  skips a folder name that two known projects share, skips paths inside an already open folder, and never
+  gives one window to two folders. WSL-remote windows have no Windows-side lock, so they are found by
+  title.
+- **No window list, no cross-check.** Where windows cannot be enumerated (the CLI, or koffi failing to
+  load) every live lock counts and the title fallback is off. `npm run cli` therefore shows fewer open
+  windows than the app.
+- **A project not scanned yet is not shown.** Whether it has scrum decides its section, so it waits for
+  the monitor's first summary instead of appearing under Other for a moment. A failed scan still yields a
+  summary (with `error`), so nothing waits forever.
+- **Attention** is scrum's four flags plus sessions `waiting` that have not been seen; `done` and
+  `stale` do not count. A project counts once however many sessions wait. `ProjectView.sessions` holds the
+  engine's visible sessions (not only the tray-worthy ones), most urgent first.
+- **A sprint counts as running** while it is in progress and while its release check still runs (phase 4).
+- **The tooltip** adds a last line `N projects need you` while the badge is above zero, and shortens by
+  dropping whole lines (`+N more`) before it cuts one.
+- **Toasts.** The first computation is the baseline; a project that shows up later, or comes back from
+  hidden, announces nothing for its first summary. Each `dedupeKey` is announced once per run, and only
+  events whose toggle is on are marked announced. Hidden projects are not monitored at all.
+- **Settings.** `projects.hidden` holds project keys (`normalizePathKey`); comparison normalizes both
+  sides. `scrumNotifications` merges kind by kind over the defaults.

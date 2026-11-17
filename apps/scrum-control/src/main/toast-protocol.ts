@@ -20,10 +20,19 @@ export const TOAST_PROTOCOL = 'scrum-control';
 
 export type ToastActionName = 'jump' | 'mute';
 
-export interface ToastAction {
+/** A button or click on a session toast. */
+export interface SessionToastAction {
   action: ToastActionName;
   sessionId: string;
 }
+
+/** A click on a scrum toast: focus the project's window. `projectKey` is the project's key, decoded. */
+export interface ProjectToastAction {
+  action: 'project';
+  projectKey: string;
+}
+
+export type ToastAction = SessionToastAction | ProjectToastAction;
 
 const BUTTONS: readonly { action: ToastActionName; label: string }[] = [
   { action: 'jump', label: 'Jump' },
@@ -37,11 +46,39 @@ export interface ToastXmlInput {
   /** `file:///…` logo, or null when the art is not reachable for the shell (asar). */
   imageUri?: string | null;
   sessionId: string;
+  /** Replaces the Jump and Mute buttons. */
+  buttons?: readonly { content: string; uri: string }[];
 }
 
 /** `scrum-control://jump?session=…` — the argument of one toast button. */
 export function toastActionUri(action: ToastActionName, sessionId: string): string {
   return `${TOAST_PROTOCOL}://${action}?session=${encodeURIComponent(sessionId)}`;
+}
+
+/** `scrum-control://project/<encoded key>` - what a scrum toast's button carries. */
+export function projectActionUri(projectKey: string): string {
+  return `${TOAST_PROTOCOL}://project/${encodeURIComponent(projectKey)}`;
+}
+
+export interface ScrumToastXmlInput {
+  title: string;
+  lines: readonly string[];
+  imageUri?: string | null;
+  projectKey: string;
+}
+
+/**
+ * A scrum toast (CONCEPT section 8): the same layout as a session toast, with one button that
+ * focuses the project's window instead of Jump and Mute.
+ */
+export function buildScrumToastXml(input: ScrumToastXmlInput): string {
+  return buildToastXml({
+    title: input.title,
+    lines: input.lines,
+    imageUri: input.imageUri,
+    sessionId: '',
+    buttons: [{ content: 'Open window', uri: projectActionUri(input.projectKey) }],
+  });
 }
 
 /**
@@ -59,11 +96,13 @@ export function buildToastXml(input: ToastXmlInput): string {
   const image = input.imageUri
     ? `<image placement="appLogoOverride" src="${escapeXml(input.imageUri)}"/>`
     : '';
-  const actions = BUTTONS.map(
-    ({ action, label }) =>
-      `<action content="${escapeXml(label)}" activationType="protocol" ` +
-      `arguments="${escapeXml(toastActionUri(action, input.sessionId))}"/>`,
-  ).join('');
+  const buttons = input.buttons ?? BUTTONS.map(({ action, label }) => ({ content: label, uri: toastActionUri(action, input.sessionId) }));
+  const actions = buttons
+    .map(
+      ({ content, uri }) =>
+        `<action content="${escapeXml(content)}" activationType="protocol" arguments="${escapeXml(uri)}"/>`,
+    )
+    .join('');
 
   // No `activationType` on the root: the body keeps Windows' default (foreground) activation,
   // which is what Electron's own `click` event is wired to. Only the buttons leave the process.
@@ -95,6 +134,9 @@ export function parseToastAction(value: string): ToastAction | null {
   if (typeof value !== 'string') return null;
   if (!value.toLowerCase().startsWith(`${TOAST_PROTOCOL}:`)) return null;
 
+  const project = parseProjectAction(value);
+  if (project) return project;
+
   let url: URL;
   try {
     url = new URL(value);
@@ -109,6 +151,28 @@ export function parseToastAction(value: string): ToastAction | null {
   const sessionId = url.searchParams.get('session')?.trim();
   if (!sessionId) return null;
   return { action: verb, sessionId };
+}
+
+/**
+ * `scrum-control://project/<encoded key>`, or the same without the slashes after the colon (the
+ * shell may hand back either). Parsed by hand rather than with `URL`: the key is an encoded
+ * path, and `URL` treats the first segment of a non-special scheme as a host.
+ */
+function parseProjectAction(value: string): ProjectToastAction | null {
+  const rest = value
+    .slice(TOAST_PROTOCOL.length + 1)
+    .replace(/^\/\//, '')
+    .replace(/[?#].*$/, '');
+  const slash = rest.indexOf('/');
+  if (slash === -1 || rest.slice(0, slash).toLowerCase() !== 'project') return null;
+  let key: string;
+  try {
+    key = decodeURIComponent(rest.slice(slash + 1).replace(/\/+$/, ''));
+  } catch {
+    return null;
+  }
+  key = key.trim();
+  return key === '' ? null : { action: 'project', projectKey: key };
 }
 
 export interface ProtocolClientTarget {

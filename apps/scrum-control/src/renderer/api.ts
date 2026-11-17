@@ -3,7 +3,7 @@
  * world (§3).
  */
 
-import type { AppState, NavigateTarget, RendererApi } from '../shared/ipc.ts';
+import type { AppState, NavigateTarget, ProjectView, RendererApi } from '../shared/ipc.ts';
 
 export type MainTab = 'sessions' | 'history' | 'settings';
 
@@ -36,3 +36,6 @@ export const EMPTY_STATE: AppState = {
   historyCount: 0,
   hidden: { count: 0, causes: [] },
 };
+
+/** What `getProjects()` yields before the first answer. */
+export const EMPTY_PROJECTS: ProjectView[] = [];

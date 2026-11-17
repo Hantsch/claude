@@ -9,6 +9,8 @@
  */
 
 import type { ContextPressure } from '../core/model/types.ts';
+import { STATUS_LABEL } from '../core/model/status.ts';
+import type { ProjectView } from '../core/projects/types.ts';
 
 export function formatAge(ms: number): string {
   if (ms < 5_000) return 'just now';
@@ -43,4 +45,33 @@ export function formatContextColumn(context: ContextPressure | null): string {
  */
 export function engineDataDir(useOnlineTable: boolean, dataDir: string): string | undefined {
   return useOnlineTable ? dataDir : undefined;
+}
+
+/**
+ * One project of the CLI's "Scrum projects" / "Other" sections, as two lines: the sprint line,
+ * and below it the window, the sessions per status, the hosts and - when there is any - what
+ * needs attention. `glyph` is the status symbol the caller draws the first line with.
+ */
+export function formatProjectLines(project: ProjectView, glyph: string): string[] {
+  const sprint = project.scrum?.bandLine ?? '';
+  const milestone = project.scrum?.milestone ? ` · ${milestoneText(project.scrum.milestone)}` : '';
+  const head = `  ${glyph} ${project.name.padEnd(22)} ${sprint}${milestone}`.trimEnd();
+
+  const sessions =
+    project.statusCounts.length === 0
+      ? 'no sessions'
+      : project.statusCounts.map((entry) => `${entry.count} ${STATUS_LABEL[entry.status]}`).join(', ');
+  const details = [
+    `window: ${project.hasWindow ? 'open' : 'none'}`,
+    sessions,
+    project.hosts.length === 0 ? null : `hosts: ${project.hosts.join(', ')}`,
+    project.attentionReasons.length === 0 ? null : `ATTENTION: ${project.attentionReasons.join(', ')}`,
+  ].filter((part): part is string => part !== null);
+  return [head, `      ${details.join(' · ')}`];
+}
+
+/** `M3 Login`; roadmap headings without an id come through as both id and name, and run long. */
+function milestoneText(milestone: { id: string; name: string }): string {
+  const text = milestone.id === milestone.name ? milestone.name : `${milestone.id} ${milestone.name}`;
+  return text.length <= 48 ? text : `${text.slice(0, 47)}…`;
 }

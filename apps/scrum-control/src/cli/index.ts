@@ -15,12 +15,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createEngine } from '../core/createEngine.ts';
+import { ProjectsService } from '../core/projects/service.ts';
+import type { ProjectView } from '../core/projects/types.ts';
+import { ScrumMonitor } from '../core/scrum/monitor.ts';
 import { DEFAULT_SETTINGS, mergeSettings } from '../core/model/settings.ts';
 import { STATUS_LABEL } from '../core/model/status.ts';
 import type { EngineSnapshot } from '../core/engine.ts';
 import type { SessionView, StatusTransition } from '../core/model/types.ts';
 import { formatShownOf, sessionLabel } from '../shared/presentation.ts';
-import { engineDataDir, formatAge, formatContextColumn } from './format.ts';
+import { engineDataDir, formatAge, formatContextColumn, formatProjectLines } from './format.ts';
 
 /**
  * Same `%APPDATA%` folder the app persists Settings to (`app.setPath('userData', …)` in
@@ -131,6 +134,7 @@ async function main(): Promise<void> {
   }
 
   await engine.start();
+  const projects = options.watch ? [] : await readProjects(engine, settings, paths.root);
   const elapsed = Date.now() - started;
 
   if (options.json && !options.watch) {
@@ -140,6 +144,8 @@ async function main(): Promise<void> {
       `${JSON.stringify(
         {
           ...snapshot,
+          // The sessions are already listed above; a project names them by id.
+          scrumProjects: projects.map((project) => ({ ...project, sessions: project.sessions.map((s) => s.sessionId) })),
           coldStartMs: elapsed,
           history: historyPage ? historyPage.entries : [],
           historyShown: historyPage ? historyPage.entries.length : 0,
@@ -150,7 +156,7 @@ async function main(): Promise<void> {
       )}\n`,
     );
   } else if (!options.json) {
-    printSnapshot(engine.getSnapshot(), options, paths.root, elapsed);
+    printSnapshot(engine.getSnapshot(), projects, options, paths.root, elapsed);
   }
 
   if (options.history && !options.json) {
@@ -181,6 +187,7 @@ async function main(): Promise<void> {
 
 function printSnapshot(
   snapshot: EngineSnapshot,
+  projects: readonly ProjectView[],
   options: CliOptions,
   root: string,
   coldStartMs: number,
@@ -189,6 +196,8 @@ function printSnapshot(
   process.stdout.write(
     `${snapshot.sessions.length} live session(s) · tray=${snapshot.trayState} · badge=${snapshot.attention} · cold start ${coldStartMs} ms\n\n`,
   );
+
+  printProjects(projects);
 
   if (snapshot.sessions.length === 0) {
     process.stdout.write('No live sessions found.\n');
@@ -205,6 +214,47 @@ function printSnapshot(
         printSession(session, options);
       }
     }
+    process.stdout.write('\n');
+  }
+}
+
+/**
+ * The projects the app's overview would show. Window enumeration is not available in the CLI (it
+ * lives in the Electron main process), so an open window is an IDE lock whose pid is alive and
+ * nothing more: no title cross-check, and no title-only fallback for windows without a lock. The
+ * app itself is stricter and finds windows the CLI cannot.
+ */
+async function readProjects(
+  engine: ReturnType<typeof createEngine>['engine'],
+  settings: ReturnType<typeof mergeSettings>,
+  configDir: string,
+): Promise<ProjectView[]> {
+  // No watchers: the CLI scans once and exits.
+  const monitor = new ScrumMonitor({ configDir, watcherFactory: () => ({ close: () => undefined }) });
+  const service = new ProjectsService({ engine, settings: () => settings, monitor });
+  try {
+    await service.start();
+    await monitor.refresh();
+    await service.recompute();
+    return service.getProjects();
+  } finally {
+    await service.dispose();
+  }
+}
+
+function printProjects(projects: readonly ProjectView[]): void {
+  const sections = [
+    { title: 'Scrum projects', rows: projects.filter((project) => project.section === 'scrum') },
+    { title: 'Other', rows: projects.filter((project) => project.section === 'other') },
+  ];
+  process.stdout.write('Open windows come from IDE locks and pid liveness only (no window titles in the CLI).\n\n');
+  for (const section of sections) {
+    process.stdout.write(`${section.title} (${section.rows.length})\n`);
+    for (const project of section.rows) {
+      const glyph = project.needsAttention ? '!' : symbol(project.worstStatus ?? '');
+      for (const line of formatProjectLines(project, glyph)) process.stdout.write(`${line}\n`);
+    }
+    if (section.rows.length === 0) process.stdout.write('  none\n');
     process.stdout.write('\n');
   }
 }

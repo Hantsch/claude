@@ -16,9 +16,13 @@ import type { NotificationSettings } from '../core/model/settings.ts';
 import { STATUS_LABEL } from '../core/model/status.ts';
 import type { SessionId, StatusTransition } from '../core/model/types.ts';
 import { NotificationGate, firstSentence } from '../core/state/notifications.ts';
+import type { ScrumNotification } from '../core/scrum/types.ts';
 import { clampLabel, sessionLabel, waitingOnText } from '../shared/presentation.ts';
 import { toastIcon, toastIconUri } from './icon-assets.ts';
-import { buildToastXml } from './toast-protocol.ts';
+import { buildScrumToastXml, buildToastXml } from './toast-protocol.ts';
+
+/** Scrum events that ask for a look, as opposed to reporting progress. */
+const SCRUM_ATTENTION_KINDS: ReadonlySet<ScrumNotification['kind']> = new Set(['stalled', 'blocked']);
 
 export interface NotifierDeps {
   settings: () => NotificationSettings;
@@ -26,6 +30,8 @@ export interface NotifierDeps {
   onActivate: (sessionId: SessionId) => void;
   /** Per-session mute override (§6.6, D4/D5) — checked ahead of the global settings. */
   isMuted: (sessionId: SessionId) => boolean;
+  /** Invoked when the user activates a scrum toast: focus the project's window (CONCEPT section 8). */
+  onActivateProject?: (projectKey: string) => void;
 }
 
 export class Notifier {
@@ -42,6 +48,44 @@ export class Notifier {
       const muted = this.deps.isMuted(transition.sessionId);
       if (this.gate.evaluate(transition, settings, muted).notify) this.show(transition);
     }
+  }
+
+  /**
+   * Scrum toasts (CONCEPT section 8): the same app identity and the same toast layout as the
+   * session toasts. The toggles and the once-per-key dedupe are decided upstream, in the projects
+   * service; this only renders. Clicking the toast or its button focuses the project's window.
+   */
+  handleScrum(notifications: readonly ScrumNotification[]): void {
+    for (const notification of notifications) this.showScrum(notification);
+  }
+
+  private showScrum(notification: ScrumNotification): void {
+    if (!Notification.isSupported()) return;
+    // The state tiles are the only toast art there is: `waiting` for what asks for a look,
+    // `done` for the rest.
+    const status = SCRUM_ATTENTION_KINDS.has(notification.kind) || /releasable: (NO|UNVERIFIED)$/.test(notification.title) ? 'waiting' : 'done';
+    const plain: NotificationConstructorOptions = {
+      title: clampLabel(notification.title, 60),
+      body: notification.body,
+      icon: toastIcon(status),
+      silent: true,
+      timeoutType: 'default',
+    };
+    const toast = new Notification(
+      process.platform === 'win32'
+        ? {
+            ...plain,
+            toastXml: buildScrumToastXml({
+              title: clampLabel(notification.title, 60),
+              lines: [notification.body],
+              imageUri: toastIconUri(status),
+              projectKey: notification.projectKey,
+            }),
+          }
+        : plain,
+    );
+    toast.on('click', () => this.deps.onActivateProject?.(notification.projectKey));
+    toast.show();
   }
 
   private show(transition: StatusTransition): void {

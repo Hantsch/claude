@@ -10,6 +10,8 @@
 
 import type { AppSettings } from '../core/model/settings.ts';
 import type { SessionStatus, TrayState } from '../core/model/status.ts';
+import type { ProjectSection, ProjectView, TrayProjectsState, TrayTile } from '../core/projects/types.ts';
+import type { ProjectScrumSummary, ScrumNotificationToggles } from '../core/scrum/types.ts';
 import type { ProjectGroup } from '../core/state/aggregate.ts';
 import type {
   ContextPressure,
@@ -17,6 +19,7 @@ import type {
   HiddenSessions,
   HistoryEntry,
   HistoryQuery,
+  HostId,
   ProjectRef,
   SessionDetail,
   SessionId,
@@ -33,8 +36,13 @@ export type {
   HiddenSessions,
   HistoryEntry,
   HistoryQuery,
+  HostId,
   ProjectGroup,
   ProjectRef,
+  ProjectScrumSummary,
+  ProjectSection,
+  ProjectView,
+  ScrumNotificationToggles,
   SessionDetail,
   SessionId,
   SessionRun,
@@ -42,7 +50,9 @@ export type {
   SessionView,
   SubagentMetrics,
   SubagentNode,
+  TrayProjectsState,
   TrayState,
+  TrayTile,
 };
 
 /** Everything the UI needs to render the live surfaces. Structured-clone safe. */
@@ -161,6 +171,26 @@ export interface UpdateStatus {
   source: string;
 }
 
+/**
+ * Mirrors `core/hosts/roots.ts`'s `HostRoot` - duplicated because that file spawns `wsl.exe` and
+ * so cannot be part of the renderer's TS project. Keep the two shapes in sync by hand.
+ */
+export interface HostRootInfo {
+  id: HostId;
+  kind: 'windows' | 'wsl';
+  /** Distro name for a WSL root, null for Windows. */
+  distro: string | null;
+  /** The directory Claude Code state is read from. */
+  claudeDir: string;
+}
+
+/** What `openProjectFolder` reports back. */
+export interface ProjectActionResult {
+  ok: boolean;
+  /** Human-readable outcome, shown verbatim when `ok` is false. */
+  message: string;
+}
+
 export interface DiagnosticsInfo {
   claudeDir: string;
   adapterId: string;
@@ -208,12 +238,19 @@ export const IPC = {
   quit: 'cc:quit',
   refreshModelWindows: 'cc:refresh-model-windows',
   refreshUpdateCheck: 'cc:refresh-update-check',
+  getProjects: 'cc:get-projects',
+  focusProject: 'cc:focus-project',
+  openProjectFolder: 'cc:open-project-folder',
+  hideProject: 'cc:hide-project',
+  unhideProject: 'cc:unhide-project',
+  getHostRoots: 'cc:get-host-roots',
 
   // main → renderer (send)
   stateChanged: 'cc:state-changed',
   historyChanged: 'cc:history-changed',
   settingsChanged: 'cc:settings-changed',
   shortcutStatusChanged: 'cc:shortcut-status',
+  projectsChanged: 'cc:projects-changed',
 } as const;
 
 /** Shape exposed on `window.claudeControl` by the preload script. */
@@ -254,6 +291,19 @@ export interface RendererApi {
   refreshModelWindows(): Promise<ModelWindowStatus | null>;
   /** Forces an immediate self-update check (Settings button, story 019, D5). */
   refreshUpdateCheck(): Promise<UpdateStatus | null>;
+  /** The overview's projects: scrum projects first, then the rest (CONCEPT section 3). */
+  getProjects(): Promise<ProjectView[]>;
+  /** Brings the project's VS Code window forward (by pid and title). */
+  focusProject(key: string): Promise<FocusResult>;
+  /** Opens the project's folder in Explorer. */
+  openProjectFolder(key: string): Promise<ProjectActionResult>;
+  /** Adds the project to `settings.projects.hidden`. */
+  hideProject(key: string): Promise<void>;
+  /** Removes the key from `settings.projects.hidden`. */
+  unhideProject(key: string): Promise<void>;
+  /** The Claude state roots in use, Windows first - for Settings -> Diagnostics. */
+  getHostRoots(): Promise<HostRootInfo[]>;
+  onProjectsChanged(listener: (projects: ProjectView[]) => void): () => void;
   onStateChanged(listener: (state: AppState) => void): () => void;
   onHistoryChanged(listener: (info: { count: number; done: boolean }) => void): () => void;
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void;

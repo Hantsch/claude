@@ -10,8 +10,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildProtocolRegistration,
+  buildScrumToastXml,
   buildToastXml,
   parseToastAction,
+  projectActionUri,
   protocolClientTarget,
   toastActionFromArgv,
   toastActionUri,
@@ -73,7 +75,7 @@ describe('parseToastAction', () => {
   });
 
   it('decodes a session id the shell handed back percent-encoded', () => {
-    expect(parseToastAction(toastActionUri('mute', 'a b/c'))?.sessionId).toBe('a b/c');
+    expect(parseToastAction(toastActionUri('mute', 'a b/c'))).toEqual({ action: 'mute', sessionId: 'a b/c' });
   });
 
   it('accepts the shapes the shell may produce for the same URI', () => {
@@ -89,6 +91,56 @@ describe('parseToastAction', () => {
     expect(parseToastAction('https://example.com/mute?session=s-1')).toBeNull();
     expect(parseToastAction('--show')).toBeNull();
     expect(parseToastAction('scrum-control://')).toBeNull();
+  });
+});
+
+describe('scrum project actions', () => {
+  const key = 'c:/development/hantsch/claude';
+
+  it('round-trips a project key, including the separators and the drive colon', () => {
+    expect(projectActionUri(key)).toBe('scrum-control://project/c%3A%2Fdevelopment%2Fhantsch%2Fclaude');
+    expect(parseToastAction(projectActionUri(key))).toEqual({ action: 'project', projectKey: key });
+    expect(parseToastAction(projectActionUri('//wsl.localhost/ubuntu/home/u/my proj'))).toEqual({
+      action: 'project',
+      projectKey: '//wsl.localhost/ubuntu/home/u/my proj',
+    });
+  });
+
+  it('accepts the shapes the shell may produce for the same URI', () => {
+    const encoded = encodeURIComponent(key);
+    for (const uri of [
+      `scrum-control://project/${encoded}/`,
+      `scrum-control:project/${encoded}`,
+      `SCRUM-CONTROL://PROJECT/${encoded}`,
+      `scrum-control://project/${encoded}?x=1`,
+    ]) {
+      expect(parseToastAction(uri), uri).toEqual({ action: 'project', projectKey: key });
+    }
+  });
+
+  it('rejects a project URI without a key or with broken encoding', () => {
+    expect(parseToastAction('scrum-control://project')).toBeNull();
+    expect(parseToastAction('scrum-control://project/')).toBeNull();
+    expect(parseToastAction('scrum-control://project/%E0%A4%A')).toBeNull();
+    expect(parseToastAction('scrum-control://projects/abc')).toBeNull();
+  });
+
+  it('is found in argv like the session actions', () => {
+    expect(toastActionFromArgv(['C:/app/electron.exe', projectActionUri(key)])).toEqual({
+      action: 'project',
+      projectKey: key,
+    });
+  });
+
+  it('renders one Open window button instead of Jump and Mute', () => {
+    const body = buildScrumToastXml({ title: 'claude: sprint S14 started', lines: ['Login'], projectKey: key });
+    expect(body).toContain(
+      `<action content="Open window" activationType="protocol" arguments="${projectActionUri(key)}"/>`,
+    );
+    expect(body).not.toContain('Jump');
+    expect(body).not.toContain('Mute');
+    expect(body).toContain('<text>claude: sprint S14 started</text>');
+    expect(body.startsWith('<toast>')).toBe(true);
   });
 });
 

@@ -37,6 +37,7 @@ import {
   listWindows,
   nativeFocusError,
   pickCodeWindow,
+  pickWindow,
   type MatchConfidence,
   type WindowHint,
   type WindowInfo,
@@ -67,6 +68,55 @@ export class WindowFocuser {
   backendName(): string {
     if (process.platform !== 'win32') return `unsupported (${process.platform})`;
     return isNativeFocusAvailable() ? 'koffi/user32' : `shell fallback (${nativeFocusError() ?? 'koffi unavailable'})`;
+  }
+
+  /**
+   * Brings the VS Code window of a project forward (CONCEPT section 3). The owning pid, when the
+   * projects service found one, narrows the candidates; the folder name picks the window among
+   * them (one VS Code process owns one window per workspace). Without a pid, or when its windows
+   * do not name the folder, any VS Code window titled after the folder is used - the one marked
+   * `[WSL: ...]` first. Never a guess: no title match, no focus.
+   */
+  focusProject(project: { path: string; windowPid: number | null }): FocusResult {
+    const name = folderName(project.path);
+    const fail = (message: string): FocusResult => ({
+      ok: false,
+      method: 'none',
+      flashed: false,
+      target: null,
+      message,
+      cwd: project.path,
+    });
+    try {
+      const windows = (this.deps.listWindows ?? listWindows)();
+      // Whole title segments only: `claude` must not find `claude-control`.
+      const hints: WindowHint[] = [{ text: name, mode: 'segment' }];
+      let match: WindowInfo | null = null;
+      if (project.windowPid !== null) {
+        const owned = windows.filter((window) => window.pid === project.windowPid);
+        const picked = pickWindow(owned, hints);
+        if (picked?.confidence === 'matched') match = picked.window;
+      }
+      match ??= pickCodeWindow(windows, hints);
+      if (!match) {
+        return fail(`No VS Code window titled after ${name} is open.`);
+      }
+      const outcome = (this.deps.activateWindow ?? activateWindow)(match.handle);
+      return {
+        ok: outcome.activated,
+        method: 'vscode',
+        flashed: outcome.flashed,
+        target: match.title,
+        message: outcome.activated
+          ? `Focused ${match.title}`
+          : outcome.flashed
+            ? 'Windows refused foreground activation - the taskbar button is flashing'
+            : `Could not activate ${match.title}`,
+        cwd: project.path,
+      };
+    } catch (error) {
+      return fail(`Focusing failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async focus(session: SessionView): Promise<FocusResult> {

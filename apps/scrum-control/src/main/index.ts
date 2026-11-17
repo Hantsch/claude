@@ -15,10 +15,12 @@ import { join } from 'node:path';
 import { REFRESH_CADENCE_MS } from '../core/context/windowSource.ts';
 import { createEngine } from '../core/createEngine.ts';
 import type { SessionId } from '../core/model/types.ts';
+import { ProjectsService } from '../core/projects/service.ts';
 import { UPDATES_DIR, UpdateSource } from '../core/updates/updateSource.ts';
 import { IPC, type AppState, type FocusResult } from '../shared/ipc.ts';
 import { applyAutostart, AUTOSTART_FLAG, healAutostartPath } from './autostart.ts';
 import { WindowFocuser } from './focus/focuser.ts';
+import { createWindowLister } from './focus/windowList.ts';
 import { createWindowProbe } from './focus/windowProbe.ts';
 import { broadcast, registerIpc } from './ipc.ts';
 import { Notifier } from './notifier.ts';
@@ -108,7 +110,7 @@ async function bootstrap(): Promise<void> {
   // separate timer is needed.
   const windowProbe = createWindowProbe();
 
-  const { engine, adapter, paths, windowSource } = createEngine({
+  const { engine, adapter, paths, windowSource, hostRoots } = createEngine({
     settings: settings.get(),
     hasTerminalWindow: (pid) => windowProbe.get(pid),
     // Electron's per-user data dir — the same root `SettingsStore` already writes under, so
@@ -128,12 +130,24 @@ async function bootstrap(): Promise<void> {
 
   const focuser = new WindowFocuser({ ideWindows: () => engine.getIdeWindows() });
 
+  // Open VS Code windows, scrum state and the projects built from them (CONCEPT sections 3, 4).
+  // The window list is read on every engine tick, so it is cached and can never throw.
+  const projects = new ProjectsService({
+    engine,
+    settings: () => settings.get(),
+    configDir: paths.root,
+    listWindows: createWindowLister(),
+  });
+
   const notifier = new Notifier({
     settings: () => settings.get().notifications,
     onActivate: (sessionId) => {
       void focusSession(sessionId);
     },
     isMuted: (sessionId) => engine.isMuted(sessionId),
+    onActivateProject: (projectKey) => {
+      void focusProject(projectKey);
+    },
   });
 
   const tray = new TrayPresenter({
@@ -141,6 +155,9 @@ async function bootstrap(): Promise<void> {
     onOpenWindow: (tab: MainTab) => windows.openMain(tab),
     onFocusSession: (sessionId) => {
       void focusSession(sessionId);
+    },
+    onFocusProject: (projectKey) => {
+      void focusProject(projectKey);
     },
     onMarkAllSeen: () => engine.dismissAll(),
     onRefresh: () => {
@@ -161,6 +178,11 @@ async function bootstrap(): Promise<void> {
   });
   engine.on('transitions', (transitions) => notifier.handle(transitions));
   engine.on('history', (info) => broadcast(IPC.historyChanged, info));
+  projects.on('projects', (list) => {
+    tray.setProjects(list);
+    broadcast(IPC.projectsChanged, list);
+  });
+  projects.on('scrumNotifications', (notifications) => notifier.handleScrum(notifications));
   engine.on('error', (error) => {
     process.stderr.write(`[scrum-control] ${error.message}\n`);
   });
@@ -174,6 +196,7 @@ async function bootstrap(): Promise<void> {
 
   settings.onChange((next) => {
     void engine.updateSettings(next);
+    void projects.refreshSettings();
     updateSource?.setEnabled(next.updates.enabled);
     applyAutostart(next.ui.autostart);
     shortcutManager.apply(next.ui.globalShortcut);
@@ -195,6 +218,9 @@ async function bootstrap(): Promise<void> {
     protocolRegistration,
     windowSource,
     updateSource,
+    projects,
+    hostRoots,
+    focusProject,
   });
 
   // Opt-in exact-context-window refresh (story 005, D6). `refresh()` is a no-op while the
@@ -240,6 +266,8 @@ async function bootstrap(): Promise<void> {
   lastState = engine.getSnapshot();
   tray.create();
   tray.update(lastState);
+  // After the engine: the first pass over the open windows is the baseline for scrum toasts.
+  await projects.start();
 
   shortcutManager.apply(settings.get().ui.globalShortcut);
   broadcast(IPC.shortcutStatusChanged, shortcutManager.status());
@@ -291,6 +319,7 @@ async function bootstrap(): Promise<void> {
 
   app.on('before-quit', () => {
     void engine.stop();
+    void projects.dispose();
     tray.destroy();
     windows.destroy();
   });
@@ -331,13 +360,35 @@ async function bootstrap(): Promise<void> {
    * reached from a second entry point.
    */
   function runToastAction(action: ToastAction): void {
+    if (action.action === 'project') {
+      void focusProject(action.projectKey);
+      return;
+    }
     const sessionId = action.sessionId as SessionId;
     if (action.action === 'mute') engine.setMuted(sessionId, true);
     else void focusSession(sessionId);
   }
 
+  /** Brings the project's VS Code window forward - the Open window button and a scrum toast's click. */
+  async function focusProject(key: string): Promise<FocusResult> {
+    const project = projects.getProject(key);
+    if (!project) {
+      return {
+        ok: false,
+        method: 'none',
+        flashed: false,
+        target: null,
+        message: 'That project is no longer shown.',
+        cwd: '',
+      };
+    }
+    const result = focuser.focusProject(project);
+    if (result.ok || result.flashed) windows.hidePopover();
+    return result;
+  }
+
   function quit(): void {
-    void engine.stop().finally(() => {
+    void Promise.all([engine.stop(), projects.dispose()]).finally(() => {
       tray.destroy();
       windows.destroy();
       app.quit();

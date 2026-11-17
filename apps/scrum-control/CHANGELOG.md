@@ -12,6 +12,11 @@ section on release.
 - **A sprint and project overview across everything you have open.** Scrum Control shows, per
   project, whether an ai-scrum sprint is running, which story it is on and how far along it is,
   for every open VS Code window and every WSL session on the machine, in one place in the tray.
+- **A tray icon that tells sprints from sessions.** A thin ring while no sprint runs, a disc with a
+  white core while one does, an amber notched disc when a project needs you (a stalled sprint, a
+  blocked story, a release verdict of NO, or a session waiting for an answer); the badge counts those
+  projects and the tooltip lists the running sprints. Right-click lists the projects, and choosing
+  one brings its VS Code window forward. A project can be hidden; a hidden project counts nowhere.
 - **Notifications for the scrum events that need you.** A stalled sprint, a blocked story and a
   written release verdict (yes, NO or UNVERIFIED) raise a toast; the first scan after start only
   sets the baseline and announces nothing.
