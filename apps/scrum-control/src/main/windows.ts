@@ -113,7 +113,7 @@ export class WindowManager {
    */
   openMain(tab: MainTab = 'projects', sessionId: string | null = null): BrowserWindow {
     // `NavigateTarget` (the IPC contract) predates the Projects tab; the renderer's own union is wider.
-    const target: Omit<NavigateTarget, 'tab'> & { tab: MainTab } = { tab, sessionId };
+    const target: NavigateTarget = { tab, sessionId };
     if (this.main && !this.main.isDestroyed()) {
       this.main.show();
       this.main.focus();

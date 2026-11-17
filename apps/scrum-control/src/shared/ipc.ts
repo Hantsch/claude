@@ -100,7 +100,7 @@ export interface FocusResult {
  * window may still be opening when the request is made, and a second message would race it.
  */
 export interface NavigateTarget {
-  tab: 'sessions' | 'history' | 'settings';
+  tab: 'projects' | 'sessions' | 'history' | 'settings';
   /** Session to select on arrival; `null` leaves the current selection alone. */
   sessionId: SessionId | null;
 }
@@ -281,7 +281,7 @@ export interface RendererApi {
   copyText(text: string): Promise<void>;
   revealPath(path: string): Promise<void>;
   /** `sessionId` selects that session in the Sessions tab once the window is up. */
-  openMainWindow(tab?: 'sessions' | 'history' | 'settings', sessionId?: SessionId): Promise<void>;
+  openMainWindow(tab?: 'projects' | 'sessions' | 'history' | 'settings', sessionId?: SessionId): Promise<void>;
   openSessionDetail(id: SessionId): Promise<void>;
   closeDetailWindow(): Promise<void>;
   closePopover(): Promise<void>;

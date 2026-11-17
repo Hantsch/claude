@@ -141,7 +141,7 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle(IPC.openMainWindow, (_event, tab: MainTab | undefined, sessionId?: SessionId) => {
     deps.windows.hidePopover();
-    deps.windows.openMain(tab ?? 'sessions', typeof sessionId === 'string' ? sessionId : null);
+    deps.windows.openMain(tab ?? 'projects', typeof sessionId === 'string' ? sessionId : null);
   });
 
   ipcMain.handle(IPC.openSessionDetail, (_event, id: SessionId) => {

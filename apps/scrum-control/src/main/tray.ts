@@ -18,7 +18,7 @@ import { trayImage, trayPixelSize } from './icon-assets.ts';
 
 export interface TrayPresenterDeps {
   onTogglePopover: (bounds: Electron.Rectangle) => void;
-  onOpenWindow: (tab: 'sessions' | 'history' | 'settings') => void;
+  onOpenWindow: (tab: 'projects' | 'sessions' | 'history' | 'settings') => void;
   onFocusSession: (sessionId: string) => void;
   /** A project row of the menu was chosen: focus its VS Code window. */
   onFocusProject: (projectKey: string) => void;
@@ -51,7 +51,7 @@ export class TrayPresenter {
     this.tray.setToolTip(this.tile.tooltip);
     this.tray.on('click', (_event, bounds) => this.deps.onTogglePopover(bounds));
     this.tray.on('right-click', () => this.tray?.popUpContextMenu(this.buildMenu()));
-    this.tray.on('double-click', () => this.deps.onOpenWindow('sessions'));
+    this.tray.on('double-click', () => this.deps.onOpenWindow('projects'));
     // Display scaling can change under a running app — docking a laptop, moving the taskbar
     // to another monitor. The tile has to be rebuilt at the new physical size or Windows
     // resamples the one it has.
@@ -167,7 +167,7 @@ export class TrayPresenter {
 
     items.push(
       { type: 'separator' },
-      { label: 'Open Scrum Control', click: () => this.deps.onOpenWindow('sessions') },
+      { label: 'Open Scrum Control', click: () => this.deps.onOpenWindow('projects') },
       { label: 'History', click: () => this.deps.onOpenWindow('history') },
       { label: 'Settings', click: () => this.deps.onOpenWindow('settings') },
       { type: 'separator' },

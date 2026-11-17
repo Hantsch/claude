@@ -5,7 +5,7 @@
 
 import type { AppState, NavigateTarget, ProjectView, RendererApi } from '../shared/ipc.ts';
 
-export type MainTab = 'sessions' | 'history' | 'settings';
+export type MainTab = 'projects' | 'sessions' | 'history' | 'settings';
 
 export interface FullApi extends RendererApi {
   onNavigate(listener: (target: NavigateTarget) => void): () => void;

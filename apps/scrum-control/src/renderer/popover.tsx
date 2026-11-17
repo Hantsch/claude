@@ -1220,7 +1220,7 @@ function Popover(): React.JSX.Element {
           </div>
         )}
         <div className="popover-footer">
-          <button type="button" onClick={() => void api.openMainWindow('sessions')}>
+          <button type="button" onClick={() => void api.openMainWindow('projects')}>
             Open Scrum Control
           </button>
           <span className="spacer" />

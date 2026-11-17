@@ -17,6 +17,14 @@ section on release.
   blocked story, a release verdict of NO, or a session waiting for an answer); the badge counts those
   projects and the tooltip lists the running sprints. Right-click lists the projects, and choosing
   one brings its VS Code window forward. A project can be hidden; a hidden project counts nowhere.
+- **A popover of projects, not sessions.** Left-click shows the scrum projects first — sprint
+  line, progress bar, milestone, session counts, a `WSL` badge, what needs you in amber — and the
+  other projects with a running session below; a row unfolds into its sessions and a short scrum
+  block, and **Open window** brings the project's VS Code window forward.
+- **A Projects tab in the main window.** One card per scrum project with the cockpit's rows
+  (phase, release verdict, tech debt and architect against their limits, backlog, next sprint)
+  and, while a sprint runs, its phase stepper, story chips, the story in focus and the time left.
+  Settings gain the WSL switch, the hidden projects and a toggle per scrum notification.
 - **Notifications for the scrum events that need you.** A stalled sprint, a blocked story and a
   written release verdict (yes, NO or UNVERIFIED) raise a toast; the first scan after start only
   sets the baseline and announces nothing.
