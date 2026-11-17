@@ -42,11 +42,11 @@ import { TrayPresenter } from './tray.ts';
 import { WindowManager, type MainTab } from './windows.ts';
 
 /**
- * The data directory is pinned to `%APPDATA%scrum-control` for packaged and dev runs alike,
+ * The data directory is pinned to `%APPDATA%\scrum-control` for packaged and dev runs alike,
  * and before anything reads `userData` (the staged-update lookup below, the single-instance
  * lock): Electron would otherwise derive it from the product name ("Scrum Control") when
  * packaged and from the package name in dev. One stable name keeps the app clear of
- * claude-control's `%APPDATA%claude-control` and lets the CLI find the same files.
+ * claude-control's `%APPDATA%\claude-control` and lets the CLI find the same files.
  */
 app.setPath('userData', join(app.getPath('appData'), 'scrum-control'));
 
