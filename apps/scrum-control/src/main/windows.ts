@@ -115,6 +115,8 @@ export class WindowManager {
     // `NavigateTarget` (the IPC contract) predates the Projects tab; the renderer's own union is wider.
     const target: NavigateTarget = { tab, sessionId };
     if (this.main && !this.main.isDestroyed()) {
+      // `show()` does not un-minimize: a window minimized to the taskbar would stay there.
+      if (this.main.isMinimized()) this.main.restore();
       this.main.show();
       this.main.focus();
       this.main.webContents.send('cc:navigate', target);

@@ -39,6 +39,9 @@ vi.mock('electron', () => {
     isDestroyed() {
       return this.destroyed;
     }
+    isMinimized() {
+      return false;
+    }
     getNormalBounds() {
       return { x: 10, y: 20, width: 900, height: 700 };
     }
