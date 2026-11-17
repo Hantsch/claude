@@ -9,6 +9,8 @@ section on release.
 
 ## Unreleased
 
+- New app icon: Scrum Control has its own icon instead of the one inherited from claude-control.
+
 - **A sprint and project overview across everything you have open.** Scrum Control shows, per
   project, whether an ai-scrum sprint is running, which story it is on and how far along it is,
   for every open VS Code window and every WSL session on the machine, in one place in the tray.

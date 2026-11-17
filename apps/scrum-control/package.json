@@ -16,7 +16,7 @@
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder --win portable",
     "cli": "tsx src/cli/index.ts",
-    "icons": "python scripts/build-icons.py",
+    "icons": "node scripts/build-icons.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "node scripts/vitest.mjs run",
     "test:perf": "node scripts/vitest.mjs run --config vitest.perf.config.ts",
@@ -29,6 +29,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
