@@ -209,3 +209,11 @@ describe('hosts', () => {
     expect(wslDistros(['windows', 'wsl:Ubuntu', 'wsl:Debian'])).toEqual(['Ubuntu', 'Debian']);
   });
 });
+
+describe('phase row with a phase name that is only a table rule', () => {
+  it('shows the milestone count alone', async () => {
+    const { phaseRow } = await import('../../src/renderer/lib/projectCard.ts');
+    const row = phaseRow({ phase: '---', milestonesDone: 6, milestonesTotal: 7 } as never);
+    expect(row.text).toBe('6/7 milestones');
+  });
+});

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import type { ProjectView } from '../../../shared/ipc.ts';
 import { STATUS_LABEL, STATUS_COLOR_VAR } from '../../../shared/presentation.ts';
 import { api } from '../../api.ts';
+import { milestoneLabel } from '../../lib/projectRows.ts';
 import {
   architectRow,
   backlogText,
@@ -151,14 +152,15 @@ function IdleRows({ project }: { project: ProjectView }): React.JSX.Element | nu
   const debt = techDebtRow(scrum);
   const architect = architectRow(scrum);
   const next = nextRow(scrum);
+  const milestone = milestoneLabel(scrum);
 
   return (
     <dl className="pv-rows">
       <Row label="Phase" tone={phase.tone}>
         {phase.text}
-        {scrum.milestone && (
-          <span className="pv-detail" title={`${scrum.milestone.id} ${scrum.milestone.name}`}>
-            {scrum.milestone.id} {scrum.milestone.name}
+        {milestone && (
+          <span className="pv-detail" title={milestone}>
+            {milestone}
           </span>
         )}
       </Row>

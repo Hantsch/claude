@@ -50,8 +50,11 @@ export function meter(value: number, limit: number): Meter | null {
 export function phaseRow(scrum: ProjectScrumSummary): Row {
   if (scrum.phase === null) return { text: 'no roadmap', tone: 'dim' };
   const total = scrum.milestonesTotal;
+  const milestones = `${scrum.milestonesDone}/${total} milestone${total === 1 ? '' : 's'}`;
+  // A roadmap far from the template can hand back a table rule (`---`) as the phase name.
+  if (!/[\p{L}\p{N}]/u.test(scrum.phase)) return { text: milestones, tone: null };
   return {
-    text: `${scrum.phase} · ${scrum.milestonesDone}/${total} milestone${total === 1 ? '' : 's'}`,
+    text: `${scrum.phase} · ${milestones}`,
     tone: null,
   };
 }
