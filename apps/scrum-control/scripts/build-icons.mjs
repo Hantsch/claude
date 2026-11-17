@@ -6,8 +6,8 @@ import { Resvg } from '@resvg/resvg-js';
 // The SVGs are the masters. Tray tiles are drawn separately in tray-icons.ts.
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const icons = join(root, 'assets', 'icons');
-const master = await readFile(join(icons, 'src', 'app.svg'), 'utf8');
-const small = await readFile(join(icons, 'src', 'app-small.svg'), 'utf8');
+const master = await readFile(join(root, 'assets', 'icon-src', 'app.svg'), 'utf8');
+const small = await readFile(join(root, 'assets', 'icon-src', 'app-small.svg'), 'utf8');
 const sizes = [16, 20, 24, 32, 40, 48, 64, 256];
 const render = (svg, size) => new Resvg(svg, { fitTo: { mode: 'width', value: size } }).render().asPng();
 

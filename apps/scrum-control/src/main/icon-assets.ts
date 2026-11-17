@@ -3,7 +3,8 @@
  *
  * Two sources: the tray tile is drawn per state and badge count by `tray-icons.ts`, and the
  * window icon plus the toast logo per notifying status are shipped art in `assets/icons`,
- * loaded on demand and cached. `scripts/build-icons.py` writes the latter; the file names are
+ * loaded on demand and cached. `scripts/build-icons.mjs` renders the latter from the SVG masters
+ * in `assets/icon-src` (kept out of `assets/icons`, which ships whole); the file names are
  * the app's own status names, so nothing has to translate between the art's vocabulary and the
  * state machine's.
  *

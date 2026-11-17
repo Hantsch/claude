@@ -30,7 +30,7 @@ npm run package        # build release\ScrumControl-<version>-portable.exe
 npm test               # vitest with fixtures, including the N2 read-only check
 npm run test:perf      # non-blocking perf lane: the N4/N5 budgets
 npm run typecheck      # tsc for the Node side and the renderer
-npm run icons          # rebuild assets/icons from the art in output/imagegen (Python + Pillow)
+npm run icons          # rebuild assets/icons from the SVG masters in assets/icon-src
 ```
 
 Useful flags when starting the app from a terminal:
