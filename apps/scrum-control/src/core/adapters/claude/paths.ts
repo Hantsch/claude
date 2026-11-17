@@ -48,7 +48,8 @@ export function slugForCwd(cwd: string): string {
 /** Lower-cased, forward-slashed, trailing-separator-free path for comparisons (R5). */
 export function normalizePathKey(p: string): string {
   const unified = p.replace(/[\\/]+/g, '/').replace(/\/+$/, '');
-  return unified.toLowerCase();
+  // `\\wsl$\<distro>` is the legacy spelling of `\\wsl.localhost\<distro>`: one folder, one key.
+  return unified.toLowerCase().replace(/^\/wsl\$\//, '/wsl.localhost/');
 }
 
 /** True when `child` is `parent` or lives underneath it, case-insensitively. */

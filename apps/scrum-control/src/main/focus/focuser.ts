@@ -32,15 +32,22 @@ import type { FocusResult } from '../../shared/ipc.ts';
 import { activateViaShell, findWindowUpChain } from './processChain.ts';
 import {
   activateWindow,
-  findWindowForPid,
   isNativeFocusAvailable,
+  findWindowForPid,
+  listWindows,
   nativeFocusError,
+  pickCodeWindow,
   type MatchConfidence,
   type WindowHint,
+  type WindowInfo,
 } from './win32.ts';
 
 export interface WindowFocuserDeps {
   ideWindows: () => IdeWindowRef[];
+  /** Visible top-level windows. Defaults to the real enumeration; tests inject a list. */
+  listWindows?: () => WindowInfo[];
+  /** Brings a window forward. Defaults to the real one; tests inject a recorder. */
+  activateWindow?: typeof activateWindow;
 }
 
 interface ActivateOutcome {
@@ -63,6 +70,59 @@ export class WindowFocuser {
   }
 
   async focus(session: SessionView): Promise<FocusResult> {
+    // Never throws: an unexpected failure is "could not focus", which the UI already handles.
+    try {
+      if (session.host.startsWith('wsl:')) return this.focusWslSession(session);
+      return await this.focusWindowsSession(session);
+    } catch (error) {
+      return {
+        ok: false,
+        method: 'none',
+        flashed: false,
+        target: null,
+        message: `Focusing failed: ${error instanceof Error ? error.message : String(error)}`,
+        cwd: session.cwd,
+      };
+    }
+  }
+
+  /**
+   * A WSL session has no Windows process chain — its pid is a Linux pid and its IDE lock, if
+   * any, names a process inside the distro — so nothing is walked. The VS Code window whose
+   * title carries the project folder's name is the target (CONCEPT §2).
+   */
+  private focusWslSession(session: SessionView): FocusResult {
+    const windows = (this.deps.listWindows ?? listWindows)();
+    const match = pickCodeWindow(windows, folderHints(session.cwd, session.project.path));
+    if (!match) {
+      return {
+        ok: false,
+        method: 'none',
+        flashed: false,
+        target: null,
+        message:
+          `No VS Code window titled after ${folderName(session.cwd)} is open. ` +
+          'Its working directory is available for copying instead.',
+        cwd: session.cwd,
+      };
+    }
+    const outcome = (this.deps.activateWindow ?? activateWindow)(match.handle);
+    const target = match.title;
+    return {
+      ok: outcome.activated,
+      method: 'vscode',
+      flashed: outcome.flashed,
+      target,
+      message: outcome.activated
+        ? `Focused ${target}`
+        : outcome.flashed
+          ? 'Windows refused foreground activation — the taskbar button is flashing'
+          : `Could not activate ${target}`,
+      cwd: session.cwd,
+    };
+  }
+
+  private async focusWindowsSession(session: SessionView): Promise<FocusResult> {
     const ide = matchIdeWindow(session.cwd, this.deps.ideWindows());
     // One VS Code process hosts one window per workspace, so the folder name is what
     // distinguishes them (see `pickWindow`) — for both attempts below, since the lock's pid

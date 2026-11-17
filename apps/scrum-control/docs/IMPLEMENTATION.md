@@ -221,3 +221,41 @@ first. Covered by the burst test in `test/unit/pipeline.test.ts`.
 - The project-slug rule is derived from observation (`[\\/:.]` → `-`). If it is ever wrong,
   transcript resolution falls back to scanning project directories for the session id, so a
   wrong slug degrades performance, not correctness.
+
+---
+
+## WSL hosts
+
+How CONCEPT §2 is built. One `ClaudeAdapter` per *root*, composed by `MultiRootAdapter`; the
+engine still sees a single `AgentAdapter`.
+
+| Part | Code |
+|---|---|
+| Root discovery (`wsl.exe -l --running -q`, UTF-16LE decode, `docker-desktop*` skipped, `/home/*/.claude` + `/root/.claude` with `sessions/` or `projects/`) | `src/core/hosts/roots.ts` — `discoverRoots` (fresh), `createRootDiscovery` (cached 60 s) |
+| Path mapping | `src/core/hosts/paths.ts` — `toWindowsPath`, `toLinuxPath` |
+| Liveness of a Linux pid | `src/core/hosts/wslProbe.ts` — `WslProcessProbe`, `parseProcStatStartTime` |
+| Composition, routing, merge | `src/core/adapters/multiRoot.ts` |
+| Wiring | `src/core/createEngine.ts` (`hostRoots()`), `wsl.enabled` in `src/core/model/settings.ts` |
+| Jump to a WSL session | `src/main/focus/focuser.ts` (`focusWslSession`), `pickCodeWindow` in `win32.ts` |
+
+Decisions:
+
+- **Canonical Windows form of a non-drive Linux path** is `\wsl.localhost\<distro>\<path>` with
+  backslashes. `normalizePathKey` folds separators, so the forward-slash form Node reads and the
+  legacy `\wsl$\<distro>` host name (now also folded) share one project key.
+- **The raw registry `cwd` stays on `LiveSessionRef` and `SessionView`** (it is what the slug and
+  the transcript lookup need, and what "copy path" should offer a WSL terminal). The mapped path
+  is `ProjectRef.path`; `ProjectRef.key` and `groupKey` derive from it.
+- **`pid` of a WSL session is a Linux pid.** Everything that asks the Windows process table
+  skips it: `ClaudeAdapter.readStatus` uses the distro probe, the engine's orphan rule and
+  `WindowProbe.candidatePids` ignore non-Windows hosts, and the focuser never walks a chain.
+- **`procStart` is compared for equality in WSL** (`ProcessProbe.stampMatches`). The Windows
+  comparison tolerates one second of FILETIME ticks; applied to clock ticks since boot it would
+  accept every pid.
+- **A discovery failure never removes the Windows root**, and `wsl.enabled: false` skips
+  `wsl.exe` altogether. Toggling the setting at run time re-discovers on the next refresh.
+- **Watching.** chokidar covers the Windows root only (`MultiRootAdapter.watchRoots`). A WSL
+  transcript change is found by the 5 s tick, which `stat`s every live transcript.
+- **IDE locks** are read from Windows roots only: a lock in a WSL root names a Linux pid.
+- **Known gap.** A distro that stops between two discoveries (up to 60 s) is still read through
+  its share, which starts it again. `wsl.exe` is deliberately not run per tick to close that.

@@ -11,7 +11,11 @@ export type SessionId = string;
 
 /** Git project a session runs in. Derived from `cwd`; no git process is invoked (§4). */
 export interface ProjectRef {
-  /** Absolute working directory as reported by the agent. */
+  /**
+   * Absolute working directory as a Windows path. A WSL cwd is mapped (`/mnt/c/x` becomes
+   * `C:\x`, any other Linux path `\\wsl.localhost\<distro>\...`), so one folder is one project
+   * on every host.
+   */
   path: string;
   /** Display name — last meaningful path segment. */
   name: string;
@@ -19,10 +23,20 @@ export interface ProjectRef {
   key: string;
 }
 
+/**
+ * Where a session runs: the Windows side, or one WSL distro (`wsl:Ubuntu`). A WSL session's
+ * `pid` is a Linux pid and its `cwd` a Linux path; neither means anything to Windows.
+ */
+export type HostId = 'windows' | `wsl:${string}`;
+
 /** A session the agent's own registry claims is alive right now. */
 export interface LiveSessionRef {
   sessionId: SessionId;
+  /** Which root's registry the entry came from. */
+  host: HostId;
+  /** Linux pid for a WSL session — never look it up in the Windows process table. */
   pid: number;
+  /** As the registry reports it (a Linux path for WSL); `ProjectRef.path` carries the mapped one. */
   cwd: string;
   /** Human-readable label supplied by the agent (`name`/`nameSource` in the registry). */
   name: string;
@@ -388,6 +402,8 @@ export interface SessionView {
   groupKey: string;
   model: string | null;
   entrypoint: string;
+  /** `windows` or `wsl:<distro>`. `pid` is a Linux pid for WSL, `cwd` a Linux path. */
+  host: HostId;
   pid: number;
   alive: boolean;
   startedAt: number;

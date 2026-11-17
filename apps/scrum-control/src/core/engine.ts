@@ -330,9 +330,16 @@ export class ControlEngine {
    */
   private isOrphan(session: SessionView, all: SessionView[]): boolean {
     if (!this.hasTerminalWindow) return false;
+    // The probe walks the *Windows* process table; a WSL session's pid is a Linux pid and
+    // has no entry there, so "no window" would be a statement about an unrelated process.
+    if (session.host !== 'windows') return false;
     if (this.hasTerminalWindow(session.pid) !== false) return false;
     return all.some(
-      (other) => other !== session && other.cwd === session.cwd && this.hasTerminalWindow!(other.pid) === true,
+      (other) =>
+        other !== session &&
+        other.host === 'windows' &&
+        other.cwd === session.cwd &&
+        this.hasTerminalWindow!(other.pid) === true,
     );
   }
 
@@ -346,9 +353,14 @@ export class ControlEngine {
    */
   private isWindowUnknown(session: SessionView, all: SessionView[]): boolean {
     if (!this.hasTerminalWindow) return false;
+    if (session.host !== 'windows') return false;
     if (this.hasTerminalWindow(session.pid) !== undefined) return false;
     return all.some(
-      (other) => other !== session && other.cwd === session.cwd && this.hasTerminalWindow!(other.pid) === true,
+      (other) =>
+        other !== session &&
+        other.host === 'windows' &&
+        other.cwd === session.cwd &&
+        this.hasTerminalWindow!(other.pid) === true,
     );
   }
 
@@ -394,6 +406,7 @@ export class ControlEngine {
     const onlineTableChanged =
       settings.contextWindows.useOnlineTable !== this.settings.contextWindows.useOnlineTable;
     this.settings = settings;
+    this.adapter.applySettings?.(settings);
 
     // Turning it off makes every lookup null again, so the refresh below re-derives every
     // session back onto the estimate table — no exact number survives the toggle.
@@ -631,6 +644,7 @@ export class ControlEngine {
       groupKey: `${snapshot.project.key}::${facts.branch ?? ''}`,
       model: facts.model,
       entrypoint: ref.entrypoint,
+      host: ref.host,
       pid: ref.pid,
       alive: snapshot.alive,
       startedAt: ref.startedAt,

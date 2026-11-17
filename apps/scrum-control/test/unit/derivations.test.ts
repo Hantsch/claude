@@ -67,6 +67,7 @@ function view(overrides: Partial<SessionView> & { sessionId: string; status: Ses
     groupKey: 'c:/dev/proj::main',
     model: 'claude-opus-5',
     entrypoint: 'claude-vscode',
+    host: 'windows',
     pid: 1,
     alive: true,
     startedAt: T0,
@@ -1089,6 +1090,7 @@ describe('mute registry (§6.6, story 004 D4)', () => {
       },
     };
     const ref: import('../../src/core/model/types.ts').LiveSessionRef = {
+      host: 'windows',
       sessionId: 's1',
       pid: 1,
       cwd: 'c:\\dev\\proj',

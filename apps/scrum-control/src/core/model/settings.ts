@@ -142,6 +142,14 @@ export interface UpdateSettings {
   enabled: boolean;
 }
 
+/**
+ * Sessions inside WSL distros (CONCEPT §2). On by default; off means the Windows root only and
+ * no `wsl.exe` call at all.
+ */
+export interface WslSettings {
+  enabled: boolean;
+}
+
 export interface AppSettings {
   /** See `SETTINGS_SCHEMA_VERSION`. Absent in files written before migrations existed. */
   schemaVersion: number;
@@ -160,6 +168,8 @@ export interface AppSettings {
   contextWindows: ContextWindowsSettings;
   /** Opt-in self-update (019). Read by `core/`. */
   updates: UpdateSettings;
+  /** Sessions in WSL distros. Read by `core/`. */
+  wsl: WslSettings;
 }
 
 /**
@@ -246,6 +256,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   updates: {
     enabled: false,
   },
+  wsl: {
+    enabled: true,
+  },
 };
 
 /** `T_work` for a specific tool, falling back to the default (§6.3). */
@@ -306,6 +319,7 @@ export function mergeSettings(partial: unknown): AppSettings {
     ui: { ...DEFAULT_SETTINGS.ui },
     contextWindows: { ...DEFAULT_SETTINGS.contextWindows },
     updates: { ...DEFAULT_SETTINGS.updates },
+    wsl: { ...DEFAULT_SETTINGS.wsl },
   };
   if (!partial || typeof partial !== 'object') return base;
   const p = migrate(partial as Record<string, unknown>);
@@ -366,6 +380,11 @@ export function mergeSettings(partial: unknown): AppSettings {
   const upd = p.updates as Record<string, unknown> | undefined;
   if (upd && typeof upd === 'object') {
     if (typeof upd.enabled === 'boolean') base.updates.enabled = upd.enabled;
+  }
+
+  const w = p.wsl as Record<string, unknown> | undefined;
+  if (w && typeof w === 'object') {
+    if (typeof w.enabled === 'boolean') base.wsl.enabled = w.enabled;
   }
 
   if (base.reading.maxTailWindowBytes < base.reading.tailWindowBytes) {

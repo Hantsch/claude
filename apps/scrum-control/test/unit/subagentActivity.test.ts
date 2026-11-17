@@ -107,6 +107,7 @@ async function statusAt(tree: Awaited<ReturnType<typeof fixture>>['tree'], atMs:
     now: () => now,
   });
   const snapshot = await adapter.readStatus({
+    host: 'windows',
     sessionId: SESSION,
     pid: 4242,
     cwd: 'c:\\dev\\proj',
