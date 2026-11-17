@@ -1,0 +1,4 @@
+# The app was developed with LF files; byte-exact fixtures and source-text tests expect them.
+* text=auto eol=lf
+*.png binary
+*.ico binary
