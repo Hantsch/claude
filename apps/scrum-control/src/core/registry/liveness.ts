@@ -22,6 +22,12 @@ export interface ProcessProbe {
    * it could not be determined. Unknown must never be read as "stale".
    */
   creationStamps(pids: readonly number[]): Promise<Map<number, string>>;
+  /**
+   * How a registry `procStart` is compared with a probed stamp. Absent means `procStartMatches`
+   * (FILETIME with a tolerance); a probe whose stamps are another unit (WSL: clock ticks since
+   * boot) supplies its own, because a tolerance in FILETIME ticks would accept every pid.
+   */
+  stampMatches?(expected: string | null, actual: string | null | undefined): boolean;
 }
 
 /** FILETIME ticks per millisecond. */

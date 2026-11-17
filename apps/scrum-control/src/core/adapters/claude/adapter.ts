@@ -10,12 +10,15 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { dirname, join } from 'node:path';
 import type { Thresholds } from '../../model/settings.ts';
+import { toWindowsPath } from '../../hosts/paths.ts';
+import type { HostRoot } from '../../hosts/roots.ts';
 import type {
   HistoryEntry,
   IdeWindowRef,
   LiveSessionRef,
   ProjectRef,
   SessionDetail,
+  HostId,
   SessionId,
   SessionSnapshot,
   SubagentNode,
@@ -88,6 +91,8 @@ export interface ClaudeAdapterOptions {
   probe: ProcessProbe;
   thresholds: Thresholds;
   now?: () => number;
+  /** Which host the root belongs to. Absent means the Windows root. */
+  host?: HostRoot;
 }
 
 export class ClaudeAdapter implements AgentAdapter {
@@ -95,6 +100,7 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly options: ClaudeAdapterOptions;
   private readonly now: () => number;
+  private readonly hostId: HostId;
   private projectDirs: { names: string[]; at: number } | null = null;
   /** Time of the human prompt the current run started with. */
   private readonly runStarts = new NewestRecordCache<number>({
@@ -127,6 +133,16 @@ export class ClaudeAdapter implements AgentAdapter {
   constructor(options: ClaudeAdapterOptions) {
     this.options = options;
     this.now = options.now ?? (() => Date.now());
+    this.hostId = options.host?.id ?? 'windows';
+  }
+
+  get host(): HostId {
+    return this.hostId;
+  }
+
+  /** The Windows spelling of a cwd of this host — the project's identity (CONCEPT §2). */
+  private mapCwd(cwd: string): string {
+    return toWindowsPath(cwd, this.hostId);
   }
 
   get paths(): ClaudePaths {
@@ -156,12 +172,14 @@ export class ClaudeAdapter implements AgentAdapter {
     if (candidates.length === 0) return [];
 
     const stamps = await this.options.probe.creationStamps(candidates.map((entry) => entry.pid));
-    const fresh = candidates.filter((entry) => procStartMatches(entry.procStart, stamps.get(entry.pid)));
+    const matches = this.options.probe.stampMatches?.bind(this.options.probe) ?? procStartMatches;
+    const fresh = candidates.filter((entry) => matches(entry.procStart, stamps.get(entry.pid)));
 
     const refs: LiveSessionRef[] = [];
     for (const entry of fresh) {
       refs.push({
         sessionId: entry.sessionId,
+        host: this.hostId,
         pid: entry.pid,
         cwd: entry.cwd,
         name: entry.name,
@@ -183,8 +201,12 @@ export class ClaudeAdapter implements AgentAdapter {
   /** Tail-read one session (§5.2). Never throws: a failed read becomes `unknown`. */
   async readStatus(ref: LiveSessionRef): Promise<SessionSnapshot> {
     const readAt = this.now();
-    const project = projectRefForCwd(ref.cwd);
-    const alive = isAliveSync(ref.pid);
+    const project = projectRefForCwd(this.mapCwd(ref.cwd));
+    // `isAliveSync` asks the *Windows* process table; a Linux pid has to go to its own probe.
+    const alive =
+      this.hostId === 'windows'
+        ? isAliveSync(ref.pid)
+        : (await this.options.probe.alive([ref.pid])).has(ref.pid);
 
     const path = ref.transcriptPath ?? (await this.resolveTranscriptPath(ref));
     if (!path) {
@@ -400,7 +422,7 @@ export class ClaudeAdapter implements AgentAdapter {
     return {
       sessionId: sessionIdFromTranscriptPath(path),
       transcriptPath: path,
-      project: projectForHistory(path, head.records, tail.records),
+      project: projectForHistory(path, head.records, tail.records, (cwd) => this.mapCwd(cwd)),
       branch: facts.branch,
       title,
       model: facts.model ?? headModel(head.records),
@@ -494,7 +516,7 @@ export class ClaudeAdapter implements AgentAdapter {
       stream.close();
     }
 
-    const project = projectForHistory(path, records, records);
+    const project = projectForHistory(path, records, records, (cwd) => this.mapCwd(cwd));
     return {
       sessionId: id,
       transcriptPath: path,
@@ -610,11 +632,12 @@ function projectForHistory(
   path: string,
   head: readonly TranscriptRecord[],
   tail: readonly TranscriptRecord[],
+  mapCwd: (cwd: string) => string,
 ): ProjectRef {
   for (const records of [tail, head]) {
     for (let i = records.length - 1; i >= 0; i -= 1) {
       const cwd = records[i]!.cwd;
-      if (typeof cwd === 'string' && cwd) return projectRefForCwd(cwd);
+      if (typeof cwd === 'string' && cwd) return projectRefForCwd(mapCwd(cwd));
     }
   }
   return projectRefForSlug(projectSlugFromTranscriptPath(path));

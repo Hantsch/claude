@@ -7,6 +7,7 @@
  * means adding a class and registering it.
  */
 
+import type { AppSettings } from '../model/settings.ts';
 import type {
   HistoryEntry,
   IdeWindowRef,
@@ -61,4 +62,10 @@ export interface AgentAdapter {
    * that keep no per-session state can leave it out.
    */
   forgetSession?(id: SessionId): void;
+
+  /**
+   * Optional: the engine passes every settings change here before it refreshes, for adapters
+   * whose behaviour follows a setting (the multi-root adapter and `wsl.enabled`).
+   */
+  applySettings?(settings: AppSettings): void;
 }

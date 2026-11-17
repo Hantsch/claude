@@ -15,6 +15,8 @@ import { findWindowsUpChain } from './processChain.ts';
 export interface LiveSessionRef {
   pid: number;
   cwd: string;
+  /** Absent or `windows` = a Windows process. A WSL pid is a Linux pid and is never probed. */
+  host?: string;
 }
 
 export interface WindowProbeOptions {
@@ -58,6 +60,7 @@ export class WindowProbe {
   static candidatePids(sessions: readonly LiveSessionRef[]): number[] {
     const byCwd = new Map<string, LiveSessionRef[]>();
     for (const session of sessions) {
+      if (session.host !== undefined && session.host !== 'windows') continue;
       const group = byCwd.get(session.cwd);
       if (group) group.push(session);
       else byCwd.set(session.cwd, [session]);

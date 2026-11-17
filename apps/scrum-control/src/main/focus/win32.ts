@@ -255,6 +255,27 @@ function titleMatches(title: string, hint: string, mode: HintMode): boolean {
     .some((part) => part === hint || part.startsWith(`${hint} [`) || part.startsWith(`${hint} (`));
 }
 
+/**
+ * The VS Code window of a project, found by title alone — for a session that has no Windows
+ * process to start from (a WSL one). Candidates are windows titled `... Visual Studio Code`
+ * (Insiders and VSCodium included), those marked `[WSL: ...]` preferred. Only a hint that
+ * *matched* counts: with nothing matching there is no window to name, and the process-wide
+ * fallbacks of `pickWindow` (`only`, `guess`) would focus an arbitrary editor.
+ */
+export function pickCodeWindow(
+  windows: readonly WindowInfo[],
+  hints: readonly WindowHint[],
+): WindowInfo | null {
+  const code = windows.filter((window) => /visual studio code|vscodium/i.test(window.title));
+  const remote = code.filter((window) => /\[WSL\b/i.test(window.title));
+  for (const candidates of [remote, code]) {
+    if (candidates.length === 0) continue;
+    const match = pickWindow(candidates, hints);
+    if (match?.confidence === 'matched') return match.window;
+  }
+  return null;
+}
+
 export function activateWindow(handle: string): ActivationOutcome {
   const lib = load();
   if (!lib) return { activated: false, flashed: false };
