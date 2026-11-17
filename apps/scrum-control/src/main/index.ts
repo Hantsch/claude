@@ -1,0 +1,420 @@
+/**
+ * Electron main (§3). A single process tree — no separate service to install or supervise.
+ *
+ * Startup order matters for N5: settings → engine (live tier only) → tray, so the tray
+ * appears with a populated list rather than empty. The history index starts afterwards, in
+ * the background.
+ *
+ * **Single-instance lock** (§12 "Open decisions"): recommended for M2 and included here.
+ * Two instances would both be read-only and harmless, but would double every toast — and
+ * doubling notifications defeats the purpose of the app.
+ */
+
+import { app, dialog, globalShortcut } from 'electron';
+import { join } from 'node:path';
+import { REFRESH_CADENCE_MS } from '../core/context/windowSource.ts';
+import { createEngine } from '../core/createEngine.ts';
+import type { SessionId } from '../core/model/types.ts';
+import { UPDATES_DIR, UpdateSource } from '../core/updates/updateSource.ts';
+import { IPC, type AppState, type FocusResult } from '../shared/ipc.ts';
+import { applyAutostart, AUTOSTART_FLAG, healAutostartPath } from './autostart.ts';
+import { WindowFocuser } from './focus/focuser.ts';
+import { createWindowProbe } from './focus/windowProbe.ts';
+import { broadcast, registerIpc } from './ipc.ts';
+import { Notifier } from './notifier.ts';
+import {
+  applyStagedUpdate,
+  selfUpdateTarget,
+  showAppliedNotice,
+  UPDATE_CHECK_TICK_MS,
+} from './selfUpdate.ts';
+import { SettingsStore } from './settings.ts';
+import { ShortcutManager } from './shortcuts.ts';
+import {
+  buildProtocolRegistration,
+  protocolClientTarget,
+  TOAST_PROTOCOL,
+  toastActionFromArgv,
+  type ProtocolRegistration,
+  type ToastAction,
+} from './toast-protocol.ts';
+import { TrayPresenter } from './tray.ts';
+import { WindowManager, type MainTab } from './windows.ts';
+
+/**
+ * Story 019 D4, and deliberately the very first thing this process does — before the lock, so
+ * the swap is the same one-per-launch event whether or not another instance is already running,
+ * and before anything has a file handle of its own. It only ever acts on a packaged, portable
+ * install (AC10), never quits or relaunches (AC3), and swallows every failure (AC6): a null
+ * return is the normal case. This session goes on running the old code either way; the flag is
+ * kept only so the "Updated to …" toast is left to the *next* start, which is the one actually
+ * running the new file.
+ */
+const appliedUpdate = applyStagedUpdate({
+  env: process.env,
+  isPackaged: app.isPackaged,
+  updatesDir: join(app.getPath('userData'), UPDATES_DIR),
+  currentVersion: app.getVersion(),
+});
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  void bootstrap();
+}
+
+async function bootstrap(): Promise<void> {
+  // Required on Windows for toasts to be attributed to this app (F5).
+  app.setAppUserModelId('solutions.aidu.claude-control');
+  const protocolRegistration = registerToastProtocol();
+  // No outbound requests by default (N1) — the opt-in exact-context-window lookup and the
+  // opt-in update check are the two exceptions, so there is nothing here for Electron's HTTP
+  // cache to usefully retain.
+  app.commandLine.appendSwitch('disable-http-cache');
+
+  await app.whenReady();
+
+  const settings = new SettingsStore(app.getPath('userData'));
+
+  // The update source exists only where an update could actually be applied — packaged and
+  // portable, the same gate the swap above uses. A dev run constructs nothing at all, so there
+  // is no object that could check or download anything (AC10). `enabled` follows the opt-in
+  // setting; `refresh()` re-reads it on every call, so nothing is requested while it is off.
+  const updateSource =
+    selfUpdateTarget(process.env, app.isPackaged) !== null
+      ? new UpdateSource(app.getPath('userData'), {
+          currentVersion: installedVersion(),
+          enabled: settings.get().updates.enabled,
+        })
+      : null;
+
+  // Heal first (a login item from an earlier install may point at an old EXE path), then
+  // apply — so the setting always wins over whatever is currently registered.
+  healAutostartPath();
+  applyAutostart(settings.get().ui.autostart);
+
+  // Sync cache read for `hasTerminalWindow` — the real probe is async and runs out-of-band,
+  // driven off the same `sessions` event the tray/renderer already consume (see below), so no
+  // separate timer is needed.
+  const windowProbe = createWindowProbe();
+
+  const { engine, adapter, paths, windowSource } = createEngine({
+    settings: settings.get(),
+    hasTerminalWindow: (pid) => windowProbe.get(pid),
+    // Electron's per-user data dir — the same root `SettingsStore` already writes under, so
+    // the cache file (`model-windows.json`) lives next to `settings.json` rather than
+    // introducing a second location.
+    dataDir: app.getPath('userData'),
+  });
+
+  const windows = new WindowManager({
+    rendererDir: join(app.getAppPath(), 'out', 'renderer'),
+    devServerUrl: process.env.ELECTRON_RENDERER_URL ?? null,
+    preload: join(app.getAppPath(), 'out', 'preload', 'index.cjs'),
+    userDataDir: app.getPath('userData'),
+  });
+
+  windows.setPopoverPinned(settings.get().ui.popoverPinned);
+
+  const focuser = new WindowFocuser({ ideWindows: () => engine.getIdeWindows() });
+
+  const notifier = new Notifier({
+    settings: () => settings.get().notifications,
+    onActivate: (sessionId) => {
+      void focusSession(sessionId);
+    },
+    isMuted: (sessionId) => engine.isMuted(sessionId),
+  });
+
+  const tray = new TrayPresenter({
+    onTogglePopover: (bounds) => windows.togglePopover(bounds),
+    onOpenWindow: (tab: MainTab) => windows.openMain(tab),
+    onFocusSession: (sessionId) => {
+      void focusSession(sessionId);
+    },
+    onMarkAllSeen: () => engine.dismissAll(),
+    onRefresh: () => {
+      void engine.refreshNow();
+    },
+    onQuit: () => quit(),
+  });
+
+  let lastState: AppState = emptyState();
+
+  engine.on('sessions', (snapshot) => {
+    lastState = snapshot;
+    tray.update(snapshot);
+    broadcast(IPC.stateChanged, snapshot);
+    // Piggybacks on the engine's own refresh cadence (tick + file-change driven) instead of a
+    // separate timer. `getLiveSessions()` is the unfiltered list on purpose — see its doc.
+    void windowProbe.refresh(engine.getLiveSessions());
+  });
+  engine.on('transitions', (transitions) => notifier.handle(transitions));
+  engine.on('history', (info) => broadcast(IPC.historyChanged, info));
+  engine.on('error', (error) => {
+    process.stderr.write(`[claude-control] ${error.message}\n`);
+  });
+
+  const shortcutManager = new ShortcutManager({
+    onToggle: () => {
+      const bounds = tray.getBounds();
+      if (bounds) windows.togglePopover(bounds);
+    },
+  });
+
+  settings.onChange((next) => {
+    void engine.updateSettings(next);
+    updateSource?.setEnabled(next.updates.enabled);
+    applyAutostart(next.ui.autostart);
+    shortcutManager.apply(next.ui.globalShortcut);
+    broadcast(IPC.shortcutStatusChanged, shortcutManager.status());
+    broadcast(IPC.settingsChanged, next);
+  });
+
+  registerIpc({
+    engine,
+    settings,
+    focuser,
+    windows,
+    shortcutManager,
+    claudeDir: paths.root,
+    adapterId: adapter.id,
+    state: () => lastState,
+    focusSession,
+    quit,
+    protocolRegistration,
+    windowSource,
+    updateSource,
+  });
+
+  // Opt-in exact-context-window refresh (story 005, D6). `refresh()` is a no-op while the
+  // setting is off (checked inside `WindowSource`, not here) and never throws, so firing it
+  // without awaiting cannot block or crash startup (AC2). The interval mirrors the class's own
+  // cadence — ticking more often would be wasted work, since `refresh()` itself will no-op
+  // until the due-check window has passed.
+  if (windowSource) {
+    void windowSource.refresh();
+    const windowRefreshTimer = setInterval(() => {
+      void windowSource.refresh();
+    }, REFRESH_CADENCE_MS);
+    windowRefreshTimer.unref?.();
+    app.on('before-quit', () => clearInterval(windowRefreshTimer));
+  }
+
+  // The same shape for the opt-in update check (story 019, D4). `updateSource` is null unless
+  // this is a packaged portable install, so a dev run arms no timer and makes no request at
+  // all (AC10); `refresh()` is a no-op while `updates.enabled` is off, keeps to one real check
+  // per calendar day on its own, and never throws — so firing it unawaited cannot delay or
+  // break startup (AC6). The tick is hourly only so a machine left running crosses midnight.
+  if (updateSource) {
+    void updateSource.refresh();
+    const updateCheckTimer = setInterval(() => {
+      void updateSource.refresh();
+    }, UPDATE_CHECK_TICK_MS);
+    updateCheckTimer.unref?.();
+    app.on('before-quit', () => clearInterval(updateCheckTimer));
+  }
+
+  // The other half of D4: the one-time "Updated to vX.Y.Z" toast, shown on the first start that
+  // is actually running the new version. Skipped when *this* run did the swap — that session is
+  // still the old build and the marker is left on disk for the next start to announce.
+  showAppliedNotice({
+    env: process.env,
+    isPackaged: app.isPackaged,
+    updatesDir: join(app.getPath('userData'), UPDATES_DIR),
+    swappedThisRun: appliedUpdate !== null,
+  });
+
+  // Live tier first (N5), tray immediately afterwards.
+  await engine.start();
+  lastState = engine.getSnapshot();
+  tray.create();
+  tray.update(lastState);
+
+  shortcutManager.apply(settings.get().ui.globalShortcut);
+  broadcast(IPC.shortcutStatusChanged, shortcutManager.status());
+
+  // Started by the login item: a modal at logon would be pure noise, so it stays silent.
+  const startedByAutostart = process.argv.includes(AUTOSTART_FLAG);
+
+  if (!startedByAutostart && lastState.sessions.length === 0 && !hasClaudeData(paths.root)) {
+    // Better a clear message than a permanently empty tray icon.
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Claude Control',
+      message: 'No Claude Code data found',
+      detail:
+        `Nothing was found under ${paths.root}. If your Claude Code state lives elsewhere, ` +
+        'set the data directory in Settings.',
+    });
+  }
+
+  // `--show [sessions|history|settings|popover]` opens a surface straight away. Useful when
+  // starting the app from a terminal to check a change; the normal start is tray-only (§8).
+  const show = surfaceToShow(process.argv, process.env.CC_SHOW_WINDOW ?? null);
+  if (show === 'popover') {
+    const bounds = tray.getBounds();
+    if (bounds) windows.togglePopover(bounds);
+  } else if (show) {
+    windows.openMain(show);
+  }
+
+  // A toast button (D6) reaches us as a *new* process launched by the shell for the
+  // `claude-control://` URI; the lock above bounces it here with its argv. Anything else is a
+  // user starting the app a second time, which means "show me the app".
+  app.on('second-instance', (_event, argv) => {
+    const action = toastActionFromArgv(argv);
+    if (action) runToastAction(action);
+    else windows.openMain('sessions');
+  });
+
+  // Same URI, but the app was not running when the button was pressed: then there is no second
+  // instance and the URI is simply in our own command line. Runs last, so the engine is
+  // started and `jump` can find its session.
+  const startupAction = toastActionFromArgv(process.argv);
+  if (startupAction) runToastAction(startupAction);
+
+  // Tray app: closing all windows must not quit (N3, §8).
+  app.on('window-all-closed', () => {
+    /* keep running in the tray */
+  });
+
+  app.on('before-quit', () => {
+    void engine.stop();
+    tray.destroy();
+    windows.destroy();
+  });
+
+  // Belt-and-suspenders: guarantees the registration is gone even if `before-quit` is cancelled.
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
+
+  async function focusSession(sessionId: SessionId): Promise<FocusResult> {
+    const session = engine.getSession(sessionId);
+    if (!session) {
+      return {
+        ok: false,
+        method: 'none',
+        flashed: false,
+        target: null,
+        message: 'That session is no longer live.',
+        cwd: '',
+      };
+    }
+    // Jumping to a session is the strongest possible "I have seen this", so it clears the
+    // badge for it whether the focus itself succeeds or not.
+    engine.acknowledge(sessionId);
+    // Activate *first*, hide after. Windows only grants `SetForegroundWindow` to a process
+    // that owns the foreground window, and hiding the popover hands the foreground straight
+    // back to whatever was underneath — so hiding first made our own call ineligible and the
+    // jump degraded to a taskbar flash, which reads as "the click did nothing". A failed jump
+    // leaves the popover up on purpose: it is the surface that then reports why.
+    const result = await focuser.focus(session);
+    if (result.ok || result.flashed) windows.hidePopover();
+    return result;
+  }
+
+  /**
+   * What a toast button does (D6). "Jump" is the same path as clicking the toast body, and
+   * "Mute" is the same call the renderer's mute switch makes over IPC — one behaviour each,
+   * reached from a second entry point.
+   */
+  function runToastAction(action: ToastAction): void {
+    const sessionId = action.sessionId as SessionId;
+    if (action.action === 'mute') engine.setMuted(sessionId, true);
+    else void focusSession(sessionId);
+  }
+
+  function quit(): void {
+    void engine.stop().finally(() => {
+      tray.destroy();
+      windows.destroy();
+      app.quit();
+    });
+  }
+}
+
+/**
+ * Makes `claude-control://` ours, so the shell can hand a toast button's URI back to the app
+ * (D6). Windows-only: that is the only platform where the buttons exist, and registering a
+ * scheme elsewhere would be a side effect nothing asked for. A dev run has no exe of its own,
+ * so the registration has to name Electron plus the script it should run. `protocolClientTarget`
+ * (D4) additionally prefers the portable build's stable exe path over the temp extraction dir
+ * `process.execPath` would otherwise record.
+ */
+function registerToastProtocol(): ProtocolRegistration {
+  const target = protocolClientTarget(process.env, process.execPath, app.isPackaged, process.argv[1]);
+  let outcome: { ok: true } | { ok: false; error?: unknown };
+  try {
+    const ok = target.path
+      ? app.setAsDefaultProtocolClient(TOAST_PROTOCOL, target.path, target.args ?? [])
+      : app.setAsDefaultProtocolClient(TOAST_PROTOCOL);
+    outcome = ok ? { ok: true } : { ok: false };
+  } catch (error) {
+    // A blocked registry write costs the buttons, not the app — the toast itself still shows.
+    outcome = { ok: false, error };
+  }
+  return buildProtocolRegistration(process.platform, target, outcome, process.execPath);
+}
+
+/**
+ * What is *installed*, which in exactly one session is not what this process is running: the
+ * start that swapped a staged update in keeps executing the old code it already loaded, so
+ * `app.getVersion()` reports the old version until the next launch (D4's whole premise).
+ *
+ * Handing that stale version to `UpdateSource` would make this session compare the release it
+ * just applied against the version it no longer has on disk, decide it is outdated — the stage
+ * that would have said otherwise was consumed by the swap — and download the entire release a
+ * second time for nothing. The applied tag is the truthful baseline, and it is what Settings
+ * should name too. `v1.3.0` and `1.3.0` both come out as `1.3.0`.
+ */
+function installedVersion(): string {
+  const applied = appliedUpdate?.version;
+  return applied ? applied.replace(/^[vV]/, '') : app.getVersion();
+}
+
+/** Parses the `--show` dev flag. Returns null when the app should start tray-only. */
+export function surfaceToShow(
+  argv: readonly string[],
+  envValue: string | null,
+): MainTab | 'popover' | null {
+  const surfaces = ['sessions', 'history', 'settings', 'popover'] as const;
+  const fromEnv = envValue?.trim().toLowerCase();
+  if (fromEnv === '1' || fromEnv === 'true') return 'sessions';
+  if (fromEnv && (surfaces as readonly string[]).includes(fromEnv)) {
+    return fromEnv as MainTab | 'popover';
+  }
+
+  const index = argv.indexOf('--show');
+  if (index === -1) return null;
+  const value = argv[index + 1]?.toLowerCase();
+  if (value && (surfaces as readonly string[]).includes(value)) return value as MainTab | 'popover';
+  return 'sessions';
+}
+
+function emptyState(): AppState {
+  return {
+    sessions: [],
+    traySessions: [],
+    groups: [],
+    trayState: 'none',
+    attention: 0,
+    projects: [],
+    at: Date.now(),
+    indexingHistory: false,
+    historyCount: 0,
+    hidden: { count: 0, causes: [] },
+  };
+}
+
+function hasClaudeData(root: string): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { existsSync } = require('node:fs') as typeof import('node:fs');
+    return existsSync(join(root, 'projects')) || existsSync(join(root, 'sessions'));
+  } catch {
+    return false;
+  }
+}
