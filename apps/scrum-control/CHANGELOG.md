@@ -1,90 +1,27 @@
 # Changelog
 
-All notable changes to Claude Control. The format follows
+All notable changes to Scrum Control. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
-[semver](https://semver.org/).
-
-Notes for the next release go under `## Unreleased` — the release workflow refuses to publish
-while that section is empty, and promotes it to the new version section on release.
+[semver](https://semver.org/). Scrum Control was forked from claude-control 1.1.1 and starts
+its own version history here. Notes for the next release go under `## Unreleased` - the release
+workflow refuses to publish while that section is empty, and promotes it to the new version
+section on release.
 
 ## Unreleased
 
-- **History rows open for real.** Click a past session (or Tab to it and press Enter) and it
-  opens in its own resizable window: the facts, the subagent tree and the run timeline, instead
-  of a little note that mostly told you where the file lives.
-- **A hidden session now says so.** When a Settings filter hides sessions, the main window and
-  the popover show "N hidden" and name the filter, so nothing vanishes without a note.
-- **Popover rows name their project.** Two agents on `main` in different repos used to be
-  twins; each row now reads `project · branch`, and the branch is the first to be ellipsized.
-- **Claude Code's own word on status now counts.** A session Claude Code calls busy is no
-  longer shown as done or hidden at start; one it calls idle is no longer shown as working.
-  Waiting rows now say what Claude Code is waiting for, instead of making you guess.
-- **Handing work to a subagent no longer reads as done.** A session whose last word was "on it"
-  while a subagent kept writing used to flip to done and ping you, then sulk in the corner. It
-  now stays working until the subagent has been quiet for ten minutes.
-- **Renamed sessions keep their name,** and a session is no longer named after a robot's message.
-  `/rename` wins everywhere, history included.
-
-## 1.1.1 — 2026-09-22
-
-- **Contributing guide split out of the README.** Build instructions, the source layout, the
-  release process and project status now live in [CONTRIBUTING.md](CONTRIBUTING.md); the README
-  stays focused on installing and using the app.
-- The README's auto-update section now spells out the full check → download → verify → stage →
-  swap sequence, instead of a one-line mention.
-
-## 1.1.0 — 2026-09-08
-
-- **An aborted turn is its own status.** Interrupting a session (Esc) leaves a `user` record
-  behind, which read as "a prompt was just submitted" → `working`. Because `working` means a
-  turn is in flight, the row could never leave the popover and "Mark as seen" refused to touch
-  it. Such a session now reads `interrupted`: it never notifies, never counts towards the
-  badge, and leaves the popover the ordinary way. The marker no longer becomes the row's label
-  or resets the run clock either.
-- **Refresh in the popover** (⟳ in its header) forces a re-read of every live transcript, for
-  when you want the list confirmed rather than watched. Its tooltip says how old the current
-  snapshot is.
-- **"Mark all as seen" is hidden instead of greyed out** when there is nothing settled to
-  clear.
-- **The app can update itself now — if you let it.** Flip it on in Settings and it checks
-  GitHub once a day, downloads and checksum-verifies the release, and swaps itself in the next
-  time you start it. No relaunch, no releases page to babysit, no EXE to overwrite by hand. Off
-  by default, and Settings tells you exactly when it last checked, what's staged, and why it
-  didn't work if it didn't.
-- **A one-time "Updated to vX.Y.Z" toast** on the first start that's actually running the new
-  version, so you know it happened.
-
-## 1.0.0 — 2026-09-07
-
-- First public release.
-- **Live session status** for every running Claude Code session: working / needs you? / stale /
-  done / queued. A status says what is going on, never how long ago — a turn that finished an
-  hour ago still reads `done`.
-- **Tray indicator** taking on the most urgent status across all sessions, with an overlay badge
-  counting the sessions that need attention. The tile is drawn in code and follows the Windows
-  light/dark taskbar.
-- **Popover** with sessions grouped by project, collapsible groups, per-group status counts, the
-  waiting reason spelled out, and a drill-down showing what the session last said plus one row
-  per subagent with its own model and context.
-- **Windows toasts** when a session finishes a turn or looks blocked on a permission prompt.
-  Click to jump to that session's window; act on it without opening the app.
-- **History** of past sessions, filterable by project, date and free text, grouped by
-  project / branch / model with totals.
-- **Context pressure gauge** so you can intervene before auto-compaction degrades a session.
-  Exact context windows are available as an opt-in (off by default) that fetches LiteLLM's
-  community table; without it the gauge shows a clearly marked estimate.
-- **Autostart and a global hotkey**, both configurable, so the popover is reachable without a
-  mouse and the app is running when it matters.
-- **Light theme** following the OS colour scheme, contrast-tested against WCAG ratios.
-- **Read-only towards Claude Code** — the app never writes into `~/.claude`, and exposes nothing
-  on the network: no listening socket, no HTTP server, no telemetry.
-- Sessions are named the way VS Code names them. The generated title is written once, early in
-  the transcript, so on a session that had been running a while it fell outside the read window
-  and the row fell back to Claude Code's derived slug (`q2-launcher-7e`); it is now looked up
-  once per session and kept.
-- **A start shows only what still matters:** a session that was already `done` when Claude
-  Control started is not news, so it stays out of the list, the popover and the tray badge
-  until it does something new — then it comes back on its own. Settings → Session list →
-  "Hide sessions already done at start" turns it off; history is unaffected.
-- **Show in Claude Control** in a popover row's right-click menu: opens the main window on that
-  session, whose detail now shows the **session ID with a copy button**.
+- **A sprint and project overview across everything you have open.** Scrum Control shows, per
+  project, whether an ai-scrum sprint is running, which story it is on and how far along it is,
+  for every open VS Code window and every WSL session on the machine, in one place in the tray.
+- **Notifications for the scrum events that need you.** A stalled sprint, a blocked story and a
+  written release verdict (yes, NO or UNVERIFIED) raise a toast; the first scan after start only
+  sets the baseline and announces nothing.
+- **Session monitoring, inherited from claude-control.** Every Claude Code session on Windows and
+  in WSL with its state, its context use and a one-click jump to its window - the monitor this app
+  was forked from, unchanged in what it does.
+- **Opt-in self-update from this repository's releases.** Off until you switch it on in Settings.
+  It checks once a day for a newer `scrum-control-v<version>` release (the plugins' releases in the
+  same repository are ignored), verifies the download against the release's `SHA256SUMS.txt` before
+  anything is written, stages it, and swaps it in on the next start. Nothing is requested while the
+  setting is off.
+- **Runs side by side with claude-control.** Its own name, data folder, notification scheme and
+  shortcut (`Ctrl+Alt+S`), so neither app disturbs the other.

@@ -69,7 +69,7 @@ export function sha256For(sums: Sha256Sums, filename: string): string | null {
   return sums[filename] ?? null;
 }
 
-/** Minimal shape read from a GitHub `/releases/latest` API response. */
+/** Minimal shape read from one entry of a GitHub `/releases` API response. */
 export interface GitHubReleaseAsset {
   name: string;
   browser_download_url: string;
@@ -77,11 +77,20 @@ export interface GitHubReleaseAsset {
 
 export interface GitHubRelease {
   tag_name: string;
+  draft?: boolean;
+  prerelease?: boolean;
   assets: GitHubReleaseAsset[];
 }
 
-/** Matches `ClaudeControl-<anything>-portable.exe`, e.g. `ClaudeControl-1.3.0-portable.exe`. */
-const PORTABLE_EXE_NAME_PATTERN = /^ClaudeControl-.+-portable\.exe$/;
+/**
+ * The repository publishes plugin releases too (`ai-scrum-v4.13.0`, `tech-rules-v2.7.0`, …), so a
+ * release belongs to this app only when its tag is exactly `scrum-control-v<major>.<minor>.<patch>`.
+ * No suffix is tolerated: `scrum-control-v1.0.0-rc1` is not a release this app installs.
+ */
+export const RELEASE_TAG_PATTERN = /^scrum-control-v(\d+)\.(\d+)\.(\d+)$/;
+
+/** Matches `ScrumControl-<anything>-portable.exe`, e.g. `ScrumControl-0.1.0-portable.exe`. */
+const PORTABLE_EXE_NAME_PATTERN = /^ScrumControl-.+-portable\.exe$/;
 
 const SUMS_FILE_NAME = 'SHA256SUMS.txt';
 
@@ -100,7 +109,7 @@ function findAssetUrl(release: unknown, matches: (name: string) => boolean): str
 
 /**
  * Extracts the download URL for the portable exe asset (named like
- * `ClaudeControl-<version>-portable.exe`) from a parsed `/releases/latest` payload. `null`
+ * `ScrumControl-<version>-portable.exe`) from one parsed release object. `null`
  * when the payload is malformed or no such asset is present — never throws.
  */
 export function portableExeUrl(release: unknown): string | null {
@@ -108,16 +117,61 @@ export function portableExeUrl(release: unknown): string | null {
 }
 
 /**
- * Extracts the download URL for `SHA256SUMS.txt` from a parsed `/releases/latest` payload.
+ * Extracts the download URL for `SHA256SUMS.txt` from one parsed release object.
  * `null` when the payload is malformed or no such asset is present — never throws.
  */
 export function sumsFileUrl(release: unknown): string | null {
   return findAssetUrl(release, (name) => name === SUMS_FILE_NAME);
 }
 
-/** The release's tag (e.g. `v1.3.0`), or `null` when the payload is malformed. */
+/** The release's tag (e.g. `scrum-control-v0.1.0`), or `null` when the payload is malformed. */
 export function releaseTag(release: unknown): string | null {
   if (!release || typeof release !== 'object') return null;
   const tag = (release as Partial<GitHubRelease>).tag_name;
   return typeof tag === 'string' && tag.length > 0 ? tag : null;
+}
+
+/** A release this app may install: the parsed object plus the version its tag names. */
+export interface SelectedRelease {
+  /** The release object as received — hand it to `portableExeUrl` / `sumsFileUrl`. */
+  release: unknown;
+  /** The tag as published, e.g. `scrum-control-v0.1.0`. */
+  tag: string;
+  /** The version the tag names, in the `v<semver>` form the rest of the app displays, e.g. `v0.1.0`. */
+  version: string;
+}
+
+/**
+ * Picks the release to update to out of a parsed `GET /repos/<owner>/<repo>/releases` list:
+ * drafts and pre-releases are skipped, so are releases whose tag is not `scrum-control-v<semver>`
+ * (the plugins' releases share the repository), and of what remains the highest version wins —
+ * the list's own order is a publication order, not a version order.
+ *
+ * `null` when nothing qualifies or the payload is not a list. Never throws.
+ */
+export function selectLatestRelease(releases: unknown): SelectedRelease | null {
+  if (!Array.isArray(releases)) return null;
+  let best: { selected: SelectedRelease; parts: [number, number, number] } | null = null;
+  for (const entry of releases as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const candidate = entry as Partial<GitHubRelease>;
+    if (candidate.draft === true || candidate.prerelease === true) continue;
+    const tag = candidate.tag_name;
+    if (typeof tag !== 'string') continue;
+    const match = RELEASE_TAG_PATTERN.exec(tag);
+    if (!match) continue;
+    const parts: [number, number, number] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    if (best !== null && !isHigher(parts, best.parts)) continue;
+    best = { selected: { release: entry, tag, version: `v${parts.join('.')}` }, parts };
+  }
+  return best?.selected ?? null;
+}
+
+function isHigher(a: [number, number, number], b: [number, number, number]): boolean {
+  for (let i = 0; i < 3; i++) {
+    const x = a[i] as number;
+    const y = b[i] as number;
+    if (x !== y) return x > y;
+  }
+  return false;
 }

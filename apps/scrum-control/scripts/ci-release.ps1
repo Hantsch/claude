@@ -1,40 +1,50 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Releases the app when there are releasable commits since the last tag. Run by CI on main.
+    Releases Scrum Control when there are releasable commits since its last tag. Run by CI on main.
 .DESCRIPTION
-    1. plan-release.ps1 derives the bump level from the commit messages since the last v* tag.
-       Level "none" -> nothing is released (and no tests run).
+    Works on apps/scrum-control/ inside the plugin marketplace repository: the version lives in
+    apps/scrum-control/package.json, the notes in apps/scrum-control/CHANGELOG.md, the tags are
+    scrum-control-v<version>, and the plugins' own releases (ai-scrum-v*, ...) are none of its business.
+
+    1. plan-release.ps1 derives the bump level from the commit messages that touched the app
+       (apps/scrum-control/, plugins/scrum-cockpit/hooks/scan.ts, plugins/scrum-cockpit/types/index.d.ts)
+       since the last scrum-control-v* tag. Level "none" -> nothing is released (and no tests run).
     2. tests: `npm test` runs once a release is due, before anything is written or committed.
        A failing suite stops the run.
     3. release.ps1 -PromoteUnreleased writes the new version into package.json and turns the
        CHANGELOG's "## Unreleased" section into the new version section. A missing or empty
        Unreleased section fails the run - that is the "no release without release notes" rule.
-    4. One commit + one annotated tag v<version>.
+    4. One commit "chore(release): scrum-control <version> [skip ci]" + one annotated tag
+       scrum-control-v<version>.
     5. `npm run package` builds the portable EXE, and a SHA256SUMS file is written next to it.
     6. Everything is pushed and a GitHub release is created from the tag, with the notes from
-       the changelog plus the download hint, and the EXE + checksum attached as assets.
+       the changelog plus the download hint, and ScrumControl-<version>-portable.exe +
+       SHA256SUMS.txt attached as assets - the two files the app's self-update looks for.
 
-    A v* tag on HEAD itself means an earlier run got as far as the tag. If GitHub already has its
-    release, nothing happens. If not, the run recovers it: no plan, tests, bump or git writes -
-    only build, checksum and the GitHub release, with the notes from that version's CHANGELOG
-    section.
+    A scrum-control-v* tag on HEAD itself means an earlier run got as far as the tag. If GitHub
+    already has its release, nothing happens. If not, the run recovers it: no plan, tests, bump
+    or git writes - only build, checksum and the GitHub release, with the notes from that
+    version's CHANGELOG section.
 
     The first release has no tag to measure against, so nothing can be derived - and deriving
-    from the whole history would land on 0.1.1 rather than the version the project calls its
-    first. That case reads package.json instead and releases its version verbatim, without
-    bumping it. So the first merge to main releases too; no manual dispatch is needed.
+    from the whole history would land on 0.1.1 rather than the version the app calls its first.
+    It is therefore started by hand: -Version 0.1.0 (the workflow_dispatch input `version`) ships
+    exactly that version, with package.json already carrying it. Until then a push to main
+    releases nothing. Every later run has a tag and derives its bump.
 .PARAMETER ForceBump
-    Ignore the commit messages and use this level (for a manual workflow_dispatch run).
+    Ignore the commit messages and use this level (for a manual workflow_dispatch run). Needs an
+    existing scrum-control-v* tag; the first release takes -Version.
 .PARAMETER Version
-    Release exactly this version instead of bumping.
+    Release exactly this version instead of bumping. When it equals the version package.json
+    already carries (the first release), package.json is left as it is.
 .PARAMETER DryRun
     Do everything except commit, tag, push and create the release. The tests still run, files
     are still modified and the EXE is still built, so you can inspect both - revert with `git checkout -- .`.
 .EXAMPLE
-    pwsh -File scripts/ci-release.ps1 -DryRun
+    pwsh -File apps/scrum-control/scripts/ci-release.ps1 -DryRun
 .EXAMPLE
-    pwsh -File scripts/ci-release.ps1 -Version 1.0.0
+    pwsh -File apps/scrum-control/scripts/ci-release.ps1 -Version 0.1.0
 #>
 [CmdletBinding()]
 param(
@@ -44,7 +54,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$appRoot = Split-Path -Parent $PSScriptRoot
+# apps/scrum-control/scripts -> apps/scrum-control -> apps -> the repository root, where git works.
+$gitRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
+
+$tagPrefix = 'scrum-control-v'
+$productName = 'Scrum Control'
+$repoSlug = 'Hantsch/claude'
+# Exact scrum-control-v<semver> tags only; a suffixed tag is not a release of this app.
+$tagFilter = '^scrum-control-v\d+\.\d+\.\d+$'
+
+function Get-AppTags {
+    param([string[]]$GitArgs)
+    @(& git -C $gitRoot @GitArgs | Where-Object { $_ -match $tagFilter })
+}
 
 function Invoke-Git {
     # Takes an explicit array on purpose: with ValueFromRemainingArguments, a git flag like
@@ -54,7 +77,7 @@ function Invoke-Git {
         Write-Host "    [dry-run] git $($GitArgs -join ' ')" -ForegroundColor DarkGray
         return
     }
-    & git -C $repoRoot @GitArgs
+    & git -C $gitRoot @GitArgs
     if ($LASTEXITCODE -ne 0) { throw "git $($GitArgs -join ' ') failed with exit code $LASTEXITCODE" }
 }
 
@@ -72,13 +95,13 @@ function Test-GitHubRelease {
 
 function Get-Artifact {
     param([Parameter(Mandatory = $true)][string]$Version)
-    $exeName = "ClaudeControl-$Version-portable.exe"
+    $exeName = "ScrumControl-$Version-portable.exe"
     [pscustomobject]@{
         Version  = $Version
-        Tag      = "v$Version"
+        Tag      = "$tagPrefix$Version"
         ExeName  = $exeName
-        ExePath  = Join-Path $repoRoot "release/$exeName"
-        SumsPath = Join-Path $repoRoot 'release/SHA256SUMS.txt'
+        ExePath  = Join-Path $appRoot "release/$exeName"
+        SumsPath = Join-Path $appRoot 'release/SHA256SUMS.txt'
         Hash     = $null
         SizeMb   = $null
     }
@@ -90,8 +113,13 @@ function Build-Artifact {
     param([Parameter(Mandatory = $true)]$Artifact)
     Write-Host ''
     Write-Host '=== build ===' -ForegroundColor Cyan
-    & npm run package
-    if ($LASTEXITCODE -ne 0) { throw "npm run package failed with exit code $LASTEXITCODE" }
+    Push-Location $appRoot
+    try {
+        & npm run package
+        if ($LASTEXITCODE -ne 0) { throw "npm run package failed with exit code $LASTEXITCODE" }
+    } finally {
+        Pop-Location
+    }
     if (-not (Test-Path $Artifact.ExePath)) { throw "expected artifact not found: $($Artifact.ExePath)" }
 }
 
@@ -139,7 +167,7 @@ function Add-DownloadHint {
 
 ### Download
 
-**[$exeName](https://github.com/Hantsch/claude-control/releases/download/$tag/$exeName)** $([char]0x2014) portable, no installer. Put it anywhere and start it; it lives in the tray.
+**[$exeName](https://github.com/$repoSlug/releases/download/$tag/$exeName)** $([char]0x2014) portable, no installer. Put it anywhere and start it; it lives in the tray.
 
 The EXE is not code-signed, so Windows SmartScreen shows *"Windows protected your PC"* on
 first run $([char]0x2014) choose **More info** then **Run anyway**.
@@ -166,14 +194,14 @@ function Publish-Release {
     $sumsPath = $Artifact.SumsPath
 
     if ($DryRun) {
-        Write-Host "[dry-run] gh release create $tag --title `"Claude Control $version`" --notes-file $NotesPath $exePath $sumsPath" -ForegroundColor DarkGray
+        Write-Host "[dry-run] gh release create $tag --title `"$productName $version`" --notes-file $NotesPath $exePath $sumsPath" -ForegroundColor DarkGray
         Write-Host ''
         Write-Host '--- release notes ---' -ForegroundColor DarkGray
         Get-Content -Path $NotesPath | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
         exit 0
     }
 
-    & gh release create $tag --title "Claude Control $version" --notes-file $NotesPath $exePath $sumsPath
+    & gh release create $tag --title "$productName $version" --notes-file $NotesPath $exePath $sumsPath
     if ($LASTEXITCODE -ne 0) { throw "gh release create failed for $tag" }
     Write-Host "created GitHub release $tag" -ForegroundColor Green
 
@@ -181,7 +209,7 @@ function Publish-Release {
         $lines = @(
             '## Released',
             '',
-            "- **Claude Control $version** - tag ``$tag``",
+            "- **$productName $version** - tag ``$tag``",
             "- ``$exeName`` ($($Artifact.SizeMb) MB)",
             "- sha256 ``$($Artifact.Hash)``"
         )
@@ -196,8 +224,7 @@ $notesPath = Join-Path ([IO.Path]::GetTempPath()) "release-notes-$PID.md"
 # Only a tag on HEAD itself counts (never `git describe`): an older reachable tag says nothing
 # about whether this commit was released. Checked before -Version/-ForceBump, because bumping
 # past a pushed tag whose release is missing would skip that version's release for good.
-$headTags = @(& git -C $repoRoot tag --points-at HEAD --list 'v*' --sort=-v:refname)
-if ($LASTEXITCODE -ne 0) { throw "git tag --points-at HEAD failed with exit code $LASTEXITCODE" }
+$headTags = Get-AppTags -GitArgs @('tag', '--points-at', 'HEAD', '--list', "$tagPrefix*", '--sort=-v:refname')
 $headTag = $headTags | Select-Object -First 1
 if ($headTag) {
     if (Test-GitHubRelease -Tag $headTag) {
@@ -212,12 +239,12 @@ if ($headTag) {
     # no tests, no version bump and no git writes - build, sum and publish what the tag holds.
     Write-Host '=== recover ===' -ForegroundColor Cyan
     Write-Host "-> $headTag has no GitHub release - recovering it" -ForegroundColor Yellow
-    $version = (Get-Content -Path (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
-    if ("v$version" -ne $headTag) {
+    $version = (Get-Content -Path (Join-Path $appRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    if ("$tagPrefix$version" -ne $headTag) {
         throw "package.json version '$version' does not match the tag $headTag at HEAD - cannot recover its release"
     }
 
-    $changelogLines = @(Get-Content -Path (Join-Path $repoRoot 'CHANGELOG.md') -Encoding UTF8)
+    $changelogLines = @(Get-Content -Path (Join-Path $appRoot 'CHANGELOG.md') -Encoding UTF8)
     $headingPattern = '^##\s+\[?' + [regex]::Escape($version) + '\]?(\s|$)'
     $start = -1
     for ($i = 0; $i -lt $changelogLines.Count; $i++) {
@@ -248,23 +275,28 @@ Write-Host '=== plan ===' -ForegroundColor Cyan
 $plan = & (Join-Path $PSScriptRoot 'plan-release.ps1')
 $plan | ForEach-Object { Write-Host "  $_" }
 
-$hasTag = @(git -C $repoRoot tag --list 'v*').Count -gt 0
+$hasTag = (Get-AppTags -GitArgs @('tag', '--list', "$tagPrefix*")).Count -gt 0
 
 $bootstrap = $false
 
 if ($Version) {
     if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "-Version '$Version' is not semver" }
     Write-Host "  -> explicit version $Version" -ForegroundColor Yellow
+    # The first release names the version package.json already carries, so there is nothing
+    # to bump; release.ps1 would refuse it as "nothing to do" without being told so.
+    $packageVersion = (Get-Content -Path (Join-Path $appRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    if ($Version -eq $packageVersion) { $bootstrap = $true }
 } elseif (-not $hasTag) {
     # First release. There is no tag to measure against, so a bump cannot be derived - and
     # deriving one from the whole history is wrong anyway (it lands on 0.1.1, not on the
-    # version the project considers its first). package.json is the answer instead: release
-    # exactly what it says, verbatim, without bumping it. Every later run has a tag and takes
-    # the derived path below.
-    $Version = (Get-Content -Path (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
-    if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "package.json version '$Version' is not semver" }
-    $bootstrap = $true
-    Write-Host "  -> first release: no v* tag yet, releasing package.json's $Version verbatim" -ForegroundColor Yellow
+    # version the app considers its first). It is started by hand with -Version, so a push
+    # to main alone never publishes an app nobody asked to release yet.
+    if ($ForceBump) { throw "no $tagPrefix* tag yet - the first release takes -Version (e.g. -Version 0.1.0), not -ForceBump" }
+    Write-Host "  -> nothing to release: no $tagPrefix* tag yet, the first release is started with -Version" -ForegroundColor DarkGray
+    if ($env:GITHUB_STEP_SUMMARY) {
+        Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'No scrum-control release yet - start the first one with the workflow input version.' -Encoding UTF8
+    }
+    exit 0
 } else {
     $bump = $ForceBump
     if (-not $ForceBump) {
@@ -288,10 +320,10 @@ if ($Version) {
 # --- test -------------------------------------------------------------------------------
 Write-Host ''
 Write-Host '=== test ===' -ForegroundColor Cyan
-Push-Location $repoRoot
+Push-Location $appRoot
 try {
     # Tests the merge result on main, which nothing else does: a direct push has no PR and
-    # validate.yml only tests the PR head. Only a due release gets here, so docs-only merges run none.
+    # scrum-control-validate.yml only tests the PR head. Only a due release gets here, so docs-only merges run none.
     & npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
     if ($LASTEXITCODE -ne 0) { throw "npm test failed with exit code $LASTEXITCODE" }
 } finally {
@@ -318,8 +350,8 @@ try {
     exit 1
 }
 
-$version = (Get-Content -Path (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
-$tag = "v$version"
+$version = (Get-Content -Path (Join-Path $appRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+$tag = "$tagPrefix$version"
 
 $artifact = Get-Artifact -Version $version
 Build-Artifact -Artifact $artifact
@@ -331,9 +363,9 @@ Add-DownloadHint -Artifact $artifact -NotesPath $notesPath
 # a no-op that exits 0, so nothing here may add a step that fails on "Everything up-to-date".
 Write-Host ''
 Write-Host '=== publish ===' -ForegroundColor Cyan
-Invoke-Git @('add', 'package.json', 'package-lock.json', 'CHANGELOG.md')
-Invoke-Git @('commit', '-m', "chore(release): $version [skip ci]")
-Invoke-Git @('tag', '-a', $tag, '-m', "claude-control $version")
+Invoke-Git @('add', 'apps/scrum-control/package.json', 'apps/scrum-control/package-lock.json', 'apps/scrum-control/CHANGELOG.md')
+Invoke-Git @('commit', '-m', "chore(release): scrum-control $version [skip ci]")
+Invoke-Git @('tag', '-a', $tag, '-m', "scrum-control $version")
 Invoke-Git @('push', '--follow-tags')
 
 Publish-Release -Artifact $artifact -NotesPath $notesPath

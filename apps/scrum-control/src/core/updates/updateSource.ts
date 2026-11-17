@@ -46,10 +46,18 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isUpdateAvailable, parseSha256Sums, portableExeUrl, releaseTag, sumsFileUrl, sha256For } from './releaseInfo.ts';
+import { isUpdateAvailable, parseSha256Sums, portableExeUrl, selectLatestRelease, sumsFileUrl, sha256For } from './releaseInfo.ts';
 
-/** The release this app updates from. Named in Settings, not hidden. */
-export const RELEASES_LATEST_URL = 'https://api.github.com/repos/Hantsch/claude-control/releases/latest';
+/**
+ * Where this app finds its releases. Named in Settings, not hidden.
+ *
+ * The repository also publishes the plugins' releases, so `/releases/latest` would answer with
+ * whichever of them came last. The list is asked for instead and filtered to this app's own
+ * `scrum-control-v<semver>` tags in `selectLatestRelease`.
+ */
+export const RELEASES_LIST_URL = 'https://api.github.com/repos/Hantsch/claude/releases?per_page=100';
+/** `per_page` above: a list this long may have pushed this app's newest release off its end. */
+const RELEASES_PAGE_SIZE = 100;
 
 /** Everything this module owns lives in this one directory under the caller's data dir. */
 export const UPDATES_DIR = 'updates';
@@ -69,8 +77,14 @@ const FETCH_TIMEOUT_MS = 10_000;
 const DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 /** A sanity bound on what we are willing to pull into memory. Today's exe is ~100 MB. */
 const MAX_DOWNLOAD_BYTES = 300 * 1024 * 1024;
-/** The release JSON and the sums file are kilobytes; nothing legitimate comes close to this. */
+/** The sums file is a few lines; nothing legitimate comes close to this. */
 const MAX_METADATA_BYTES = 4 * 1024 * 1024;
+/**
+ * The release list is up to 100 releases, each with its notes and asset records — a few KB to a
+ * few tens of KB apiece, so typically well under 1 MB. 8 MB leaves generous room for long notes
+ * and still bounds what an unexpected body can pull into memory.
+ */
+const MAX_RELEASE_LIST_BYTES = 8 * 1024 * 1024;
 /** A failed attempt is not repeated inside this window — brief, not a full day. */
 export const CHECK_BACKOFF_MS = 30 * 60 * 1000;
 
@@ -80,7 +94,7 @@ export type UpdateOutcome = 'ok' | 'failed' | 'never';
 /** On-disk description of the staged update. Without it, a file in the dir is not a stage. */
 export interface StagedManifest {
   version: number;
-  /** The release tag the staged exe came from, e.g. `v1.3.0`. */
+  /** The version the staged exe came from, e.g. `v0.1.0` (the tag `scrum-control-v0.1.0` minus its prefix). */
   releaseVersion: string;
   /** The asset name it was published under — for display, never used as a path. */
   assetName: string;
@@ -112,7 +126,7 @@ export interface UpdateStatus {
   enabled: boolean;
   /** What is installed — `app.getVersion()`, passed in by the caller. */
   currentVersion: string;
-  /** The latest release tag seen by the last successful check, or null when none succeeded. */
+  /** The latest version seen by the last successful check (e.g. `v0.1.0`), or null when none succeeded. */
   latestVersion: string | null;
   /** True only when `latestVersion` is a genuine upgrade over `currentVersion` — no downgrades. */
   updateAvailable: boolean;
@@ -322,7 +336,7 @@ export class UpdateSource {
       staged: this.staged,
       checkedAt: this.checkedAt,
       lastOutcome: this.lastOutcome,
-      source: RELEASES_LATEST_URL,
+      source: RELEASES_LIST_URL,
     };
     if (this.lastError !== undefined) status.lastError = this.lastError;
     return status;
@@ -363,14 +377,27 @@ export class UpdateSource {
   private async attempt(): Promise<void> {
     try {
       const body = await this.request(
-        RELEASES_LATEST_URL,
+        RELEASES_LIST_URL,
         'application/vnd.github+json',
         FETCH_TIMEOUT_MS,
-        MAX_METADATA_BYTES,
+        MAX_RELEASE_LIST_BYTES,
       );
-      const release: unknown = JSON.parse(body.toString('utf8'));
-      const tag = releaseTag(release);
-      if (tag === null) throw new Error('release payload has no tag_name');
+      const list: unknown = JSON.parse(body.toString('utf8'));
+      if (!Array.isArray(list)) throw new Error('release list payload is not a list');
+      const selected = selectLatestRelease(list);
+      if (selected === null) {
+        // Nothing of this app's has been published (yet) — an honest "no update", not an error.
+        // Unless the list was full: then its end may simply have cut the app's releases off.
+        if (list.length >= RELEASES_PAGE_SIZE) {
+          throw new Error(`no scrum-control release among the ${RELEASES_PAGE_SIZE} most recent releases`);
+        }
+        this.latestVersion = null;
+        this.succeed();
+        return;
+      }
+      // From here on `tag` is the version the release names (`v0.1.0`) — what is compared,
+      // displayed, staged and, later, swapped in. The published tag only names the release.
+      const { release, version: tag } = selected;
       this.latestVersion = tag;
 
       // AC5: equal, or a locally-newer build — nothing is downloaded and no state is touched.
@@ -433,7 +460,7 @@ export class UpdateSource {
     try {
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { accept, 'user-agent': 'claude-control' },
+        headers: { accept, 'user-agent': 'scrum-control' },
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`);

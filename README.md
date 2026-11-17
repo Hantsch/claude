@@ -36,6 +36,14 @@ flowchart LR
 - **common** and **scrum-cockpit** stay on your machine: they are tools for the person at the
   keyboard, not rules for the repository.
 
+## Apps
+
+Not a plugin: a small program that lives beside them.
+
+| You want … | App | Start with | |
+| --- | --- | --- | --- |
+| a tray icon that shows which of your projects has a sprint running and which sessions need you, across all open VS Code windows and WSL | [Scrum Control](apps/scrum-control/) (Windows, portable EXE) | download it from the [releases](../../releases) (the `scrum-control-v…` ones) | [changes](apps/scrum-control/CHANGELOG.md) |
+
 ## Install
 
 ```

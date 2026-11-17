@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHECK_BACKOFF_MS,
   DOWNLOAD_TMP_FILE,
-  RELEASES_LATEST_URL,
+  RELEASES_LIST_URL,
   STAGED_EXE_FILE,
   STAGED_MANIFEST_FILE,
   STAGE_VERSION,
@@ -25,8 +25,8 @@ import {
 } from '../../src/core/updates/updateSource.ts';
 import { jsonResponse, stubFetch } from '../fixtures/http.ts';
 
-const EXE_NAME = 'ClaudeControl-1.3.0-portable.exe';
-const DOWNLOAD_BASE = 'https://github.com/Hantsch/claude-control/releases/download/v1.3.0';
+const EXE_NAME = 'ScrumControl-1.3.0-portable.exe';
+const DOWNLOAD_BASE = 'https://github.com/Hantsch/claude/releases/download/scrum-control-v1.3.0';
 const EXE_URL = `${DOWNLOAD_BASE}/${EXE_NAME}`;
 const SUMS_URL = `${DOWNLOAD_BASE}/SHA256SUMS.txt`;
 
@@ -36,7 +36,7 @@ const EXE_SHA = createHash('sha256').update(EXE_BYTES).digest('hex');
 const SUMS_BODY = `${EXE_SHA} *${EXE_NAME}\n`;
 
 const RELEASE = {
-  tag_name: 'v1.3.0',
+  tag_name: 'scrum-control-v1.3.0',
   assets: [
     { name: EXE_NAME, browser_download_url: EXE_URL },
     { name: 'SHA256SUMS.txt', browser_download_url: SUMS_URL },
@@ -52,7 +52,7 @@ let clock: number;
 /** A stub serving a complete, consistent v1.3.0 release; each part is individually overridable. */
 function stubRelease(overrides: { release?: unknown; sums?: string; exe?: Buffer } = {}) {
   return stubFetch((url) => {
-    if (url === RELEASES_LATEST_URL) return jsonResponse(overrides.release ?? RELEASE);
+    if (url === RELEASES_LIST_URL) return jsonResponse([overrides.release ?? RELEASE]);
     if (url === SUMS_URL) return new Response(overrides.sums ?? SUMS_BODY, { status: 200 });
     if (url === EXE_URL) return new Response(overrides.exe ?? EXE_BYTES, { status: 200 });
     return new Response('not found', { status: 404 });
@@ -62,7 +62,7 @@ function stubRelease(overrides: { release?: unknown; sums?: string; exe?: Buffer
 /** The same release, with the exe (or the sums file) published under a different URL. */
 function releaseWithAssetUrls(exeUrl: string, sumsUrl = SUMS_URL) {
   return {
-    tag_name: 'v1.3.0',
+    tag_name: 'scrum-control-v1.3.0',
     assets: [
       { name: EXE_NAME, browser_download_url: exeUrl },
       { name: 'SHA256SUMS.txt', browser_download_url: sumsUrl },
@@ -89,7 +89,7 @@ async function writePriorStage(): Promise<{ bytes: Buffer; manifest: string }> {
     {
       version: STAGE_VERSION,
       releaseVersion: 'v1.1.0',
-      assetName: 'ClaudeControl-1.1.0-portable.exe',
+      assetName: 'ScrumControl-1.1.0-portable.exe',
       sha256: createHash('sha256').update(bytes).digest('hex'),
       stagedAt: START - DAY_MS,
     },
@@ -121,7 +121,7 @@ describe('UpdateSource — checking and staging', () => {
     const status = await src.refresh();
 
     // The release API, the sums file and the exe — in that order, nothing else.
-    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LATEST_URL, SUMS_URL, EXE_URL]);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL, SUMS_URL, EXE_URL]);
     expect(status.lastOutcome).toBe('ok');
     expect(status.lastError).toBeUndefined();
     expect(status.currentVersion).toBe('1.0.0');
@@ -185,7 +185,7 @@ describe('UpdateSource — checking and staging', () => {
 
     // The check happens — and stops there: only the release API was asked.
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(String(spy.mock.calls[0]?.[0])).toBe(RELEASES_LATEST_URL);
+    expect(String(spy.mock.calls[0]?.[0])).toBe(RELEASES_LIST_URL);
     expect(status.lastOutcome).toBe('ok');
     expect(status.latestVersion).toBe('v1.3.0');
     expect(status.updateAvailable).toBe(false);
@@ -241,7 +241,7 @@ describe('UpdateSource — checking and staging', () => {
     // not be narrower than GitHub actually is.
     const cdnUrl = `https://release-assets.githubusercontent.com/github-production-release-asset/1/${EXE_NAME}`;
     const spy = stubFetch((url) => {
-      if (url === RELEASES_LATEST_URL) return jsonResponse(releaseWithAssetUrls(cdnUrl));
+      if (url === RELEASES_LIST_URL) return jsonResponse([releaseWithAssetUrls(cdnUrl)]);
       if (url === SUMS_URL) return new Response(SUMS_BODY, { status: 200 });
       if (url === cdnUrl) return new Response(EXE_BYTES, { status: 200 });
       return new Response('not found', { status: 404 });
@@ -249,7 +249,7 @@ describe('UpdateSource — checking and staging', () => {
 
     const status = await source({ currentVersion: '1.0.0' }).refresh();
 
-    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LATEST_URL, SUMS_URL, cdnUrl]);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL, SUMS_URL, cdnUrl]);
     expect(status.lastOutcome).toBe('ok');
     expect(status.staged?.releaseVersion).toBe('v1.3.0');
     expect(readFileSync(stagePath(STAGED_EXE_FILE))).toEqual(EXE_BYTES);
@@ -265,7 +265,7 @@ describe('UpdateSource — checking and staging', () => {
     ['a non-URL', 'javascript:alert(1)'],
   ])('refuses an exe asset URL using %s, without requesting it', async (_name, exeUrl) => {
     const spy = stubFetch((url) => {
-      if (url === RELEASES_LATEST_URL) return jsonResponse(releaseWithAssetUrls(exeUrl));
+      if (url === RELEASES_LIST_URL) return jsonResponse([releaseWithAssetUrls(exeUrl)]);
       if (url === SUMS_URL) return new Response(SUMS_BODY, { status: 200 });
       return new Response(EXE_BYTES, { status: 200 });
     });
@@ -273,7 +273,7 @@ describe('UpdateSource — checking and staging', () => {
     const status = await source({ currentVersion: '1.0.0' }).refresh();
 
     // The release API and nothing else: the check stops before either asset is requested.
-    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LATEST_URL]);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL]);
     expect(status.lastOutcome).toBe('failed');
     expect(status.lastError).toContain('outside GitHub');
     expect(status.staged).toBeNull();
@@ -282,14 +282,14 @@ describe('UpdateSource — checking and staging', () => {
 
   it('refuses a sums file URL outside GitHub too, without requesting it', async () => {
     const spy = stubFetch((url) =>
-      url === RELEASES_LATEST_URL
-        ? jsonResponse(releaseWithAssetUrls(EXE_URL, 'https://evil.example/SHA256SUMS.txt'))
+      url === RELEASES_LIST_URL
+        ? jsonResponse([releaseWithAssetUrls(EXE_URL, 'https://evil.example/SHA256SUMS.txt')])
         : new Response(SUMS_BODY, { status: 200 }),
     );
 
     const status = await source({ currentVersion: '1.0.0' }).refresh();
 
-    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LATEST_URL]);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL]);
     expect(status.lastOutcome).toBe('failed');
     expect(status.lastError).toContain('outside GitHub');
     expect(status.staged).toBeNull();
@@ -310,7 +310,7 @@ describe('UpdateSource — checking and staging', () => {
       },
     });
     const spy = stubFetch((url) => {
-      if (url === RELEASES_LATEST_URL) return jsonResponse(RELEASE);
+      if (url === RELEASES_LIST_URL) return jsonResponse([RELEASE]);
       if (url === SUMS_URL) return new Response(oversized, { status: 200 });
       return new Response('not found', { status: 404 });
     });
@@ -321,15 +321,126 @@ describe('UpdateSource — checking and staging', () => {
     expect(status.lastError).toContain('size limit');
     expect(served).toBeLessThan(64);
     // Cut off there: the exe was never requested and nothing reached the disk.
-    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LATEST_URL, SUMS_URL]);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL, SUMS_URL]);
     expect(status.staged).toBeNull();
     expect(existsSync(stagePath(STAGED_EXE_FILE))).toBe(false);
   });
 });
 
+describe('UpdateSource — choosing the release out of a shared repository', () => {
+  /** A release of this app at `version`, assets published under that version's own download path. */
+  function appRelease(version: string, extra: Record<string, unknown> = {}) {
+    const exe = `ScrumControl-${version}-portable.exe`;
+    const base = `https://github.com/Hantsch/claude/releases/download/scrum-control-v${version}`;
+    return {
+      tag_name: `scrum-control-v${version}`,
+      assets: [
+        { name: exe, browser_download_url: `${base}/${exe}` },
+        { name: 'SHA256SUMS.txt', browser_download_url: `${base}/SHA256SUMS.txt` },
+      ],
+      ...extra,
+    };
+  }
+
+  /** A stub serving `list` for the release list and v1.3.0's files (the only ones under test). */
+  function stubList(list: unknown[]) {
+    return stubFetch((url) => {
+      if (url === RELEASES_LIST_URL) return jsonResponse(list);
+      if (url === SUMS_URL) return new Response(SUMS_BODY, { status: 200 });
+      if (url === EXE_URL) return new Response(EXE_BYTES, { status: 200 });
+      return new Response('not found', { status: 404 });
+    });
+  }
+
+  it('asks for the release list with this app’s user agent, not for /releases/latest', async () => {
+    const spy = stubList([RELEASE]);
+
+    await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(RELEASES_LIST_URL).toBe('https://api.github.com/repos/Hantsch/claude/releases?per_page=100');
+    expect(String(spy.mock.calls[0]?.[0])).toBe(RELEASES_LIST_URL);
+    for (const call of spy.mock.calls) {
+      expect((call[1]?.headers as Record<string, string>)['user-agent']).toBe('scrum-control');
+    }
+  });
+
+  it('ignores a plugin release with a higher number and a newer position in the list', async () => {
+    const spy = stubList([
+      { tag_name: 'ai-scrum-v4.13.0', assets: [] },
+      { tag_name: 'tech-rules-v9.0.0', assets: [] },
+      RELEASE,
+      { tag_name: 'common-v2.0.0', assets: [] },
+    ]);
+
+    const status = await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(status.lastOutcome).toBe('ok');
+    expect(status.latestVersion).toBe('v1.3.0');
+    expect(status.staged?.releaseVersion).toBe('v1.3.0');
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([RELEASES_LIST_URL, SUMS_URL, EXE_URL]);
+  });
+
+  it('skips a draft and a pre-release even when their version is the highest', async () => {
+    stubList([appRelease('9.0.0', { draft: true }), appRelease('8.0.0', { prerelease: true }), RELEASE]);
+
+    const status = await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(status.lastOutcome).toBe('ok');
+    expect(status.latestVersion).toBe('v1.3.0');
+    expect(status.staged?.releaseVersion).toBe('v1.3.0');
+  });
+
+  it('takes the highest version whatever order the list is in', async () => {
+    stubList([appRelease('1.2.0'), RELEASE, appRelease('1.10.0', { draft: true }), appRelease('0.9.0')]);
+
+    const status = await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(status.latestVersion).toBe('v1.3.0');
+  });
+
+  it('treats a list without any release of this app as no update, not as a failure', async () => {
+    const spy = stubList([{ tag_name: 'ai-scrum-v4.13.0', assets: [] }, appRelease('1.4.0', { draft: true })]);
+
+    const status = await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(status.lastOutcome).toBe('ok');
+    expect(status.latestVersion).toBeNull();
+    expect(status.updateAvailable).toBe(false);
+    expect(status.staged).toBeNull();
+  });
+
+  it('does not take a tag that only resembles this app’s', async () => {
+    const spy = stubList([
+      { ...RELEASE, tag_name: 'scrum-control-v1.3.0-rc1' },
+      { ...RELEASE, tag_name: 'xscrum-control-v1.3.0' },
+    ]);
+
+    const status = await source({ currentVersion: '1.0.0' }).refresh();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(status.latestVersion).toBeNull();
+    expect(status.staged).toBeNull();
+  });
+
+  it('accepts a release list far larger than one release, but still caps it', async () => {
+    // 99 other releases with ~20 KB of notes each: ~2 MB, honest and well inside the cap.
+    const notes = 'x'.repeat(20 * 1024);
+    const big = Array.from({ length: 99 }, (_, i) => ({ tag_name: `ai-scrum-v1.${i}.0`, body: notes, assets: [] }));
+    stubList([...big, RELEASE]);
+    expect((await source({ currentVersion: '1.0.0' }).refresh()).latestVersion).toBe('v1.3.0');
+
+    // An unreasonable body is cut off while it is read.
+    stubFetch(() => new Response(new Uint8Array(9 * 1024 * 1024), { status: 200 }));
+    const status = await source({ currentVersion: '1.0.0' }).refresh({ force: true });
+    expect(status.lastOutcome).toBe('failed');
+    expect(status.lastError).toContain('size limit');
+  });
+});
+
 describe('UpdateSource — day cadence and backoff', () => {
   it('performs one real check per calendar day, later starts included', async () => {
-    const spy = stubRelease({ release: { tag_name: 'v1.0.0', assets: [] } });
+    const spy = stubRelease({ release: { tag_name: 'scrum-control-v1.0.0', assets: [] } });
     const src = source({ currentVersion: '1.0.0' });
 
     await src.refresh();
@@ -352,7 +463,7 @@ describe('UpdateSource — day cadence and backoff', () => {
   // after a same-day check already succeeded, rather than silently no-opping like a plain
   // background `refresh()` would.
   it('force re-checks the same day even after an earlier check already succeeded', async () => {
-    const spy = stubRelease({ release: { tag_name: 'v1.0.0', assets: [] } });
+    const spy = stubRelease({ release: { tag_name: 'scrum-control-v1.0.0', assets: [] } });
     const src = source({ currentVersion: '1.0.0' });
 
     await src.refresh();
@@ -396,8 +507,8 @@ describe('UpdateSource — day cadence and backoff', () => {
     });
     const spy = stubFetch(async (url) => {
       await gate;
-      return url === RELEASES_LATEST_URL
-        ? jsonResponse({ tag_name: 'v1.0.0', assets: [] })
+      return url === RELEASES_LIST_URL
+        ? jsonResponse([{ tag_name: 'scrum-control-v1.0.0', assets: [] }])
         : new Response('no', { status: 404 });
     });
     const src = source({ currentVersion: '1.0.0' });
@@ -484,23 +595,31 @@ describe('UpdateSource — every network/checksum/disk failure path never throws
       stub: () => stubFetch(() => new Response('{ not json', { status: 200 })),
     },
     {
-      name: 'a payload with no tag',
-      error: 'tag_name',
-      stub: () => stubFetch(() => jsonResponse({ assets: [] })),
+      name: 'a payload that is not a list',
+      error: 'not a list',
+      stub: () => stubFetch(() => jsonResponse({ tag_name: 'scrum-control-v1.3.0', assets: [] })),
+    },
+    {
+      name: 'a full list page holding none of this app’s releases',
+      error: 'no scrum-control release',
+      stub: () =>
+        stubFetch(() =>
+          jsonResponse(Array.from({ length: 100 }, (_, i) => ({ tag_name: `ai-scrum-v4.${i}.0`, assets: [] }))),
+        ),
     },
     {
       name: 'a release with no portable exe asset',
       error: 'portable exe asset',
       stub: () =>
         stubRelease({
-          release: { tag_name: 'v1.3.0', assets: [{ name: 'SHA256SUMS.txt', browser_download_url: SUMS_URL }] },
+          release: { tag_name: 'scrum-control-v1.3.0', assets: [{ name: 'SHA256SUMS.txt', browser_download_url: SUMS_URL }] },
         }),
     },
     {
       name: 'a release with no SHA256SUMS.txt asset',
       error: 'SHA256SUMS.txt asset',
       stub: () =>
-        stubRelease({ release: { tag_name: 'v1.3.0', assets: [{ name: EXE_NAME, browser_download_url: EXE_URL }] } }),
+        stubRelease({ release: { tag_name: 'scrum-control-v1.3.0', assets: [{ name: EXE_NAME, browser_download_url: EXE_URL }] } }),
     },
     {
       name: 'a sums file that does not list the exe',

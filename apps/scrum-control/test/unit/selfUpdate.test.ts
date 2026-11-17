@@ -62,7 +62,7 @@ let env: NodeJS.ProcessEnv;
 
 beforeEach(async () => {
   root = await makeTempDir('cc-selfupdate-');
-  target = join(root, 'ClaudeControl.exe');
+  target = join(root, 'ScrumControl.exe');
   updatesDir = join(root, 'userData', UPDATES_DIR);
   stagedExe = join(updatesDir, STAGED_EXE_FILE);
   manifestFile = join(updatesDir, STAGED_MANIFEST_FILE);
@@ -87,7 +87,7 @@ function stage(bytes = NEW_EXE, sha256 = NEW_SHA, releaseVersion = STAGED_VERSIO
     `${JSON.stringify({
       version: STAGE_VERSION,
       releaseVersion,
-      assetName: 'ClaudeControl-1.3.0-portable.exe',
+      assetName: 'ScrumControl-1.3.0-portable.exe',
       sha256,
       stagedAt: Date.UTC(2026, 8, 8),
     })}\n`,
@@ -152,7 +152,7 @@ describe('applyStagedUpdate', () => {
     // Same path the user launched, now holding the new bytes (AC4).
     expect(readFileSync(target)).toEqual(NEW_EXE);
     // Nothing beside it: no `.old` parked copy, no second exe, nothing but the data dir.
-    expect(await besideTheExe()).toEqual(['ClaudeControl.exe', 'userData']);
+    expect(await besideTheExe()).toEqual(['ScrumControl.exe', 'userData']);
     expect(existsSync(`${target}${OLD_EXE_SUFFIX}`)).toBe(false);
     // And the stage is consumed, so the next start has nothing to re-apply.
     expect(existsSync(stagedExe)).toBe(false);
@@ -190,7 +190,7 @@ describe('applyStagedUpdate', () => {
 
     expect(applied).not.toBeNull();
     expect(readFileSync(target)).toEqual(NEW_EXE);
-    expect(await besideTheExe()).toEqual(['ClaudeControl.exe', 'userData']);
+    expect(await besideTheExe()).toEqual(['ScrumControl.exe', 'userData']);
     expect(existsSync(stagedExe)).toBe(false);
   });
 
@@ -290,7 +290,7 @@ describe('a failed swap leaves the original exe untouched and does not throw', (
     expect(applied).toBeNull();
     // Not the half-written new exe, and not a gap where the exe should be: the old one, back.
     expect(readFileSync(target)).toEqual(OLD_EXE);
-    expect(await besideTheExe()).toEqual(['ClaudeControl.exe', 'userData']);
+    expect(await besideTheExe()).toEqual(['ScrumControl.exe', 'userData']);
     expect(existsSync(markerFile)).toBe(false);
     // The stage itself was never in question, so it is still there for the next start to retry.
     expect(readFileSync(stagedExe)).toEqual(NEW_EXE);
@@ -307,7 +307,7 @@ describe('a failed swap leaves the original exe untouched and does not throw', (
 
     expect(applied).toBeNull();
     expect(readFileSync(target)).toEqual(OLD_EXE);
-    expect(await besideTheExe()).toEqual(['ClaudeControl.exe', 'userData']);
+    expect(await besideTheExe()).toEqual(['ScrumControl.exe', 'userData']);
     expect(existsSync(markerFile)).toBe(false);
   });
 });
@@ -327,7 +327,7 @@ describe('the one-time notice', () => {
 
     // Start B: the new file is what Electron loaded, so this is the run that announces it.
     expect(notice()).toBe(STAGED_VERSION);
-    expect(shown).toEqual([{ title: 'Claude Control', body: 'Updated to v1.3.0' }]);
+    expect(shown).toEqual([{ title: 'Scrum Control', body: 'Updated to v1.3.0' }]);
     expect(existsSync(markerFile)).toBe(false);
 
     // Start C and every start after: nothing.

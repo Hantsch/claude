@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Bumps the app version in package.json and opens a CHANGELOG section.
+    Bumps the Scrum Control version in apps/scrum-control/package.json and opens a CHANGELOG section.
 .DESCRIPTION
     Never commits and never pushes - it edits files and (with -Tag) creates a local git tag.
     Review the diff, then commit yourself.
@@ -10,7 +10,7 @@
 .PARAMETER Version
     Explicit version instead of a bump, e.g. 1.0.0.
 .PARAMETER Tag
-    Also create the local git tag v<version>.
+    Also create the local git tag scrum-control-v<version>.
 .PARAMETER PromoteUnreleased
     Turn the CHANGELOG's "## Unreleased" section into "## <version> - <date>" instead of
     inserting an empty template section, and leave a fresh empty Unreleased behind. Fails
@@ -26,11 +26,11 @@
 .PARAMETER AllowUnchangedVersion
     Permit -Version to name the version package.json already carries, instead of failing with
     "nothing to do". Only the bootstrap release needs this: with no tag to derive from, the
-    first release ships package.json's version verbatim.
+    first release ships package.json's version verbatim (ci-release.ps1 -Version 0.1.0).
 .EXAMPLE
-    pwsh -File scripts/release.ps1 -Bump minor
+    pwsh -File apps/scrum-control/scripts/release.ps1 -Bump minor
 .EXAMPLE
-    pwsh -File scripts/release.ps1 -Version 1.0.0 -Tag
+    pwsh -File apps/scrum-control/scripts/release.ps1 -Version 0.1.0 -AllowUnchangedVersion -Tag
 #>
 [CmdletBinding()]
 param(
@@ -44,7 +44,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$appRoot = Split-Path -Parent $PSScriptRoot
+# apps/scrum-control/scripts -> apps/scrum-control -> apps -> the repository root, where git works.
+$gitRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
 
 # -ValidateNotesOnly is the front half of a promoted release and nothing else, so it runs the
 # identical code path instead of a copy that can drift away from it.
@@ -57,12 +59,14 @@ function Write-TextFile {
     [IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding($false)))
 }
 
-$manifestPath = Join-Path $repoRoot 'package.json'
-$changelogPath = Join-Path $repoRoot 'CHANGELOG.md'
+$manifestPath = Join-Path $appRoot 'package.json'
+$changelogPath = Join-Path $appRoot 'CHANGELOG.md'
 if (-not (Test-Path $manifestPath)) { throw "not found: $manifestPath" }
 
 $manifestText = Get-Content -Path $manifestPath -Raw -Encoding UTF8
-$current = ($manifestText | ConvertFrom-Json).version
+$manifest = $manifestText | ConvertFrom-Json
+$current = $manifest.version
+$packageName = $manifest.name
 if ($current -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "current version '$current' is not semver" }
 
 if ($Version) {
@@ -84,7 +88,7 @@ if ($next -eq $current -and -not $AllowUnchangedVersion) { throw "version is alr
 # Em dash as a char code on purpose: this file must stay pure ASCII, because PowerShell 5.1
 # reads a BOM-less script as ANSI and would parse the 0x94 byte of an em dash as a quote.
 $emDash = [char]0x2014
-if (-not $ValidateNotesOnly) { Write-Host "claude-control: $current -> $next" -ForegroundColor Cyan }
+if (-not $ValidateNotesOnly) { Write-Host "scrum-control: $current -> $next" -ForegroundColor Cyan }
 
 # --- for a promoted release: validate the notes BEFORE touching the manifest -----------
 $changelog = ''
@@ -121,7 +125,7 @@ if ($PromoteUnreleased) {
 
 if ($ValidateNotesOnly) {
     $count = ([regex]::Matches($notes, '(?m)^\s*[-*]\s+\S')).Count
-    Write-Host "claude-control: '## Unreleased' holds $count note(s) - releasable" -ForegroundColor Green
+    Write-Host "scrum-control: '## Unreleased' holds $count note(s) - releasable" -ForegroundColor Green
     return
 }
 
@@ -138,15 +142,16 @@ Write-Host '  updated package.json'
 # electron-builder reads package.json, but a lockfile whose version disagrees makes
 # `npm ci` rewrite it and dirties the release commit's tree.
 #
-# Anchored on `"name": "claude-control"` and NOT on the current version, for two reasons:
-# no dependency carries that name, so this cannot hit the coincidental `"version": "0.1.0"`
-# of an unrelated package the way a bare version match does; and the lockfile's root version
-# is allowed to have drifted from package.json (it read 0.0.0 against a manifest at 0.1.0
-# before the first release), which a version-matching pattern would silently skip.
-$lockPath = Join-Path $repoRoot 'package-lock.json'
+# Anchored on the package's own name (from package.json) and NOT on the current version, for
+# two reasons: no dependency carries that name, so this cannot hit the coincidental
+# `"version": "0.1.0"` of an unrelated package the way a bare version match does; and the
+# lockfile's root version is allowed to have drifted from package.json (it read 0.0.0 against
+# a manifest at 0.1.0 before the first release), which a version-matching pattern would
+# silently skip.
+$lockPath = Join-Path $appRoot 'package-lock.json'
 if (Test-Path $lockPath) {
     $lockText = Get-Content -Path $lockPath -Raw -Encoding UTF8
-    $rootPattern = '("name"\s*:\s*"claude-control"\s*,\s*"version"\s*:\s*")\d+\.\d+\.\d+(")'
+    $rootPattern = '("name"\s*:\s*"' + [regex]::Escape($packageName) + '"\s*,\s*"version"\s*:\s*")\d+\.\d+\.\d+(")'
     $matched = ([regex]::Matches($lockText, $rootPattern)).Count
     if ($matched -lt 1) { throw 'could not find the root package version in package-lock.json - fix it by hand' }
     $lockText = [regex]::Replace($lockText, $rootPattern, "`${1}$next`${2}")
@@ -198,8 +203,8 @@ if ($PromoteUnreleased) {
 
 # --- optional tag --------------------------------------------------------------------
 if ($Tag) {
-    $tagName = "v$next"
-    git -C $repoRoot tag $tagName
+    $tagName = "scrum-control-v$next"
+    git -C $gitRoot tag $tagName
     if ($LASTEXITCODE -eq 0) { Write-Host "  created tag $tagName (not pushed)" -ForegroundColor Green }
 }
 
