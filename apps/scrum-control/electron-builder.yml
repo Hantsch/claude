@@ -1,5 +1,5 @@
-appId: solutions.aidu.claude-control
-productName: Claude Control
+appId: solutions.aidu.scrum-control
+productName: Scrum Control
 copyright: MIT
 
 directories:
@@ -18,17 +18,18 @@ files:
 asarUnpack:
   - assets/icons/**/*
 
-# N3: portable EXE, started manually. No installer, no autostart.
+# N3: portable EXE, started manually. No installer; autostart is an opt-in setting.
 win:
   target:
     - portable
   icon: assets/icons/app.ico
-  # The app has no network features (N1); no auto-update channel is configured.
+  # No electron-updater channel: the opt-in self-update (src/main/selfUpdate.ts) downloads the
+  # portable EXE itself from the repository's `scrum-control-v*` GitHub releases.
 
 portable:
-  artifactName: ClaudeControl-${version}-portable.exe
+  artifactName: ScrumControl-${version}-portable.exe
   requestExecutionLevel: user
   unpackDirName: false
 
-# No publish target: nothing is uploaded anywhere.
+# No publish target: electron-builder uploads nothing; the release workflow publishes the EXE.
 publish: null

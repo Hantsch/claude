@@ -23,23 +23,18 @@ import { formatShownOf, sessionLabel } from '../shared/presentation.ts';
 import { engineDataDir, formatAge, formatContextColumn } from './format.ts';
 
 /**
- * Same `%APPDATA%` file the app persists Settings to (`src/main/settings.ts`), resolved
+ * Same `%APPDATA%` folder the app persists Settings to (`app.setPath('userData', …)` in
+ * `src/main/index.ts` pins it to `scrum-control` for packaged and dev runs alike), resolved
  * independently here since the CLI is a separate entry point with no Electron `userData`
- * to ask. Packaged builds use the `productName` from `electron-builder.yml` ("Claude
- * Control"); a dev checkout that has never been packaged uses the app name folder Electron
- * would otherwise fall back to ("claude-control"). `CLAUDE_CONTROL_DATA_DIR` overrides both,
- * mainly for tests. Whichever directory is picked also doubles as the `WindowSource` cache
- * dir (D3), so a table already fetched by the app is what the CLI reads too.
+ * to ask. `SCRUM_CONTROL_DATA_DIR` overrides it, mainly for tests. The directory also doubles
+ * as the `WindowSource` cache dir (D3), so a table already fetched by the app is what the CLI
+ * reads too.
  */
 function resolveDataDir(): string {
-  const override = process.env.CLAUDE_CONTROL_DATA_DIR;
+  const override = process.env.SCRUM_CONTROL_DATA_DIR;
   if (override && override.trim()) return override;
   const appData = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
-  const packaged = join(appData, 'Claude Control');
-  const dev = join(appData, 'claude-control');
-  if (existsSync(join(packaged, 'settings.json'))) return packaged;
-  if (existsSync(join(dev, 'settings.json'))) return dev;
-  return packaged;
+  return join(appData, 'scrum-control');
 }
 
 /** A missing or unreadable `settings.json` is simply "use the defaults" — never a hard error. */
@@ -88,7 +83,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
 function printUsage(): void {
   process.stdout.write(
     [
-      'claude-control (M1 CLI)',
+      'scrum-control (M1 CLI)',
       '',
       'Usage: npm run cli -- [options]',
       '',
@@ -100,7 +95,7 @@ function printUsage(): void {
       '  -h, --help           this text',
       '',
       'Reads the persisted Settings file for the "Exact context windows" toggle (off by',
-      'default; the ctx= column marks ~ estimated vs = exact). Set CLAUDE_CONTROL_DATA_DIR',
+      'default; the ctx= column marks ~ estimated vs = exact). Set SCRUM_CONTROL_DATA_DIR',
       'to override where that settings.json (and its model-window cache) is read from.',
       '',
     ].join('\n'),

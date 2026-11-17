@@ -34,14 +34,12 @@ describe('N1 network promise wording (019/D1)', () => {
     expect(text).toContain('update check (both opt-in, off by default) are the two exceptions');
   });
 
-  it('docs/CONCEPT.md no longer states the single-exception phrase, and names both exceptions', async () => {
+  it('docs/CONCEPT.md §10 limits the network to the two opt-in features', async () => {
     const text = await read('docs/CONCEPT.md');
     for (const phrase of OLD_SINGLE_EXCEPTION_PHRASES) {
       expect(text).not.toContain(phrase);
     }
-    expect(text).toContain(
-      'the opt-in exact-context-window lookup and the opt-in update check are the two exceptions',
-    );
+    expect(text).toContain('Network beyond the two opt-in features (self-update, exact context windows)');
   });
 
   it('SettingsView.tsx Diagnostics footer no longer states the single-exception phrase, and names both exceptions', async () => {

@@ -1,13 +1,13 @@
 /**
  * The tray popover (§8) — the fast path, no window management:
  *
- *   Claude Control · 4 sessions                                    📌  ✕
+ *   Scrum Control · 4 sessions                                    📌  ✕
  *   ● Icons nacharbeiten     claude-control · main      done       3m ago   ▓▓▓▓░
  *   ◐ G0 freigegeben        Hantsch-MMO · feature/x    working    now      ▓▓░░░
  *   ◑ AI scrum sprint 02    ai-diary · main            needs you? 1m ago   ▓░░░░
  *   ○ Repo-Audit            claude · main              stale      42m ago  ▓▓▓░░
  *   ─────────────────────────────────────────────────────────────────
- *   Open Claude Control                    Settings      Quit
+ *   Open Scrum Control                    Settings      Quit
  *
  * Rows come from `traySessions`, not `sessions`: this is the glance surface, so it shows what
  * is in flight, what you have not acknowledged, and what you touched recently — not every
@@ -160,7 +160,7 @@ function NotifySwitch(): React.JSX.Element {
         ref={button}
         type="button"
         className={`notify-button${open ? ' on' : ''}`}
-        title="When Claude Control should notify you"
+        title="When Scrum Control should notify you"
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={!current}
@@ -408,7 +408,7 @@ function RowMenu({
         title="Open the main window on this session — its detail, its subagents, and its session ID to copy"
         onClick={onShow}
       >
-        Show in Claude Control
+        Show in Scrum Control
       </button>
       <button
         type="button"
@@ -643,7 +643,7 @@ function Popover(): React.JSX.Element {
   }, []);
 
   /**
-   * "Show in Claude Control" (the row's right-click menu): the main window opens on the
+   * "Show in Scrum Control" (the row's right-click menu): the main window opens on the
    * Sessions tab with this row selected, which is where the session's detail — and its
    * session ID, with a copy button — lives. Unlike a click on the row, this deliberately does
    * *not* touch the session's own window.
@@ -832,12 +832,12 @@ function Popover(): React.JSX.Element {
   return (
     <div className="popover">
       <div className="popover-head" ref={head}>
-        <span className="title">Claude Control</span>
+        <span className="title">Scrum Control</span>
         <span
           className="count"
           title={
             hidden > 0
-              ? `${hidden} more live session${hidden === 1 ? '' : 's'} — settled and already seen. Open Claude Control to see all of them.`
+              ? `${hidden} more live session${hidden === 1 ? '' : 's'} — settled and already seen. Open Scrum Control to see all of them.`
               : undefined
           }
         >
@@ -1146,7 +1146,7 @@ function Popover(): React.JSX.Element {
         )}
         <div className="popover-footer">
           <button type="button" onClick={() => void api.openMainWindow('sessions')}>
-            Open Claude Control
+            Open Scrum Control
           </button>
           <span className="spacer" />
           {/* Left of Settings: the way out when a pile of finished sessions has built up,

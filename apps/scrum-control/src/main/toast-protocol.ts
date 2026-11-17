@@ -4,7 +4,7 @@
  * Electron's `actions` field is macOS-only, so the two Windows buttons ("Jump", "Mute this
  * session") have to be rendered by handing Windows a raw `toastXml`. A button cannot call
  * back into the process that showed the toast either — `activationType="protocol"` makes the
- * shell open a `claude-control://` URI, which lands as an argv entry in a *new* process; the
+ * shell open a `scrum-control://` URI, which lands as an argv entry in a *new* process; the
  * single-instance lock then forwards it to the running one (`second-instance`).
  *
  * Both halves of that round trip live here, next to each other, so the URI a button carries
@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import type { ProtocolRegistration } from '../shared/ipc.ts';
 
 /** Registered with `app.setAsDefaultProtocolClient` (Windows only — see index.ts). */
-export const TOAST_PROTOCOL = 'claude-control';
+export const TOAST_PROTOCOL = 'scrum-control';
 
 export type ToastActionName = 'jump' | 'mute';
 
@@ -39,7 +39,7 @@ export interface ToastXmlInput {
   sessionId: string;
 }
 
-/** `claude-control://jump?session=…` — the argument of one toast button. */
+/** `scrum-control://jump?session=…` — the argument of one toast button. */
 export function toastActionUri(action: ToastActionName, sessionId: string): string {
   return `${TOAST_PROTOCOL}://${action}?session=${encodeURIComponent(sessionId)}`;
 }
@@ -77,7 +77,7 @@ export function buildToastXml(input: ToastXmlInput): string {
 }
 
 /**
- * The first `claude-control://…` entry of a command line, or null.
+ * The first `scrum-control://…` entry of a command line, or null.
  *
  * Scans rather than reading a fixed position: Windows appends the URI to whatever the
  * registered command line already carries, and a dev run puts the script path in front of it.
@@ -101,7 +101,7 @@ export function parseToastAction(value: string): ToastAction | null {
   } catch {
     return null;
   }
-  // `claude-control://jump?…` puts the verb in the host, `claude-control:jump?…` in the path;
+  // `scrum-control://jump?…` puts the verb in the host, `scrum-control:jump?…` in the path;
   // the shell is free to hand back either.
   const verb = (url.hostname || url.pathname).replaceAll('/', '').trim().toLowerCase();
   if (verb !== 'jump' && verb !== 'mute') return null;

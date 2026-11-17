@@ -42,6 +42,15 @@ import { TrayPresenter } from './tray.ts';
 import { WindowManager, type MainTab } from './windows.ts';
 
 /**
+ * The data directory is pinned to `%APPDATA%scrum-control` for packaged and dev runs alike,
+ * and before anything reads `userData` (the staged-update lookup below, the single-instance
+ * lock): Electron would otherwise derive it from the product name ("Scrum Control") when
+ * packaged and from the package name in dev. One stable name keeps the app clear of
+ * claude-control's `%APPDATA%claude-control` and lets the CLI find the same files.
+ */
+app.setPath('userData', join(app.getPath('appData'), 'scrum-control'));
+
+/**
  * Story 019 D4, and deliberately the very first thing this process does — before the lock, so
  * the swap is the same one-per-launch event whether or not another instance is already running,
  * and before anything has a file handle of its own. It only ever acts on a packaged, portable
@@ -66,7 +75,7 @@ if (!gotLock) {
 
 async function bootstrap(): Promise<void> {
   // Required on Windows for toasts to be attributed to this app (F5).
-  app.setAppUserModelId('solutions.aidu.claude-control');
+  app.setAppUserModelId('solutions.aidu.scrum-control');
   const protocolRegistration = registerToastProtocol();
   // No outbound requests by default (N1) — the opt-in exact-context-window lookup and the
   // opt-in update check are the two exceptions, so there is nothing here for Electron's HTTP
@@ -153,7 +162,7 @@ async function bootstrap(): Promise<void> {
   engine.on('transitions', (transitions) => notifier.handle(transitions));
   engine.on('history', (info) => broadcast(IPC.historyChanged, info));
   engine.on('error', (error) => {
-    process.stderr.write(`[claude-control] ${error.message}\n`);
+    process.stderr.write(`[scrum-control] ${error.message}\n`);
   });
 
   const shortcutManager = new ShortcutManager({
@@ -242,7 +251,7 @@ async function bootstrap(): Promise<void> {
     // Better a clear message than a permanently empty tray icon.
     dialog.showMessageBox({
       type: 'info',
-      title: 'Claude Control',
+      title: 'Scrum Control',
       message: 'No Claude Code data found',
       detail:
         `Nothing was found under ${paths.root}. If your Claude Code state lives elsewhere, ` +
@@ -261,7 +270,7 @@ async function bootstrap(): Promise<void> {
   }
 
   // A toast button (D6) reaches us as a *new* process launched by the shell for the
-  // `claude-control://` URI; the lock above bounces it here with its argv. Anything else is a
+  // `scrum-control://` URI; the lock above bounces it here with its argv. Anything else is a
   // user starting the app a second time, which means "show me the app".
   app.on('second-instance', (_event, argv) => {
     const action = toastActionFromArgv(argv);
@@ -337,7 +346,7 @@ async function bootstrap(): Promise<void> {
 }
 
 /**
- * Makes `claude-control://` ours, so the shell can hand a toast button's URI back to the app
+ * Makes `scrum-control://` ours, so the shell can hand a toast button's URI back to the app
  * (D6). Windows-only: that is the only platform where the buttons exist, and registering a
  * scheme elsewhere would be a side effect nothing asked for. A dev run has no exe of its own,
  * so the registration has to name Electron plus the script it should run. `protocolClientTarget`

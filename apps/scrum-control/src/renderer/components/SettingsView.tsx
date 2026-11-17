@@ -260,7 +260,7 @@ export function SettingsView(): React.JSX.Element {
           }
         />
         <span className="hint">
-          A turn that finished before Claude Control was running is not news. With this on,
+          A turn that finished before Scrum Control was running is not news. With this on,
           such a session stays out of the list, the popover and the tray until it does
           something new — then it comes back on its own. History is unaffected.
         </span>
@@ -462,7 +462,7 @@ export function SettingsView(): React.JSX.Element {
           <button
             type="button"
             onClick={() =>
-              void apply({ ...settings, ui: { ...settings.ui, globalShortcut: 'Ctrl+Alt+C' } })
+              void apply({ ...settings, ui: { ...settings.ui, globalShortcut: 'Ctrl+Alt+S' } })
             }
           >
             Reset
@@ -475,7 +475,7 @@ export function SettingsView(): React.JSX.Element {
           </button>
         </span>
         <span className="hint">
-          Click the combination and press the keys you want to use, e.g. Ctrl+Alt+C. Toggles the
+          Click the combination and press the keys you want to use, e.g. Ctrl+Alt+S. Toggles the
           popover from anywhere.
         </span>
         {shortcutStatus && !shortcutStatus.registered && (
@@ -497,7 +497,7 @@ export function SettingsView(): React.JSX.Element {
         <span className="hint">
           Downloads LiteLLM&rsquo;s model&rarr;context-window table from a JSON file on GitHub, at
           most once a week and checked periodically in the background. This is the only network
-          request Claude Control ever makes; off by default, and the gauge keeps using
+          request Scrum Control ever makes; off by default, and the gauge keeps using
           today&rsquo;s estimated window without it.
         </span>
         {modelWindowsPending && <span className="hint">Checking…</span>}
@@ -575,7 +575,7 @@ export function SettingsView(): React.JSX.Element {
             </dd>
           </dl>
           <div className="estimate">
-            Claude Control is read-only: it never writes to Claude Code&rsquo;s data, never sends
+            Scrum Control is read-only: it never writes to Claude Code&rsquo;s data, never sends
             input to a session. It has no listening socket, sends no telemetry, and by default
             sends nothing over the network &mdash; the exact-context-window lookup above and the
             update check are the two exceptions, each making its own request only while it is

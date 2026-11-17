@@ -1,5 +1,5 @@
 /**
- * D6 of story 004: the two toast buttons and the `claude-control://` round trip they take.
+ * D6 of story 004: the two toast buttons and the `scrum-control://` round trip they take.
  *
  * The toast itself can only be seen on Windows, but both ends of the trip are plain string
  * work — the XML handed to the shell, and the argv scan that catches the URI coming back — so
@@ -30,11 +30,11 @@ describe('buildToastXml', () => {
   it('renders both buttons as protocol actions carrying the session id', () => {
     const body = xml({ sessionId: 'abc-123' });
     expect(body).toContain(
-      '<action content="Jump" activationType="protocol" arguments="claude-control://jump?session=abc-123"/>',
+      '<action content="Jump" activationType="protocol" arguments="scrum-control://jump?session=abc-123"/>',
     );
     expect(body).toContain(
       '<action content="Mute this session" activationType="protocol" ' +
-        'arguments="claude-control://mute?session=abc-123"/>',
+        'arguments="scrum-control://mute?session=abc-123"/>',
     );
   });
 
@@ -57,7 +57,7 @@ describe('buildToastXml', () => {
   it('escapes markup so a session name cannot break the document', () => {
     const body = xml({ title: 'a & b <x>', sessionId: 'a"b' });
     expect(body).toContain('<text>a &amp; b &lt;x&gt;</text>');
-    expect(body).toContain('arguments="claude-control://mute?session=a%22b"');
+    expect(body).toContain('arguments="scrum-control://mute?session=a%22b"');
   });
 
   it('leaves the toast body on default activation, so the click handler still fires', () => {
@@ -77,48 +77,48 @@ describe('parseToastAction', () => {
   });
 
   it('accepts the shapes the shell may produce for the same URI', () => {
-    expect(parseToastAction('claude-control://jump/?session=s-1')?.action).toBe('jump');
-    expect(parseToastAction('claude-control:jump?session=s-1')?.action).toBe('jump');
-    expect(parseToastAction('CLAUDE-CONTROL://JUMP?session=s-1')?.action).toBe('jump');
+    expect(parseToastAction('scrum-control://jump/?session=s-1')?.action).toBe('jump');
+    expect(parseToastAction('scrum-control:jump?session=s-1')?.action).toBe('jump');
+    expect(parseToastAction('SCRUM-CONTROL://JUMP?session=s-1')?.action).toBe('jump');
   });
 
   it('rejects anything that is not one of our two actions', () => {
-    expect(parseToastAction('claude-control://quit?session=s-1')).toBeNull();
-    expect(parseToastAction('claude-control://mute')).toBeNull();
-    expect(parseToastAction('claude-control://mute?session=')).toBeNull();
+    expect(parseToastAction('scrum-control://quit?session=s-1')).toBeNull();
+    expect(parseToastAction('scrum-control://mute')).toBeNull();
+    expect(parseToastAction('scrum-control://mute?session=')).toBeNull();
     expect(parseToastAction('https://example.com/mute?session=s-1')).toBeNull();
     expect(parseToastAction('--show')).toBeNull();
-    expect(parseToastAction('claude-control://')).toBeNull();
+    expect(parseToastAction('scrum-control://')).toBeNull();
   });
 });
 
 describe('toastActionFromArgv', () => {
   it('finds the URI wherever the shell put it on the command line', () => {
-    const argv = ['C:/app/electron.exe', 'C:/app/out/main/index.js', 'claude-control://mute?session=s-9'];
+    const argv = ['C:/app/electron.exe', 'C:/app/out/main/index.js', 'scrum-control://mute?session=s-9'];
     expect(toastActionFromArgv(argv)).toEqual({ action: 'mute', sessionId: 's-9' });
   });
 
   it('is null for an ordinary second start, so that keeps opening the window', () => {
-    expect(toastActionFromArgv(['C:/app/ClaudeControl.exe'])).toBeNull();
-    expect(toastActionFromArgv(['C:/app/ClaudeControl.exe', '--show', 'sessions'])).toBeNull();
+    expect(toastActionFromArgv(['C:/app/ScrumControl.exe'])).toBeNull();
+    expect(toastActionFromArgv(['C:/app/ScrumControl.exe', '--show', 'sessions'])).toBeNull();
     expect(toastActionFromArgv([])).toBeNull();
   });
 });
 
 describe('protocolClientTarget', () => {
   it('prefers the portable exe env var, with no extra args, over everything else', () => {
-    const env = { PORTABLE_EXECUTABLE_FILE: 'D:/Downloads/ClaudeControl.exe' };
+    const env = { PORTABLE_EXECUTABLE_FILE: 'D:/Downloads/ScrumControl.exe' };
     expect(protocolClientTarget(env, 'C:/Temp/7zS1/electron.exe', true, 'C:/app/out/main/index.js')).toEqual({
-      path: 'D:/Downloads/ClaudeControl.exe',
+      path: 'D:/Downloads/ScrumControl.exe',
     });
     expect(protocolClientTarget(env, 'C:/Temp/7zS1/electron.exe', false, undefined)).toEqual({
-      path: 'D:/Downloads/ClaudeControl.exe',
+      path: 'D:/Downloads/ScrumControl.exe',
     });
   });
 
   it('registers with no arguments when packaged and the env var is absent', () => {
-    expect(protocolClientTarget({}, 'C:/app/ClaudeControl.exe', true, undefined)).toEqual({});
-    expect(protocolClientTarget({}, 'C:/app/ClaudeControl.exe', true, 'C:/app/out/main/index.js')).toEqual({});
+    expect(protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, undefined)).toEqual({});
+    expect(protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, 'C:/app/out/main/index.js')).toEqual({});
   });
 
   it('registers Electron plus the resolved script path in dev', () => {
@@ -131,10 +131,10 @@ describe('protocolClientTarget', () => {
 
 describe('buildProtocolRegistration', () => {
   it('is unsupported off Windows, regardless of the target or outcome', () => {
-    expect(buildProtocolRegistration('darwin', {}, { ok: true }, 'C:/app/ClaudeControl.exe')).toEqual({
+    expect(buildProtocolRegistration('darwin', {}, { ok: true }, 'C:/app/ScrumControl.exe')).toEqual({
       state: 'unsupported',
     });
-    expect(buildProtocolRegistration('linux', {}, { ok: false }, '/usr/bin/claude-control')).toEqual({
+    expect(buildProtocolRegistration('linux', {}, { ok: false }, '/usr/bin/scrum-control')).toEqual({
       state: 'unsupported',
     });
   });
@@ -149,11 +149,11 @@ describe('buildProtocolRegistration', () => {
   });
 
   it('registers with process.execPath when packaged and non-portable (no explicit target path)', () => {
-    const target = protocolClientTarget({}, 'C:/app/ClaudeControl.exe', true, undefined);
-    const registration = buildProtocolRegistration('win32', target, { ok: true }, 'C:/app/ClaudeControl.exe');
+    const target = protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, undefined);
+    const registration = buildProtocolRegistration('win32', target, { ok: true }, 'C:/app/ScrumControl.exe');
     expect(registration).toEqual({
       state: 'registered',
-      path: 'C:/app/ClaudeControl.exe',
+      path: 'C:/app/ScrumControl.exe',
       args: [],
     });
     expect(JSON.stringify(registration)).not.toContain('<installed exe>');
@@ -164,17 +164,17 @@ describe('buildProtocolRegistration', () => {
       'win32',
       {},
       { ok: false, error: new Error('registry access denied') },
-      'C:/app/ClaudeControl.exe',
+      'C:/app/ScrumControl.exe',
     );
     expect(registration.state).toBe('failed');
-    expect(registration).toMatchObject({ path: 'C:/app/ClaudeControl.exe' });
+    expect(registration).toMatchObject({ path: 'C:/app/ScrumControl.exe' });
     if (registration.state === 'failed') {
       expect(registration.reason).toContain('registry access denied');
     }
   });
 
   it('is failed with a reason when setAsDefaultProtocolClient just returns false', () => {
-    const registration = buildProtocolRegistration('win32', {}, { ok: false }, 'C:/app/ClaudeControl.exe');
+    const registration = buildProtocolRegistration('win32', {}, { ok: false }, 'C:/app/ScrumControl.exe');
     expect(registration.state).toBe('failed');
     if (registration.state === 'failed') {
       expect(registration.reason.length).toBeGreaterThan(0);

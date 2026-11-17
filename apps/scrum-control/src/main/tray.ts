@@ -42,7 +42,7 @@ export class TrayPresenter {
     if (this.tray) return;
     this.pixelSize = trayPixelSize(screen.getPrimaryDisplay().scaleFactor);
     this.tray = new Tray(trayImage('none', 0, this.pixelSize));
-    this.tray.setToolTip('Claude Control — no sessions');
+    this.tray.setToolTip('Scrum Control — no sessions');
     this.tray.on('click', (_event, bounds) => this.deps.onTogglePopover(bounds));
     this.tray.on('right-click', () => this.tray?.popUpContextMenu(this.buildMenu()));
     this.tray.on('double-click', () => this.deps.onOpenWindow('sessions'));
@@ -139,7 +139,7 @@ export class TrayPresenter {
 
     items.push(
       { type: 'separator' },
-      { label: 'Open Claude Control', click: () => this.deps.onOpenWindow('sessions') },
+      { label: 'Open Scrum Control', click: () => this.deps.onOpenWindow('sessions') },
       { label: 'History', click: () => this.deps.onOpenWindow('history') },
       { label: 'Settings', click: () => this.deps.onOpenWindow('settings') },
       { type: 'separator' },
@@ -152,12 +152,12 @@ export class TrayPresenter {
 }
 
 function tooltipFor(state: AppState): string {
-  if (state.sessions.length === 0) return 'Claude Control — no sessions';
+  if (state.sessions.length === 0) return 'Scrum Control — no sessions';
   const counts = new Map<string, number>();
   for (const session of state.traySessions) {
     counts.set(session.status, (counts.get(session.status) ?? 0) + 1);
   }
-  if (counts.size === 0) return `Claude Control — ${state.sessions.length} session(s), all settled`;
+  if (counts.size === 0) return `Scrum Control — ${state.sessions.length} session(s), all settled`;
   const parts = [...counts.entries()].map(([status, count]) => `${count} ${status}`);
-  return `Claude Control — ${state.sessions.length} session(s): ${parts.join(', ')}`;
+  return `Scrum Control — ${state.sessions.length} session(s): ${parts.join(', ')}`;
 }

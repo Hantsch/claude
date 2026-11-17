@@ -237,7 +237,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ui: {
     popoverPinned: false,
     autostart: false,
-    globalShortcut: 'Ctrl+Alt+C',
+    globalShortcut: 'Ctrl+Alt+S',
   },
   indexHistoryOnStart: true,
   contextWindows: {

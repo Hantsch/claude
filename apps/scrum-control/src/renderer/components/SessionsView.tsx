@@ -111,7 +111,7 @@ function SessionRow({
   onActivate: (session: SessionView) => void;
 }): React.JSX.Element {
   const row = useRef<HTMLDivElement>(null);
-  // A session selected from somewhere else — "Show in Claude Control" on a popover row — is
+  // A session selected from somewhere else — "Show in Scrum Control" on a popover row — is
   // usually not the one on screen, so bring it there. `nearest` makes this a no-op for a row
   // that is already visible, which is every selection the user made by clicking.
   useEffect(() => {

@@ -107,7 +107,7 @@ export class WindowManager {
   }
 
   /**
-   * `sessionId` is the popover's "Show in Claude Control": the window opens on the Sessions
+   * `sessionId` is the popover's "Show in Scrum Control": the window opens on the Sessions
    * tab with that row selected. It travels with the tab in one `cc:navigate` message rather
    * than as a second one, so a freshly created window cannot miss it.
    */
@@ -127,7 +127,7 @@ export class WindowManager {
       minHeight: 480,
       show: false,
       backgroundColor: nativeTheme.shouldUseDarkColors ? MAIN_WINDOW_BG.dark : MAIN_WINDOW_BG.light,
-      title: 'Claude Control',
+      title: 'Scrum Control',
       icon: appIcon(),
       autoHideMenuBar: true,
       webPreferences: this.webPreferences(),

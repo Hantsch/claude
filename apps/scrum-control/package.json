@@ -1,8 +1,8 @@
 {
-  "name": "claude-control",
-  "version": "1.1.1",
+  "name": "scrum-control",
+  "version": "0.1.0",
   "private": true,
-  "description": "Windows tray monitor for Claude Code sessions",
+  "description": "Windows tray overview of ai-scrum sprints and Claude Code sessions across projects",
   "author": "Roland Ebner",
   "license": "MIT",
   "type": "module",

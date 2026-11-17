@@ -1,94 +1,93 @@
-# Claude Control
+# Scrum Control
 
-A Windows tray application that shows you, at a glance, what every Claude Code session
-on your machine is doing — and tells you when one is finished or needs you.
+A Windows tray app that answers one question across every project you have open: **is a sprint
+running, where does it stand, and does any project or session need me?**
 
-Inspired by [Irrlicht](https://github.com/ingo-eichhorst/Irrlicht) (macOS menu bar),
-rebuilt for Windows with a Node/TypeScript core and an Electron tray shell.
+It shows the [ai-scrum](../../plugins/ai-scrum/) state of each project — sprint, phase, stories,
+release verdict — next to the Claude Code sessions working in it. It is a fork of
+[claude-control](https://github.com/Hantsch/claude-control) and runs side by side with it.
 
-## Download
+## At a glance
 
-**[Get the latest release](https://github.com/Hantsch/claude-control/releases/latest)** —
-one portable `ClaudeControl-<version>-portable.exe`. No installer: put it anywhere and start
-it. It lives in the tray — left-click for the compact session popover, right-click for the
-menu, double-click to open the main window.
+Left-click the tray icon for the popover, right-click for the menu, double-click for the main
+window.
 
-The EXE is **not code-signed**, so on first run Windows SmartScreen shows *"Windows protected
-your PC"*. Choose **More info** → **Run anyway**. Each release also ships a `SHA256SUMS.txt`
-if you want to verify the download:
-
-```powershell
-(Get-FileHash .\ClaudeControl-1.0.0-portable.exe -Algorithm SHA256).Hash
+```
+┌ Scrum Control ───────────────────────────────────┐
+│ SCRUM PROJECTS                                    │
+│ ● claude        S14 Build 4/12 · 026 D4/5 · 12m   │
+│   ▓▓▓▓▓░░░░░░░  M3 Login     ●2 working  WSL      │
+│ ◐ Hantsch-MMO   S03 Refine 2/6 · ⚠ stalled 18m    │
+│ ○ wow-market    no sprint · next S10 planned      │
+│ OTHER                                             │
+│ ● Frontend-Scotty            ●1 done              │
+└───────────────────────────────────────────────────┘
 ```
 
-Settings are stored in `%APPDATA%\claude-control\settings.json`.
+| You want to … | Look at … |
+| --- | --- |
+| know whether any sprint is running | the tray tile: hollow ring = none, disc = sprint running, amber = something needs you |
+| see which project needs you | the popover: amber `⚠ stalled`, `⚠ blocked`, `✗ releasable: NO` |
+| see a sprint in detail | main window → **Projects** (phase stepper, stories, focus story, time left) |
+| find a session and jump to it | the project row, expanded, or main window → **Sessions** |
+| look back | main window → **History** |
+
+The tray shows sprints, not sessions; sessions are the second layer underneath. Windows toasts tell
+you when a session finishes or is blocked on a permission, and when a sprint starts, stalls,
+blocks, reaches review or gets a release verdict — each toggle is in Settings.
+
+Claude Code in **WSL** is supported: running distros are detected, their sessions carry a `WSL`
+badge, and a WSL session in `/mnt/c/dev/X` and a Windows session in `c:\dev\X` are the same
+project. Stopped distros are never touched, so nothing is booted by looking.
+
+## Install
+
+1. Download `ScrumControl-<version>-portable.exe` from the
+   [GitHub releases](https://github.com/Hantsch/claude/releases) of this repository — the ones
+   tagged `scrum-control-v*`.
+2. Put it anywhere and start it. It lives in the tray; there is no installer.
+
+The EXE is **not code-signed**, so on first run Windows SmartScreen shows *"Windows protected
+your PC"*. Choose **More info** → **Run anyway**. Each release also ships a `SHA256SUMS.txt`:
+
+```powershell
+(Get-FileHash .\ScrumControl-0.1.0-portable.exe -Algorithm SHA256).Hash
+```
+
+**Requirements:** Windows 10/11 and Claude Code with its state in `~/.claude` (or point the app at
+another directory in Settings). The EXE bundles its own runtime; you do not need Node.
+
+Settings live in `%APPDATA%\scrum-control\settings.json`.
 
 ### Auto-update
 
-Off by default. Turn it on in Settings and, once a day, the app checks the GitHub releases page
-for a newer version, downloads its portable EXE and verifies it against the release's
-`SHA256SUMS.txt` before staging it. A staged update is swapped into the file you launched the
-next time you start the app — never a self-restart, never a session interrupted to apply it —
-and you get a one-time "Updated to vX.Y.Z" toast on the first run of the new version. Any
-failure (offline, GitHub unreachable, a checksum mismatch) is silent and leaves the app exactly
-as it was; it's the only outbound request the app makes besides the also-opt-in
-exact-context-window lookup. With it off, leave the app to watch the releases page, or the
-repository, for you.
-
-**Requirements:** Windows 10/11, and Claude Code with its state in `~/.claude` (or point the
-app at another directory in Settings). The packaged EXE bundles its own runtime; you do not
-need Node to run it.
-
-## What it does
-
-- **Live status** for every running session: working / needs you? / stale / done / queued.
-  A status says what is going on, never how long ago it was — a turn that finished an hour
-  ago still reads `done`, and a subagent that has been running for ten minutes still reads
-  `working`
-- **Tray indicator** that takes on the most urgent status across all sessions, with an
-  overlay badge counting sessions that need attention. The tile is drawn in code and follows
-  the Windows light/dark taskbar. The popover shows what is running, what you have not
-  acknowledged, and what you touched recently — not every live session
-- **Popover with drill-down**: sessions grouped by project, collapsible groups with per-status
-  counts, the waiting reason spelled out rather than ellipsized, and one click to see what the
-  session last said plus a row per subagent with its own model and context
-- **Windows toast** when a session finishes a turn or appears to be blocked on a permission
-  prompt — click the toast to jump to that session's window
-- **History** of past sessions, filterable by project, date and free text, and grouped by
-  project / branch / model with totals
-- **Context pressure** gauge so you can intervene before auto-compaction degrades a session
-- **Git context** (project / branch / worktree) and the subagent tree under each session
-- **Autostart and a global hotkey**, both configurable, plus keyboard navigation in the popover
-- **Light theme** that follows the OS colour scheme
+Off by default. Turn it on in Settings and, once a day, the app checks this repository's releases
+for a newer `scrum-control-v*` version, downloads its portable EXE and verifies it against
+`SHA256SUMS.txt` before staging it. A staged update is swapped in the next time you start the app —
+never a self-restart. Any failure is silent and leaves the app as it was.
 
 ## What it does not do
 
-- Send prompts to sessions, approve permissions, or start/kill sessions — it is read-only
-- Track cost in USD (explicitly out of scope for v1)
+- Send prompts to sessions, approve permissions, start or stop sessions or sprints, or run any
+  ai-scrum command — it is read-only and never writes into a project or into Claude Code's data
 - Expose anything over the network — no listening socket, no HTTP server, no telemetry, and by
   default no outbound requests either; the optional exact-context-window lookup and the optional
-  auto-update check (both opt-in, off by default) are the two exceptions, each making its own
-  request only while it is turned on
-- Support agents other than Claude Code (the adapter boundary is designed for it; a second
-  agent is the next milestone)
-- See sessions running inside WSL — the app reads one Windows-side `~/.claude` root
+  update check (both opt-in, off by default) are the two exceptions, each making its own request
+  only while it is turned on
+- Track cost in USD
+- See stopped WSL distros or remote (SSH/container) roots
+- Support agents other than Claude Code
 
 ## Known limits
 
-The toast buttons (Jump, Mute this session) work by relaunching the EXE path that was recorded
-in the Windows protocol registry entry when the app last registered it — for the portable build
-that is the actual EXE you started, not a fixed install location. Moving or deleting that EXE
-therefore breaks the buttons until the app is started once from its new location, which
-re-registers the handler. Settings → Diagnostics shows the currently registered path.
-
-The history view fetches 200 entries per page. A filter matching more than that shows totals
-marked `≥`, and a "Showing 200 of N sessions" line — the totals are a lower bound, not a
-complete sum.
+The toast buttons (Jump, Mute this session) relaunch the EXE path recorded in the Windows protocol
+registry when the app last registered it. Moving or deleting that EXE breaks the buttons until the
+app is started once from its new location. Settings → Diagnostics shows the registered path.
 
 ## Contributing
 
-Building from source, the project's status and roadmap, and the release process live in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Building from source and the release process: [CONTRIBUTING.md](CONTRIBUTING.md). The design:
+[docs/CONCEPT.md](docs/CONCEPT.md).
 
 ## License
 

@@ -4,7 +4,6 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -32,10 +31,6 @@ function laneTable(md: string): string[][] {
     } else if (inTable) break;
   }
   return rows;
-}
-
-function slug(heading: string): string {
-  return heading.toLowerCase().replace(/[^a-z0-9 -]/g, '').replace(/ /g, '-');
 }
 
 describe('test lanes in CLAUDE.md', () => {
@@ -67,37 +62,30 @@ describe('test lanes in CLAUDE.md', () => {
     expect(table, 'lane table names npm test').toMatch(/npm test\b/);
     expect(scripts).toHaveProperty('test');
 
+    // The workflows live at the repository root, outside this app, so only their names are pinned.
     const workflows = [...table.matchAll(/\.github\/workflows\/[\w.-]+\.yml/g)].map((m) => m[0]);
-    for (const wf of workflows) expect(existsSync(join(ROOT, wf)), wf).toBe(true);
-
+    expect(workflows.map((w) => w.split('/').pop())).toEqual(
+      expect.arrayContaining(['scrum-control-validate.yml', 'scrum-control-release.yml']),
+    );
     expect(named).toContain('test:perf');
-    expect(workflows.map((w) => w.split('/').pop())).toEqual(expect.arrayContaining(['validate.yml', 'release.yml']));
   });
 
-  it('the flake policy is linked, not restated', async () => {
+  it('the flake policy is stated inline, not linked to a process doc that is not here', async () => {
     const md = await read('CLAUDE.md');
-    const anchor = /\(\.claude\/commands\/sprint\.md#([^)\s]+)\)/.exec(md)?.[1];
-    expect(anchor, 'link to sprint.md anchor').toBeDefined();
-    const headings = (await read('.claude/commands/sprint.md'))
-      .split(/\r?\n/)
-      .filter((l) => /^#+ /.test(l))
-      .map((l) => slug(l.replace(/^#+ /, '')));
-    expect(headings).toContain(anchor);
+    expect(md).not.toContain('.claude/commands/sprint.md');
+    const policy = /\*\*Flaky tests\.\*\*([\s\S]*?)(\n\n|$)/.exec(md)?.[1] ?? '';
+    expect(policy, 'inline flake policy paragraph').not.toBe('');
+    expect(policy).toMatch(/defect/);
     expect((md.match(/quarantine/gi) ?? []).length).toBeLessThanOrEqual(1);
   });
 });
 
 describe('the story gate', () => {
-  it('the per-story gate runs the whole suite and agents read CLAUDE.md', async () => {
-    const md = await read('.claude/ai-scrum.md');
-    expect(/^test-story:\s*(.*?)\s*$/m.exec(md)?.[1]).toBe('npm test');
-    expect(md).not.toContain('changed HEAD');
-    const lines = md.split(/\r?\n/);
-    const start = lines.findIndex((l) => /^## Context to read before coding/.test(l));
-    const end = lines.findIndex((l, i) => i > start && /^## /.test(l));
-    const items = lines.slice(start + 1, end < 0 ? undefined : end).filter((l) => /^- /.test(l));
-    expect(items.some((l) => l.includes('CLAUDE.md'))).toBe(true);
-    expect(md).not.toContain('no CLAUDE.md yet');
+  it('the per-story gate runs the whole suite', async () => {
+    const rows = laneTable(await read('CLAUDE.md'));
+    const story = rows.find((r) => r[0] === 'Story');
+    expect(story?.[2]).toContain('npm test');
+    expect(story?.[2]).toContain('whole suite');
   });
 
   it('CONTRIBUTING puts N4 and N5 in the perf lane', async () => {
