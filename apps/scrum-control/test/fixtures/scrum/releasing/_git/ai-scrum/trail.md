@@ -1,0 +1,4 @@
+- 2026-11-17 11:00 · S09 · roadmap-check · started
+- 2026-11-17 11:02 · S09 · roadmap-check · done
+- 2026-11-17 11:03 · S09 · release-check · started · watch /tmp/ai-scrum-release-check/run.log
+- 2026-11-17 11:15 · S09 · release-check · done · releasable: yes · merge of abc1234 into origin/main · next release 1.2.0 (minor) · 6/6 blocking steps green

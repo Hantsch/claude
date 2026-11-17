@@ -21,12 +21,15 @@
   },
   "include": [
     "src/core/**/*.ts",
+    "src/types/**/*.d.ts",
     "src/main/**/*.ts",
     "src/shared/**/*.ts",
     "src/cli/**/*.ts",
     "src/renderer/lib/**/*.ts",
     "scripts/**/*.ts",
     "test/**/*.ts",
+    "../../plugins/scrum-cockpit/hooks/scan.ts",
+    "../../plugins/scrum-cockpit/types/index.d.ts",
     "electron.vite.config.ts",
     "vitest.config.ts",
     "vitest.perf.config.ts"
