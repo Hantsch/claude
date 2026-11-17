@@ -35,7 +35,7 @@ const POPOVER_MAX_HEIGHT = 560;
 /** Margin kept between the popover and the edges of the work area. */
 const SCREEN_MARGIN = 8;
 
-export type MainTab = 'sessions' | 'history' | 'settings';
+export type MainTab = 'projects' | 'sessions' | 'history' | 'settings';
 
 export interface WindowManagerOptions {
   /** Directory of the built renderer output, or the dev-server URL. */
@@ -111,8 +111,9 @@ export class WindowManager {
    * tab with that row selected. It travels with the tab in one `cc:navigate` message rather
    * than as a second one, so a freshly created window cannot miss it.
    */
-  openMain(tab: MainTab = 'sessions', sessionId: string | null = null): BrowserWindow {
-    const target: NavigateTarget = { tab, sessionId };
+  openMain(tab: MainTab = 'projects', sessionId: string | null = null): BrowserWindow {
+    // `NavigateTarget` (the IPC contract) predates the Projects tab; the renderer's own union is wider.
+    const target: Omit<NavigateTarget, 'tab'> & { tab: MainTab } = { tab, sessionId };
     if (this.main && !this.main.isDestroyed()) {
       this.main.show();
       this.main.focus();

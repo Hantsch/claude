@@ -1,5 +1,5 @@
 /**
- * Main window shell: Sessions / History / Settings (§8).
+ * Main window shell: Projects / Sessions / History / Settings (§8, CONCEPT §7).
  *
  * The renderer is a pure view — it holds selection and filter state and nothing else. Every
  * derived value arrives over IPC already finished.
@@ -7,12 +7,21 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import type { AppState, SessionView } from '../shared/ipc.ts';
-import { EMPTY_STATE, api, type MainTab } from './api.ts';
+import { EMPTY_STATE, api } from './api.ts';
 import { HistoryView } from './components/HistoryView.tsx';
+import { ProjectsView } from './components/ProjectsView.tsx';
 import { SessionDetailPane } from './components/SessionDetailPane.tsx';
 import { SessionsView } from './components/SessionsView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { hiddenIndicator } from './lib/hiddenSessions.ts';
+
+/**
+ * The main window's tabs. Declared here and not taken from `api.ts`/`NavigateTarget`: those name
+ * the three tabs that existed before Projects, and the main process now sends `projects` too.
+ */
+type MainTab = 'projects' | 'sessions' | 'history' | 'settings';
+
+const TABS: readonly MainTab[] = ['projects', 'sessions', 'history', 'settings'];
 
 export function App(): React.JSX.Element {
   const [state, setState] = useState<AppState>(EMPTY_STATE);
@@ -64,7 +73,7 @@ export function App(): React.JSX.Element {
   return (
     <div className="app">
       <div className="tabs">
-        {(['sessions', 'history', 'settings'] as const).map((name) => (
+        {TABS.map((name) => (
           <Fragment key={name}>
           <button
             type="button"
@@ -113,6 +122,11 @@ export function App(): React.JSX.Element {
       </div>
 
       <div className="body">
+        {tab === 'projects' && (
+          <div className="pane list" style={{ borderRight: 'none' }}>
+            <ProjectsView />
+          </div>
+        )}
         {tab === 'sessions' && (
           <>
             <div className="pane list">
@@ -146,5 +160,5 @@ export function App(): React.JSX.Element {
 
 function initialTab(): MainTab {
   const tab = new URLSearchParams(window.location.search).get('tab');
-  return tab === 'history' || tab === 'settings' ? tab : 'sessions';
+  return TABS.find((name) => name === tab) ?? 'projects';
 }

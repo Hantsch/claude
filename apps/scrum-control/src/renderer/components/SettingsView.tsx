@@ -8,12 +8,26 @@ import { useEffect, useState } from 'react';
 import type {
   AppSettings,
   DiagnosticsInfo,
+  HostRootInfo,
   ModelWindowStatus,
   ShortcutStatus,
 } from '../../shared/ipc.ts';
 import { acceleratorFromChord, formatAccelerator } from '../../shared/accelerator.ts';
+import { SCRUM_NOTIFICATION_KINDS, type ScrumNotificationKind } from '../../core/scrum/types.ts';
 import { api } from '../api.ts';
 import { formatUpdateStatusLine } from '../lib/updateStatusLine.ts';
+import '../projects-view.css';
+
+/** What each scrum notification toggle is called (CONCEPT section 8). */
+const SCRUM_NOTIFICATION_LABEL: Record<ScrumNotificationKind, string> = {
+  sprintStarted: 'Sprint started',
+  storyDone: 'Story done',
+  sprintReview: 'Sprint reached review',
+  sprintDone: 'Sprint done',
+  stalled: 'Sprint stalled',
+  blocked: 'Story blocked',
+  releaseVerdict: 'Release verdict written',
+};
 
 /** Renders the age of a fetched table for the checkbox's inline result and the diagnostics line. */
 function formatAgeMs(ageMs: number | null): string {
@@ -42,6 +56,7 @@ export function SettingsView(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsInfo | null>(null);
   const [shortcutStatus, setShortcutStatus] = useState<ShortcutStatus | null>(null);
+  const [hostRoots, setHostRoots] = useState<HostRootInfo[] | null>(null);
   const [saved, setSaved] = useState(false);
   const [modelWindowsPending, setModelWindowsPending] = useState(false);
   const [modelWindowsResult, setModelWindowsResult] = useState<string | null>(null);
@@ -64,6 +79,18 @@ export function SettingsView(): React.JSX.Element {
     void api.getShortcutStatus().then(setShortcutStatus);
     return api.onShortcutStatusChanged(setShortcutStatus);
   }, []);
+
+  // The detected roots follow the WSL switch: turning it off drops the distros at once.
+  const wslEnabled = settings?.wsl.enabled;
+  useEffect(() => {
+    let current = true;
+    void api.getHostRoots().then((roots) => {
+      if (current) setHostRoots(roots);
+    });
+    return () => {
+      current = false;
+    };
+  }, [wslEnabled]);
 
   if (!settings) return <div className="empty">Loading settings…</div>;
 
@@ -292,6 +319,36 @@ export function SettingsView(): React.JSX.Element {
         </span>
       </div>
 
+      <div className="section-title">Projects</div>
+      {settings.projects.hidden.length === 0 ? (
+        <div className="hint">
+          No project is hidden. Hide one from its card on the Projects tab; it is listed here
+          so you can bring it back.
+        </div>
+      ) : (
+        <ul className="pv-hidden-list">
+          {settings.projects.hidden.map((key) => (
+            <li key={key} className="pv-hidden-item">
+              <span className="pv-hidden-key mono" title={key}>
+                {key}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  void api.unhideProject(key);
+                  setSettings({
+                    ...settings,
+                    projects: { ...settings.projects, hidden: settings.projects.hidden.filter((k) => k !== key) },
+                  });
+                }}
+              >
+                Unhide
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="section-title">Notifications</div>
       <div className="field">
         <span>Enabled</span>
@@ -353,6 +410,27 @@ export function SettingsView(): React.JSX.Element {
         </span>
       </div>
 
+      <div className="section-title">Scrum notifications</div>
+      {SCRUM_NOTIFICATION_KINDS.map((kind) => (
+        <div className="field" key={kind}>
+          <span>{SCRUM_NOTIFICATION_LABEL[kind]}</span>
+          <input
+            type="checkbox"
+            checked={settings.scrumNotifications[kind]}
+            onChange={(event) =>
+              void apply({
+                ...settings,
+                scrumNotifications: { ...settings.scrumNotifications, [kind]: event.target.checked },
+              })
+            }
+          />
+        </div>
+      ))}
+      <div className="hint">
+        One toast per event, clicking it brings the project&rsquo;s VS Code window forward. The
+        first scan after a start announces nothing.
+      </div>
+
       <div className="section-title">Reading</div>
       <div className="field">
         <span>Claude data directory</span>
@@ -375,6 +453,21 @@ export function SettingsView(): React.JSX.Element {
         <span className="hint">
           Empty uses the default location. Applied on Enter or when the field loses focus,
           because changing it restarts the watchers.
+        </span>
+      </div>
+      <div className="field">
+        <span>Watch WSL distros</span>
+        <input
+          type="checkbox"
+          checked={settings.wsl.enabled}
+          onChange={(event) =>
+            void apply({ ...settings, wsl: { ...settings.wsl, enabled: event.target.checked } })
+          }
+        />
+        <span className="hint">
+          Watch Claude Code sessions in running WSL distros. Only running distros are read, a
+          stopped one is never started; with this off Scrum Control makes no wsl.exe call at
+          all.
         </span>
       </div>
       <div className="field">
@@ -537,6 +630,20 @@ export function SettingsView(): React.JSX.Element {
           <dl className="kv">
             <dt>Data directory</dt>
             <dd className="mono">{diagnostics.claudeDir}</dd>
+            <dt>Detected roots</dt>
+            <dd className="pv-roots">
+              {hostRoots === null ? (
+                '…'
+              ) : hostRoots.length === 0 ? (
+                'none'
+              ) : (
+                hostRoots.map((root) => (
+                  <div key={`${root.id}:${root.claudeDir}`}>
+                    <span className="mono">{root.id}</span> <span className="mono">{root.claudeDir}</span>
+                  </div>
+                ))
+              )}
+            </dd>
             <dt>Adapter</dt>
             <dd>{diagnostics.adapterId}</dd>
             <dt>Focus backend</dt>

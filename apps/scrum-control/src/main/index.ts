@@ -287,7 +287,7 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  // `--show [sessions|history|settings|popover]` opens a surface straight away. Useful when
+  // `--show [projects|sessions|history|settings|popover]` opens a surface straight away. Useful when
   // starting the app from a terminal to check a change; the normal start is tray-only (§8).
   const show = surfaceToShow(process.argv, process.env.CC_SHOW_WINDOW ?? null);
   if (show === 'popover') {
@@ -303,7 +303,7 @@ async function bootstrap(): Promise<void> {
   app.on('second-instance', (_event, argv) => {
     const action = toastActionFromArgv(argv);
     if (action) runToastAction(action);
-    else windows.openMain('sessions');
+    else windows.openMain('projects');
   });
 
   // Same URI, but the app was not running when the button was pressed: then there is no second
@@ -440,9 +440,9 @@ export function surfaceToShow(
   argv: readonly string[],
   envValue: string | null,
 ): MainTab | 'popover' | null {
-  const surfaces = ['sessions', 'history', 'settings', 'popover'] as const;
+  const surfaces = ['projects', 'sessions', 'history', 'settings', 'popover'] as const;
   const fromEnv = envValue?.trim().toLowerCase();
-  if (fromEnv === '1' || fromEnv === 'true') return 'sessions';
+  if (fromEnv === '1' || fromEnv === 'true') return 'projects';
   if (fromEnv && (surfaces as readonly string[]).includes(fromEnv)) {
     return fromEnv as MainTab | 'popover';
   }
@@ -451,7 +451,7 @@ export function surfaceToShow(
   if (index === -1) return null;
   const value = argv[index + 1]?.toLowerCase();
   if (value && (surfaces as readonly string[]).includes(value)) return value as MainTab | 'popover';
-  return 'sessions';
+  return 'projects';
 }
 
 function emptyState(): AppState {
