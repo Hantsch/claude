@@ -5,8 +5,6 @@ import { defineConfig } from 'vitest/config';
 // `C:/…` — and every file then fails with "failed to find the current suite". Pinning the root to
 // an upper-case drive letter keeps one id.
 const root = process.cwd().replace(/^[a-z]:/, (drive) => drive.toUpperCase());
-// The pin alone is not enough when the process itself runs in `c:…`: workers inherit that cwd.
-process.chdir(root);
 
 // `core/scrum` imports the scrum-cockpit mod's parser by relative path (CONCEPT §4). esbuild looks
 // up the nearest tsconfig of every file it transforms, and the plugin's own one extends a file the
