@@ -1,20 +1,27 @@
 /**
- * The tray popover (§8) — the fast path, no window management:
+ * The tray popover (§8, CONCEPT section 6) — the fast path, no window management. It shows
+ * projects, not a flat session list:
  *
- *   Scrum Control · 4 sessions                                    📌  ✕
- *   ● Icons nacharbeiten     claude-control · main      done       3m ago   ▓▓▓▓░
- *   ◐ G0 freigegeben        Hantsch-MMO · feature/x    working    now      ▓▓░░░
- *   ◑ AI scrum sprint 02    ai-diary · main            needs you? 1m ago   ▓░░░░
- *   ○ Repo-Audit            claude · main              stale      42m ago  ▓▓▓░░
+ *   Scrum Control · 2 sprints running · 1 needs you               notify  ↻  📌  ✕
+ *   SCRUM PROJECTS
+ *   ▶ ● claude        S14 Build 4/12 · 026 D4/5                       [Open window]
+ *       ▓▓▓▓░░░░░  M3 Login                                         ●2 working
+ *   ▶ ◐ Hantsch-MMO   S03 Refine 2/6                                  [Open window]
+ *       ⚠ stalled 18m
+ *   OTHER
+ *   ▼ Frontend-Scotty                                    ●1 done  1 session  [Open window]
+ *       ● Icons nacharbeiten     Frontend-Scotty · main      done       3m ago
  *   ─────────────────────────────────────────────────────────────────
  *   Open Scrum Control                    Settings      Quit
  *
- * Rows come from `traySessions`, not `sessions`: this is the glance surface, so it shows what
- * is in flight, what you have not acknowledged, and what you touched recently — not every
- * live session (§6.5). The main window is the complete list.
+ * Projects come from `getProjects()`; the sessions listed under one are its sessions that are also in
+ * `traySessions`, not every live session: this is the glance surface, so it shows what is in
+ * flight, what you have not acknowledged, and what you touched recently (§6.5). The main window
+ * is the complete list. The rules for the rows live in `lib/projectRows.ts`.
  *
- * One click on a row focuses that session's window (F6). The title bar is a drag region, so
- * the window can be moved; pinned it survives losing focus and keeps that position.
+ * One click on a session row focuses that session's window (F6); Open window on a project row
+ * focuses the project's. The title bar is a drag region, so the window can be moved; pinned it
+ * survives losing focus and keeps that position.
  */
 
 import {
@@ -27,15 +34,16 @@ import {
   useState,
 } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  dismissibleCount,
-  groupSessions,
-  isDismissible,
-  popoverGroupRank,
-} from '../core/state/aggregate.ts';
+import { dismissibleCount, isDismissible } from '../core/state/aggregate.ts';
 import type { NotificationMode } from '../core/model/settings.ts';
 import { applyNotificationMode, notificationMode } from '../core/model/settings.ts';
-import type { AppSettings, AppState, SubagentNode } from '../shared/ipc.ts';
+import type {
+  AppSettings,
+  AppState,
+  ProjectView,
+  SessionView,
+  SubagentNode,
+} from '../shared/ipc.ts';
 import {
   BAND_COLOR_VAR,
   STATUS_HINT,
@@ -44,8 +52,12 @@ import {
   modelDisplayName,
   sessionLabel,
 } from '../shared/presentation.ts';
-import { EMPTY_STATE, api } from './api.ts';
+import { EMPTY_PROJECTS, EMPTY_STATE, api } from './api.ts';
 import { ContextBar } from './components/ContextBar.tsx';
+import { OpenWindowButton } from './components/popover/OpenWindowButton.tsx';
+import { ScrumBlock } from './components/popover/ScrumBlock.tsx';
+import { ScrumProjectRow } from './components/popover/ScrumProjectRow.tsx';
+import { WslBadge } from './components/popover/WslBadge.tsx';
 import { StatusDot } from './components/StatusDot.tsx';
 import { StatusRollup } from './components/StatusRollup.tsx';
 import { formatAge, formatDuration } from './lib/format.ts';
@@ -57,8 +69,10 @@ import {
   subagentMessage,
   subagentSummary,
 } from './lib/popoverModel.ts';
+import { popoverSections, popoverSummary, scrumBlockModel } from './lib/projectRows.ts';
 import { buildMetricParts, type MetricPart } from './lib/subagentParts.ts';
 import './styles.css';
+import './popover-projects.css';
 
 /** Uptime cell (D9) only kicks in once a session has been running a while — below that
  * threshold the `.age` cell already tells the story, so the cell stays empty. */
@@ -428,9 +442,10 @@ function RowMenu({
 }
 
 /**
- * Every keyboard-reachable node in the list carries a `data-nav-key` (story 010: `g:<projectKey>`
- * for a group head, `s:<sessionId>` for a session row, `a:<nodeId>` for a subagent row), so one
- * selector spans all three kinds and navigation is a flat list in DOM order.
+ * Every keyboard-reachable node in the list carries a `data-nav-key` (`p:<projectKey>` for a scrum
+ * project row, `g:<projectKey>` for an Other group head, `s:<sessionId>` for a session row,
+ * `a:<nodeId>` for a subagent row), so one selector spans all four kinds and navigation is a flat
+ * list in DOM order.
  */
 const NAV_SELECTOR = '[data-nav-key]';
 
@@ -468,6 +483,13 @@ function Popover(): React.JSX.Element {
   // `openNodes` below, this resets to empty whenever the popover window is hidden, so a group
   // the user collapsed during a session comes back expanded on reopen.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  // The projects. Seeded by `getProjects()` on mount and kept current by the broadcast: a popover
+  // window created early can miss the first push, so it asks as well as listens.
+  const [projects, setProjects] = useState<ProjectView[]>(EMPTY_PROJECTS);
+  // Which scrum projects are expanded, by project key (not by position, so a re-sort or an update
+  // keeps what the user opened). Default is none; like the two sets around it, it resets when
+  // the window is hidden.
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
   // Which session (and, later, subagent) detail blocks are open, keyed `s:<sessionId>` /
   // `a:<nodeId>` (story 010 D4). Default is empty — every session starts collapsed — and the
   // set resets to empty whenever the popover window is hidden (Decisions (Sprint): "Expansion
@@ -505,6 +527,21 @@ function Popover(): React.JSX.Element {
   const changeNodeOpen = useCallback((nodeKey: string, change: SetChange): void => {
     setOpenNodes((current) => changedSet(current, nodeKey, change));
   }, []);
+  const changeProjectExpanded = useCallback((projectKey: string, change: SetChange): void => {
+    setExpandedProjects((current) => changedSet(current, projectKey, change));
+  }, []);
+
+  /**
+   * Open window on a project row. Main hides the popover when the window comes forward and keeps
+   * it open when it does not, so a failure is reported in the same strip a failed session jump
+   * uses, in the focuser's own words.
+   */
+  const openProjectWindow = useCallback((projectKey: string): void => {
+    setJumpError(null);
+    void api.focusProject(projectKey).then((result) => {
+      setJumpError(result.ok || result.flashed ? null : result.message);
+    });
+  }, []);
 
   /**
    * Jump to a session's window (F6). The single entry point for the row click and the row's
@@ -524,6 +561,7 @@ function Popover(): React.JSX.Element {
       if (document.hidden) {
         setOpenNodes(new Set());
         setCollapsedGroups(new Set());
+        setExpandedProjects(new Set());
         setJumpError(null);
         setMenuKey(null);
       }
@@ -536,9 +574,12 @@ function Popover(): React.JSX.Element {
     void api.getState().then(setState);
     void api.getPopoverPinned().then(setPinned);
     const off = api.onStateChanged(setState);
+    void api.getProjects().then(setProjects);
+    const offProjects = api.onProjectsChanged(setProjects);
     const timer = setInterval(() => setClock((value) => value + 1), 5_000);
     return () => {
       off();
+      offProjects();
       clearInterval(timer);
     };
   }, []);
@@ -598,21 +639,20 @@ function Popover(): React.JSX.Element {
   // zero rows because `state` is still `EMPTY_STATE` while `api.getState()` resolves.
   const focusedYet = useRef(false);
 
-  // Focuses the most urgent row. Sessions are already sorted by urgency within and across
-  // groups, so the first `s:`-prefixed node in DOM order is the most urgent session — but group
-  // heads (`data-nav-key="g:..."`) render before their sessions, so a bare `NAV_SELECTOR` query
-  // would land on the first group head instead whenever ≥2 projects are live. Scoping the query
-  // to session rows keeps this story 003's "opening the popover focuses the most urgent row"
-  // acceptance criterion intact regardless of group-head presence. Unconditional: the window is
+  // Focuses the most urgent row. Projects arrive sorted by urgency (attention first, then a
+  // running sprint) and sessions within a project likewise, so the first node in DOM order — the
+  // first project row — is the most urgent one. Project rows start collapsed, so there is usually
+  // no session row to prefer; one that is already expanded sits under its own project row and is
+  // reached with ↓. Unconditional: the window is
   // reused rather than recreated, so `document.activeElement` can still point at a row from the
   // previous session — a "focus already inside the list" guard would then skip refocusing on
   // reopen, breaking that acceptance criterion for every open after the first.
   const focusTopRow = useCallback(() => {
     const container = rows.current;
     if (!container) return;
-    // Nodes are `div[role="button"]` with a `data-nav-key` (a nested mute-toggle `<button>`
-    // ruled out a real `<button>` for the row itself); scope to session rows only (see above).
-    const row = container.querySelector<HTMLElement>('[data-nav-key^="s:"]');
+    // Nodes are `div[role="button"]` with a `data-nav-key` (a nested mute-toggle `<button>` ruled
+    // out a real `<button>` for the row itself).
+    const row = container.querySelector<HTMLElement>(NAV_SELECTOR);
     if (!row) return;
     row.focus();
     focusedYet.current = true;
@@ -766,6 +806,9 @@ function Popover(): React.JSX.Element {
           event.preventDefault();
           // Inverted on purpose: the set holds *collapsed* groups, so expanding removes the key.
           changeGroupCollapsed(key.slice(2), expand ? 'off' : 'on');
+        } else if (key?.startsWith('p:')) {
+          event.preventDefault();
+          changeProjectExpanded(key.slice(2), expand ? 'on' : 'off');
         } else if (key?.startsWith('s:')) {
           event.preventDefault();
           changeNodeOpen(key, expand ? 'on' : 'off');
@@ -781,7 +824,7 @@ function Popover(): React.JSX.Element {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [changeGroupCollapsed, changeNodeOpen]);
+  }, [changeGroupCollapsed, changeNodeOpen, changeProjectExpanded]);
 
   // Focus survives an expand or collapse (AC: "the node that was focused is still focused
   // afterwards, never the document body"). A toggle re-renders the list, and while React
@@ -805,7 +848,7 @@ function Popover(): React.JSX.Element {
     // one of those, moving it up to the row would break repeated Enter on the same button.
     if (!node.contains(document.activeElement)) node.focus();
     node.scrollIntoView({ block: 'nearest' });
-  }, [collapsedGroups, openNodes]);
+  }, [collapsedGroups, openNodes, expandedProjects]);
 
   const togglePin = (): void => {
     void api.setPopoverPinned(!pinned).then(setPinned);
@@ -815,19 +858,218 @@ function Popover(): React.JSX.Element {
   const hidden = state.sessions.length - shown.length;
   // What "Mark all as seen" would actually remove — everything settled, i.e. not in flight.
   const dismissible = dismissibleCount(shown);
-  const waitingCount = shown.filter((session) => session.status === 'waiting').length;
 
-  // Rows are already sorted by urgency within a group (`compareSessions`); groups themselves
-  // sort by their most urgent *unacknowledged* session (`popoverGroupRank`), then by project
-  // name — so a project whose only waiting row has already been seen sinks below one with
-  // real news instead of holding the top spot.
-  const groups = groupSessions(shown).sort((a, b) => {
-    const rank = popoverGroupRank(a) - popoverGroupRank(b);
-    if (rank !== 0) return rank;
-    return a.project.name.localeCompare(b.project.name);
-  });
+  // The two sections. The projects arrive sorted (scrum first, attention first, a running sprint,
+  // then name) and the sessions inside each already by urgency, so nothing is re-sorted here;
+  // `popoverSections` only decides which sessions a project lists and drops Other projects with
+  // nothing to list.
+  const sections = popoverSections(projects, shown);
+  const projectByKey = new Map(projects.map((project) => [project.key, project]));
+  const summary = popoverSummary(projects);
+  const noRows = sections.scrum.length === 0 && sections.other.length === 0;
 
   const hiddenBadge = hiddenIndicator(state.hidden);
+
+  /**
+   * One session row with its right-click menu and drill-down — the popover's existing row, moved
+   * out of the old flat list unchanged so a project's expansion and an Other group render the
+   * very same thing.
+   */
+  const renderSessions = (sessions: SessionView[]): React.JSX.Element[] =>
+    sessions.map((session, index) => {
+      const toggleMuted = (event: React.SyntheticEvent): void => {
+        // The mute toggle is nested inside the row's div-as-button — stop the click
+        // here or it would also fire the row's onClick (focus/jump) right after.
+        event.stopPropagation();
+        void api.setSessionMuted(session.sessionId, !session.muted);
+      };
+      const waiting = session.status === 'waiting';
+      const subagents = subagentSummary(session.subagents);
+      const uptime = formatUptime(session.startedAt);
+      const place = rowPlace(session);
+      const nodeKey = `s:${session.sessionId}`;
+      const isOpen = openNodes.has(nodeKey);
+      const toggleOpen = (event: React.SyntheticEvent): void => {
+        // Same idiom as the mute toggle above: stop the click here so it does not
+        // also fire the row's own onClick (focus/jump to the session's window).
+        event.stopPropagation();
+        // Same function the → / ← handler calls (D7).
+        changeNodeOpen(nodeKey, 'toggle');
+      };
+      return (
+      <Fragment key={session.sessionId}>
+      <div
+        role="button"
+        tabIndex={0}
+        className={`popover-row${session.muted ? ' muted' : ''}`}
+        title={session.statusReason}
+        data-nav-key={nodeKey}
+        onClick={() => jumpToSession(session.sessionId)}
+        // Right-click (and the keyboard's Shift+F10 / menu key, which fire the same
+        // event on the focused row) opens the row menu instead of the OS one.
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenuKey(nodeKey);
+        }}
+        onKeyDown={(event) => {
+          // Preserve the button-like keyboard behaviour a plain <div role="button">
+          // does not get for free — but only for the row itself: bail out if the
+          // keydown bubbled up from the nested mute-toggle <button> so its own native
+          // Enter/Space activation is not suppressed by this handler.
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            jumpToSession(session.sessionId);
+          }
+        }}
+      >
+        {/* Line 1 — identity and numbers: chevron, status glyph, index in the
+            group, project · branch, context, model, mute toggle. */}
+        <span className="l1">
+          {/* D4: clicking the chevron toggles the detail block below, without also
+              firing the row's own jump-on-click (stopPropagation, same idiom as the
+              mute toggle). Focus stays on this button across the re-render since
+              React reconciles it in place rather than remounting it. */}
+          <button
+            type="button"
+            className={`chev${isOpen ? ' open' : ''}`}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? 'Collapse' : 'Expand'}
+            onClick={toggleOpen}
+          >
+            ▶
+          </button>
+          <StatusDot status={session.status} />
+          <span className="idx">{index + 1}</span>
+          {/* Identity, in the order you ask about it: *which run is this* first,
+              then where it runs, as project · branch. The branch alone cannot tell two
+              sessions apart — the same branch name recurs across projects — so the
+              name leads and the place trails it, quieter. */}
+          <span className="ident">
+            <span className="name" title={sessionLabel(session)}>
+              {sessionLabel(session)}
+            </span>
+            <span className="place" title={place.title}>
+              <span className="proj">{place.project}</span>
+              {place.branch !== null && (
+                <>
+                  <span className="sep">·</span>
+                  <span className="branch">{place.branch}</span>
+                </>
+              )}
+            </span>
+          </span>
+          <ContextBar context={session.context} valueFormat="tokens" />
+          <span className="model" title={session.model ?? undefined}>
+            {modelDisplayName(session.model)}
+          </span>
+          <button
+            type="button"
+            className={`mute-toggle${session.muted ? ' on' : ''}`}
+            onClick={toggleMuted}
+            onDoubleClick={(event) => event.stopPropagation()}
+            title={session.muted ? 'Unmute this session' : 'Mute this session'}
+            aria-pressed={session.muted}
+          >
+            {session.muted ? '🔇' : '🔔'}
+          </button>
+          {session.windowUnknown && (
+            <span
+              className="window-unknown-badge"
+              title="Window state couldn't be determined, so this session is shown to be safe"
+            >
+              ❓
+            </span>
+          )}
+        </span>
+        {/* Line 2 — the prose: status or, for a waiting session, the *whole*
+            reason. This is what the second line is for: the 8-column grid of story
+            002 cut that string off after four words. */}
+        <span className="l2">
+          <StatusDot status={session.status} size="sm" />
+          <span
+            className="txt"
+            title={
+              session.pendingTool?.hint ??
+              `${STATUS_LABEL[session.status]} — ${STATUS_HINT[session.status]}`
+            }
+            style={waiting ? { color: 'var(--status-waiting)' } : undefined}
+          >
+            {waiting ? (
+              session.statusReason
+            ) : (
+              <Fragment>
+                {STATUS_LABEL[session.status]}
+                {session.pendingTool && ` · ${session.pendingTool.name}`}
+              </Fragment>
+            )}
+          </span>
+          {subagents && (
+            <span className="sub" title={subagents.title}>
+              {subagents.pipClasses.map((pip, pipIndex) => (
+                <span
+                  // Pips are positional and interchangeable — the index *is* the
+                  // identity here, there is nothing else to key on.
+                  key={pipIndex}
+                  className={`pip${pip ? ` ${pip}` : ''}`}
+                />
+              ))}
+              <span className="cnt">
+                {subagents.done}/{subagents.total}
+              </span>
+            </span>
+          )}
+          <span className="spacer" />
+          <span className="age" title={uptimeTitle(session.startedAt)}>
+            {uptime ? `${uptime} · ` : ''}
+            {formatAge(
+              session.lastActivityAt ? Date.now() - session.lastActivityAt : null,
+            )}
+          </span>
+        </span>
+      </div>
+      {menuKey === nodeKey && (
+        <RowMenu
+          dismissible={isDismissible(session)}
+          onShow={() => showInMainWindow(session.sessionId)}
+          onMarkSeen={() => markSeen(session.sessionId)}
+          onClose={closeMenu}
+        />
+      )}
+      {isOpen && (
+        // Detail block (D4): title + last-said, then the subagent area. Mirrors the
+        // prototype's `.detail` / `.kv` structure — see sessionRow() in
+        // docs/requirements/assets/010-popover-drilldown-prototype.html.
+        <div className="popover-detail">
+          <div className="kv">
+            <span className="title">{sessionLabel(session)}</span>
+            <span className="txt">
+              {session.lastAssistantText || 'nothing said yet'}
+            </span>
+          </div>
+          {session.subagents.length === 0 ? (
+            <div className="kv faint">no subagents</div>
+          ) : (
+            <>
+              <div className="popover-subagents" role="list">
+                {session.subagents.map((node) => (
+                  <SubagentRow key={node.id} node={node} />
+                ))}
+              </div>
+              {/* The flat-list disclaimer belongs to the whole list, not any one
+                  row (story 010 D6) — `buildSubagentTree` sets `children: []`
+                  unconditionally, so a subagent that spawned its own would not be
+                  recognisable as a parent here. Sibling of `.popover-subagents`
+                  (story 013 D6) so role="list" only ever contains SubagentRows. */}
+              <div className="flat-note">{SUBAGENT_FLAT_LIST_NOTE}</div>
+            </>
+          )}
+        </div>
+      )}
+      </Fragment>
+      );
+
+    });
 
   return (
     <div className="popover">
@@ -841,10 +1083,7 @@ function Popover(): React.JSX.Element {
               : undefined
           }
         >
-          {shown.length === 1 ? '1 session' : `${shown.length} sessions`}
-          {waitingCount > 0 ? (
-            <span style={{ color: 'var(--status-waiting)' }}> ({waitingCount} waiting)</span>
-          ) : null}
+          {summary ?? 'no projects'}
           {hidden > 0 ? ` · ${hidden} settled` : ''}
           {hiddenBadge ? <span title={hiddenBadge.title}> · {hiddenBadge.text}</span> : null}
         </span>
@@ -894,23 +1133,50 @@ function Popover(): React.JSX.Element {
 
       <div className="popover-list">
         <div className="popover-rows" ref={rows}>
-          {shown.length === 0 && (
+          {noRows && (
             <div className="empty">
-              {state.sessions.length === 0 ? 'No live sessions' : 'Nothing needs you right now'}
+              {state.sessions.length === 0
+                ? 'No open VS Code window with ai-scrum, and no running session.'
+                : 'Nothing needs you right now'}
             </div>
           )}
-          {groups.map((group) => {
-            const collapsed = collapsedGroups.has(group.project.key);
-            // Same function the → / ← handler calls (D7), so click and keyboard cannot drift.
-            const toggleGroup = (): void => changeGroupCollapsed(group.project.key, 'toggle');
+          {sections.scrum.length > 0 && <div className="pj-section">Scrum projects</div>}
+          {sections.scrum.map((row) => {
+            const project = projectByKey.get(row.key);
+            const expanded = expandedProjects.has(row.key);
             return (
-            <Fragment key={group.project.key}>
-              {groups.length > 1 && (
+              <Fragment key={row.key}>
+                <ScrumProjectRow
+                  row={row}
+                  path={project?.path ?? row.name}
+                  expanded={expanded}
+                  // Same function the → / ← handler calls, so click and keyboard cannot drift.
+                  onToggle={() => changeProjectExpanded(row.key, 'toggle')}
+                  onOpenWindow={() => openProjectWindow(row.key)}
+                />
+                {expanded && (
+                  <div className="pj-body">
+                    {row.sessions.length === 0 && <div className="pj-nosessions">no session running</div>}
+                    {renderSessions(row.sessions)}
+                    <ScrumBlock block={scrumBlockModel(project?.scrum ?? null)} />
+                  </div>
+                )}
+              </Fragment>
+            );
+          })}
+          {sections.other.length > 0 && <div className="pj-section">Other</div>}
+          {sections.other.map((row) => {
+            const collapsed = collapsedGroups.has(row.key);
+            // Same function the → / ← handler calls (D7), so click and keyboard cannot drift.
+            const toggleGroup = (): void => changeGroupCollapsed(row.key, 'toggle');
+            return (
+              <Fragment key={row.key}>
                 <div
                   className="popover-group-head"
                   role="button"
                   tabIndex={0}
-                  data-nav-key={`g:${group.project.key}`}
+                  data-nav-key={`g:${row.key}`}
+                  aria-expanded={!collapsed}
                   onClick={toggleGroup}
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget) return;
@@ -923,213 +1189,22 @@ function Popover(): React.JSX.Element {
                   <span className={`chev${collapsed ? '' : ' open'}`} aria-hidden="true">
                     ▶
                   </span>
-                  <span className="name">{group.project.name}</span>
-                  {group.attention > 0 && (
-                    <span className="attention">
-                      {group.attention === 1 ? '1 waiting' : `${group.attention} waiting`}
-                    </span>
+                  <span className="name" title={projectByKey.get(row.key)?.path}>
+                    {row.name}
+                  </span>
+                  {row.wsl && <WslBadge distros={row.wslDistros} />}
+                  {row.attention.length > 0 && (
+                    <span className="attention">{row.attention.map((mark) => `${mark.glyph} ${mark.text}`).join(' · ')}</span>
                   )}
                   <span className="spacer" />
-                  <StatusRollup counts={group.statusCounts} />
+                  <StatusRollup counts={row.counts} />
                   <span className="count">
-                    {group.sessions.length === 1 ? '1 session' : `${group.sessions.length} sessions`}
+                    {row.sessions.length === 1 ? '1 session' : `${row.sessions.length} sessions`}
                   </span>
+                  {row.canOpenWindow && <OpenWindowButton onOpen={() => openProjectWindow(row.key)} />}
                 </div>
-              )}
-              {!collapsed && group.sessions.map((session, index) => {
-                const toggleMuted = (event: React.SyntheticEvent): void => {
-                  // The mute toggle is nested inside the row's div-as-button — stop the click
-                  // here or it would also fire the row's onClick (focus/jump) right after.
-                  event.stopPropagation();
-                  void api.setSessionMuted(session.sessionId, !session.muted);
-                };
-                const waiting = session.status === 'waiting';
-                const subagents = subagentSummary(session.subagents);
-                const uptime = formatUptime(session.startedAt);
-                const place = rowPlace(session);
-                const nodeKey = `s:${session.sessionId}`;
-                const isOpen = openNodes.has(nodeKey);
-                const toggleOpen = (event: React.SyntheticEvent): void => {
-                  // Same idiom as the mute toggle above: stop the click here so it does not
-                  // also fire the row's own onClick (focus/jump to the session's window).
-                  event.stopPropagation();
-                  // Same function the → / ← handler calls (D7).
-                  changeNodeOpen(nodeKey, 'toggle');
-                };
-                return (
-                <Fragment key={session.sessionId}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className={`popover-row${session.muted ? ' muted' : ''}`}
-                  title={session.statusReason}
-                  data-nav-key={nodeKey}
-                  onClick={() => jumpToSession(session.sessionId)}
-                  // Right-click (and the keyboard's Shift+F10 / menu key, which fire the same
-                  // event on the focused row) opens the row menu instead of the OS one.
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setMenuKey(nodeKey);
-                  }}
-                  onKeyDown={(event) => {
-                    // Preserve the button-like keyboard behaviour a plain <div role="button">
-                    // does not get for free — but only for the row itself: bail out if the
-                    // keydown bubbled up from the nested mute-toggle <button> so its own native
-                    // Enter/Space activation is not suppressed by this handler.
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      jumpToSession(session.sessionId);
-                    }
-                  }}
-                >
-                  {/* Line 1 — identity and numbers: chevron, status glyph, index in the
-                      group, project · branch, context, model, mute toggle. */}
-                  <span className="l1">
-                    {/* D4: clicking the chevron toggles the detail block below, without also
-                        firing the row's own jump-on-click (stopPropagation, same idiom as the
-                        mute toggle). Focus stays on this button across the re-render since
-                        React reconciles it in place rather than remounting it. */}
-                    <button
-                      type="button"
-                      className={`chev${isOpen ? ' open' : ''}`}
-                      aria-expanded={isOpen}
-                      aria-label={isOpen ? 'Collapse' : 'Expand'}
-                      onClick={toggleOpen}
-                    >
-                      ▶
-                    </button>
-                    <StatusDot status={session.status} />
-                    <span className="idx">{index + 1}</span>
-                    {/* Identity, in the order you ask about it: *which run is this* first,
-                        then where it runs, as project · branch. The branch alone cannot tell two
-                        sessions apart — the same branch name recurs across projects — so the
-                        name leads and the place trails it, quieter. */}
-                    <span className="ident">
-                      <span className="name" title={sessionLabel(session)}>
-                        {sessionLabel(session)}
-                      </span>
-                      <span className="place" title={place.title}>
-                        <span className="proj">{place.project}</span>
-                        {place.branch !== null && (
-                          <>
-                            <span className="sep">·</span>
-                            <span className="branch">{place.branch}</span>
-                          </>
-                        )}
-                      </span>
-                    </span>
-                    <ContextBar context={session.context} valueFormat="tokens" />
-                    <span className="model" title={session.model ?? undefined}>
-                      {modelDisplayName(session.model)}
-                    </span>
-                    <button
-                      type="button"
-                      className={`mute-toggle${session.muted ? ' on' : ''}`}
-                      onClick={toggleMuted}
-                      onDoubleClick={(event) => event.stopPropagation()}
-                      title={session.muted ? 'Unmute this session' : 'Mute this session'}
-                      aria-pressed={session.muted}
-                    >
-                      {session.muted ? '🔇' : '🔔'}
-                    </button>
-                    {session.windowUnknown && (
-                      <span
-                        className="window-unknown-badge"
-                        title="Window state couldn't be determined, so this session is shown to be safe"
-                      >
-                        ❓
-                      </span>
-                    )}
-                  </span>
-                  {/* Line 2 — the prose: status or, for a waiting session, the *whole*
-                      reason. This is what the second line is for: the 8-column grid of story
-                      002 cut that string off after four words. */}
-                  <span className="l2">
-                    <StatusDot status={session.status} size="sm" />
-                    <span
-                      className="txt"
-                      title={
-                        session.pendingTool?.hint ??
-                        `${STATUS_LABEL[session.status]} — ${STATUS_HINT[session.status]}`
-                      }
-                      style={waiting ? { color: 'var(--status-waiting)' } : undefined}
-                    >
-                      {waiting ? (
-                        session.statusReason
-                      ) : (
-                        <Fragment>
-                          {STATUS_LABEL[session.status]}
-                          {session.pendingTool && ` · ${session.pendingTool.name}`}
-                        </Fragment>
-                      )}
-                    </span>
-                    {subagents && (
-                      <span className="sub" title={subagents.title}>
-                        {subagents.pipClasses.map((pip, pipIndex) => (
-                          <span
-                            // Pips are positional and interchangeable — the index *is* the
-                            // identity here, there is nothing else to key on.
-                            key={pipIndex}
-                            className={`pip${pip ? ` ${pip}` : ''}`}
-                          />
-                        ))}
-                        <span className="cnt">
-                          {subagents.done}/{subagents.total}
-                        </span>
-                      </span>
-                    )}
-                    <span className="spacer" />
-                    <span className="age" title={uptimeTitle(session.startedAt)}>
-                      {uptime ? `${uptime} · ` : ''}
-                      {formatAge(
-                        session.lastActivityAt ? Date.now() - session.lastActivityAt : null,
-                      )}
-                    </span>
-                  </span>
-                </div>
-                {menuKey === nodeKey && (
-                  <RowMenu
-                    dismissible={isDismissible(session)}
-                    onShow={() => showInMainWindow(session.sessionId)}
-                    onMarkSeen={() => markSeen(session.sessionId)}
-                    onClose={closeMenu}
-                  />
-                )}
-                {isOpen && (
-                  // Detail block (D4): title + last-said, then the subagent area. Mirrors the
-                  // prototype's `.detail` / `.kv` structure — see sessionRow() in
-                  // docs/requirements/assets/010-popover-drilldown-prototype.html.
-                  <div className="popover-detail">
-                    <div className="kv">
-                      <span className="title">{sessionLabel(session)}</span>
-                      <span className="txt">
-                        {session.lastAssistantText || 'nothing said yet'}
-                      </span>
-                    </div>
-                    {session.subagents.length === 0 ? (
-                      <div className="kv faint">no subagents</div>
-                    ) : (
-                      <>
-                        <div className="popover-subagents" role="list">
-                          {session.subagents.map((node) => (
-                            <SubagentRow key={node.id} node={node} />
-                          ))}
-                        </div>
-                        {/* The flat-list disclaimer belongs to the whole list, not any one
-                            row (story 010 D6) — `buildSubagentTree` sets `children: []`
-                            unconditionally, so a subagent that spawned its own would not be
-                            recognisable as a parent here. Sibling of `.popover-subagents`
-                            (story 013 D6) so role="list" only ever contains SubagentRows. */}
-                        <div className="flat-note">{SUBAGENT_FLAT_LIST_NOTE}</div>
-                      </>
-                    )}
-                  </div>
-                )}
-                </Fragment>
-                );
-              })}
-            </Fragment>
+                {!collapsed && renderSessions(row.sessions)}
+              </Fragment>
             );
           })}
         </div>
