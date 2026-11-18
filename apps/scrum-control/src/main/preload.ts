@@ -65,8 +65,6 @@ const api: RendererApi & {
   getProjects: () => ipcRenderer.invoke(IPC.getProjects) as Promise<ProjectView[]>,
   focusProject: (key) => ipcRenderer.invoke(IPC.focusProject, key),
   openProjectFolder: (key) => ipcRenderer.invoke(IPC.openProjectFolder, key) as Promise<ProjectActionResult>,
-  hideProject: (key) => ipcRenderer.invoke(IPC.hideProject, key) as Promise<void>,
-  unhideProject: (key) => ipcRenderer.invoke(IPC.unhideProject, key) as Promise<void>,
   getHostRoots: () => ipcRenderer.invoke(IPC.getHostRoots) as Promise<HostRootInfo[]>,
   onProjectsChanged: (listener) => subscribe(IPC.projectsChanged, listener as (payload: never) => void),
   onStateChanged: (listener) => subscribe(IPC.stateChanged, listener as (payload: never) => void),

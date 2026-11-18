@@ -14,7 +14,7 @@ import type { TopLevelWindow } from '../../src/core/projects/openWindows.ts';
 import { ProjectsService, type ProjectsMonitor } from '../../src/core/projects/service.ts';
 import type { ProjectView } from '../../src/core/projects/types.ts';
 import type { ProjectScrumSummary, ScrumNotification } from '../../src/core/scrum/types.ts';
-import { scrumSummary, sessionIn, sprint, summaryMap } from '../fixtures/projects.ts';
+import { plainSummary, scrumSummary, sessionIn, sprint, summaryMap } from '../fixtures/projects.ts';
 
 const CLAUDE = 'c:\\development\\Hantsch\\claude';
 const MMO = 'C:\\development\\Hantsch\\Hantsch-MMO';
@@ -87,18 +87,19 @@ interface Harness {
   service: ProjectsService;
   projects: ProjectView[][];
   toasts: ScrumNotification[][];
-  settings: { projects: { hidden: string[] }; scrumNotifications: typeof DEFAULT_SETTINGS.scrumNotifications };
+  settings: { scrumNotifications: typeof DEFAULT_SETTINGS.scrumNotifications };
   windows: { current: readonly TopLevelWindow[] | null | 'throw' };
+  vscode: { opened: string[]; known: string[]; calls: number };
 }
 
 function harness(): Harness {
   const engine = new FakeEngine();
   const monitor = new FakeMonitor();
   const settings = {
-    projects: { hidden: [] as string[] },
     scrumNotifications: { ...DEFAULT_SETTINGS.scrumNotifications },
   };
   const windows: Harness['windows'] = { current: null };
+  const vscode: Harness['vscode'] = { opened: [], known: [], calls: 0 };
   const service = new ProjectsService({
     engine,
     monitor: monitor as unknown as ProjectsMonitor,
@@ -108,8 +109,12 @@ function harness(): Harness {
       return windows.current;
     },
     alivePids: async (pids) => new Set(pids),
+    vscodeFolders: () => {
+      vscode.calls += 1;
+      return vscode;
+    },
   });
-  const h: Harness = { engine, monitor, service, projects: [], toasts: [], settings, windows };
+  const h: Harness = { engine, monitor, service, projects: [], toasts: [], settings, windows, vscode };
   service.on('projects', (list) => h.projects.push(list));
   service.on('scrumNotifications', (list) => h.toasts.push(list));
   return h;
@@ -181,19 +186,26 @@ describe('ProjectsService projects', () => {
     expect(h.service.getProjects()).toHaveLength(1);
   });
 
-  it('leaves hidden projects out of the views and out of the monitor', async () => {
+  it('finds a window that has neither lock nor session through the folders VS Code knows, and lists it in Other', async () => {
     const h = harness();
-    h.engine.locks = [lock(100, CLAUDE)];
-    h.engine.sessions = [sessionIn(MMO, 'working')];
-    h.monitor.data = summaryMap(scrumSummary(CLAUDE), scrumSummary(MMO));
-    h.settings.projects.hidden = [normalizePathKey(MMO)];
+    const kingdom = 'c:\\development\\Hantsch\\T-T-Agent-Kingdom';
+    h.vscode.known = [kingdom];
+    h.windows.current = [{ handle: '1', pid: 7, processName: 'Code.exe', title: 'notes.md - T-T-Agent-Kingdom - Visual Studio Code' }];
+    h.monitor.data = summaryMap(plainSummary(kingdom));
     await h.service.start();
-    expect(h.service.getProjects().map((p) => p.name)).toEqual(['claude']);
-    expect(h.monitor.watched).toEqual([CLAUDE]);
+    expect(h.service.getProjects().map((p) => [p.name, p.section, p.hasWindow, p.sessions.length])).toEqual([
+      ['T-T-Agent-Kingdom', 'other', true, 0],
+    ]);
+    expect(h.monitor.watched).toEqual([kingdom]);
+  });
 
-    h.settings.projects.hidden = [];
-    await h.service.refreshSettings();
-    expect(h.service.getProjects().map((p) => p.name).sort()).toEqual(['Hantsch-MMO', 'claude']);
+  it('does not ask VS Code for folders when windows cannot be enumerated', async () => {
+    const h = harness();
+    h.vscode.known = [CLAUDE];
+    h.monitor.data = summaryMap(plainSummary(CLAUDE));
+    await h.service.start();
+    expect(h.vscode.calls).toBe(0);
+    expect(h.service.getProjects()).toEqual([]);
   });
 
   it('stops listening and disposes the monitor', async () => {

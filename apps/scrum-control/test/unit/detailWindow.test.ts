@@ -76,7 +76,7 @@ vi.mock('electron', () => {
   };
 });
 
-vi.mock('../../src/main/icon-assets.ts', () => ({ appIcon: () => undefined }));
+vi.mock('../../src/main/icon-assets.ts', () => ({ appIcon: () => undefined, applyTaskbarIcon: () => {} }));
 vi.mock('../../src/main/detailWindowState.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/main/detailWindowState.ts')>()),
   loadDetailBounds: () => null,

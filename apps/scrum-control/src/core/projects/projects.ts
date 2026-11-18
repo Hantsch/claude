@@ -71,25 +71,19 @@ export interface BuildProjectsInput {
   sessions: readonly SessionView[];
   /** The monitor's summaries, keyed by `normalizePathKey`. A project with no summary yet is skipped. */
   summaries: ReadonlyMap<string, ProjectScrumSummary>;
-  /** Hidden project keys (`settings.projects.hidden`). */
-  hidden: readonly string[];
 }
 
-export function isHiddenProject(key: string, hidden: readonly string[]): boolean {
-  return hidden.some((entry) => normalizePathKey(entry) === key);
-}
-
+/**
+ * Every bucket is shown: each one has an open window or a live session by construction. With
+ * ai-scrum it is a `scrum` project, without it an `other` one.
+ */
 export function buildProjects(input: BuildProjectsInput): ProjectView[] {
   const views: ProjectView[] = [];
   for (const bucket of groupIntoProjects(input.openFolders, input.sessions)) {
-    if (isHiddenProject(bucket.key, input.hidden)) continue;
     // Not scanned yet: whether it has scrum is not known, so it would land in the wrong section.
     const summary = input.summaries.get(bucket.key);
     if (summary === undefined) continue;
-
-    const hasSessions = bucket.sessions.length > 0;
-    const section = summary.hasScrum && (bucket.hasWindow || hasSessions) ? 'scrum' : !summary.hasScrum && hasSessions ? 'other' : null;
-    if (section === null) continue;
+    const section = summary.hasScrum ? 'scrum' : 'other';
 
     const sessions = [...bucket.sessions].sort(compareSessions);
     const reasons = attentionReasons(summary, sessions);
@@ -124,17 +118,16 @@ function hostsOf(sessions: readonly SessionView[]): HostId[] {
 }
 
 /**
- * Why a project wants a look: scrum's attention flags, and sessions that wait for an answer the
- * user has not seen yet (a seen one no longer counts, as with the session badge).
+ * Why a project wants a look: a stalled sprint, and sessions that wait for an answer the user has
+ * not seen yet (a seen one no longer counts, as with the session badge). A blocked story and the
+ * release verdict are not warnings: a blocked sprint stalls anyway, and the verdict is shown where
+ * the release is (the Projects tab's Release column), not raised.
  */
 export function attentionReasons(summary: ProjectScrumSummary, sessions: readonly SessionView[]): string[] {
   const reasons: string[] = [];
   const { attention } = summary;
   if (summary.hasScrum) {
     if (attention.stalled) reasons.push(`stalled ${attention.stalledMinutes}m`);
-    if (attention.blocked) reasons.push(attention.blockedStory ? `blocked ${attention.blockedStory}` : 'blocked');
-    if (attention.releaseNo) reasons.push('releasable: NO');
-    if (attention.releaseMissed) reasons.push('release verdict missed');
   }
   const waiting = sessions.filter((session) => session.status === 'waiting' && !session.seen).length;
   if (waiting > 0) reasons.push(waiting === 1 ? '1 session needs you' : `${waiting} sessions need you`);

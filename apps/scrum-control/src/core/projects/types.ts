@@ -9,7 +9,7 @@ import type { HostId, SessionView } from '../model/types.ts';
 import type { GroupStatusCount } from '../state/aggregate.ts';
 import type { ProjectScrumSummary } from '../scrum/types.ts';
 
-/** `scrum` = ai-scrum project with a window or a session; `other` = no scrum, at least one session. */
+/** `scrum` = ai-scrum project; `other` = no ai-scrum. Either has an open VS Code window or a live session. */
 export type ProjectSection = 'scrum' | 'other';
 
 export interface ProjectView {
@@ -36,7 +36,7 @@ export interface ProjectView {
   scrum: ProjectScrumSummary | null;
   /** A scrum attention flag is raised or a session waits for an answer that has not been seen. */
   needsAttention: boolean;
-  /** Short human-readable reasons, e.g. `stalled 18m`, `blocked 026`, `releasable: NO`, `1 session needs you`. */
+  /** Short human-readable reasons, `stalled 18m` and `1 session needs you`. */
   attentionReasons: string[];
 }
 

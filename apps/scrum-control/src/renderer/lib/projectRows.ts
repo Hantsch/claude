@@ -42,19 +42,15 @@ export function sessionsToShow(project: ProjectView, tray: readonly SessionView[
   return shown;
 }
 
-/** `✗` for a release problem, `⚠` for everything else a project needs you for. */
+/** One thing a project needs you for (a stalled sprint, a waiting session), shown in amber. */
 export interface AttentionMark {
-  glyph: '⚠' | '✗';
+  glyph: '⚠';
   text: string;
-  tone: 'warn' | 'bad';
+  tone: 'warn';
 }
 
 export function attentionMarks(reasons: readonly string[]): AttentionMark[] {
-  return reasons.map((reason) =>
-    /^releasable:\s*NO\b/i.test(reason) || /\bmissed\b/i.test(reason)
-      ? { glyph: '✗', text: reason, tone: 'bad' }
-      : { glyph: '⚠', text: reason, tone: 'warn' },
-  );
+  return reasons.map((reason) => ({ glyph: '⚠', text: reason, tone: 'warn' }));
 }
 
 /** What the row's dot shows. A project with nothing to report gets the neutral `ended` grey. */
@@ -145,7 +141,10 @@ export function projectRowModel(project: ProjectView, tray: readonly SessionView
   };
 }
 
-/** The two sections the popover renders, already filtered. `other` skips projects with nothing listed. */
+/**
+ * The two sections the popover renders. `other` lists every non-scrum project with an open window
+ * or a session; one with neither (a session the tray no longer lists, and no window) is skipped.
+ */
 export function popoverSections(
   projects: readonly ProjectView[],
   tray: readonly SessionView[],
@@ -155,7 +154,7 @@ export function popoverSections(
   for (const project of projects) {
     const row = projectRowModel(project, tray);
     if (project.section === 'scrum') scrum.push(row);
-    else if (row.sessions.length > 0) other.push(row);
+    else if (row.sessions.length > 0 || row.canOpenWindow) other.push(row);
   }
   return { scrum, other };
 }
@@ -181,27 +180,20 @@ export function minutesLeftLabel(minutes: number): string {
   return `~${Math.floor(rounded / 60)}h${rest ? ` ${rest}m` : ''} left`;
 }
 
-function releaseFact(scrum: ProjectScrumSummary): ScrumFact | null {
-  const release = scrum.release;
-  if (!release) return null;
-  if (release.isRunning) return { label: 'Release', value: 'checking…', tone: null };
-  const kind = release.kind;
-  const value = release.verdict?.trim() || (kind ? `releasable: ${kind}` : 'no verdict');
-  const tone: FactTone = kind === 'yes' ? 'good' : kind === 'NO' ? 'bad' : kind === 'UNVERIFIED' ? 'warn' : null;
-  return { label: 'Release', value, tone };
-}
-
-/** The compact scrum block under an expanded scrum row. Facts that do not apply are left out. */
+/**
+ * The compact scrum block under an expanded scrum row. Facts that do not apply are left out. The
+ * release verdict is not one of them: the popover is about the sprint; the Projects tab shows it.
+ */
 export function scrumBlockModel(scrum: ProjectScrumSummary | null): ScrumBlockModel {
   if (!scrum) return { facts: [], hints: [] };
   const facts: ScrumFact[] = [];
 
+  const milestone = milestoneLabel(scrum);
+  if (milestone) facts.push({ label: 'Milestone', value: milestone, tone: null });
   const sprint = scrum.sprint;
   if (sprint && sprint.minutesLeft !== null) {
     facts.push({ label: 'Time left', value: minutesLeftLabel(sprint.minutesLeft), tone: null });
   }
-  const release = releaseFact(scrum);
-  if (release) facts.push(release);
 
   facts.push({
     label: 'Tech debt',

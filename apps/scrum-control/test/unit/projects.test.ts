@@ -42,7 +42,7 @@ describe('groupIntoProjects', () => {
 });
 
 describe('buildProjects sections', () => {
-  const base = { hidden: [] as string[] };
+  const base = {};
 
   it('shows a scrum project with a window and no session, in the scrum section', () => {
     const projects = buildProjects({
@@ -70,29 +70,21 @@ describe('buildProjects sections', () => {
     expect(buildProjects({ ...base, openFolders: [], sessions: [], summaries: summaryMap(scrumSummary(MMO)) })).toEqual([]);
   });
 
-  it('puts a non-scrum project with a session in Other, and drops a non-scrum window without one', () => {
+  it('puts every non-scrum project in Other - with a session or only an open window', () => {
     const projects = buildProjects({
       ...base,
       openFolders: [open(CLAUDE), open(SCOTTY)],
       sessions: [sessionIn(CLAUDE)],
       summaries: summaryMap(plainSummary(CLAUDE), plainSummary(SCOTTY)),
     });
-    expect(projects.map((p) => [p.name, p.section, p.scrum])).toEqual([['claude', 'other', null]]);
+    expect(projects.map((p) => [p.name, p.section, p.scrum, p.hasWindow, p.sessions.length])).toEqual([
+      ['claude', 'other', null, true, 1],
+      ['Frontend-Scotty', 'other', null, true, 0],
+    ]);
   });
 
   it('skips a project whose scan has not finished', () => {
     expect(buildProjects({ ...base, openFolders: [open(CLAUDE)], sessions: [sessionIn(CLAUDE)], summaries: new Map() })).toEqual([]);
-  });
-
-  it('drops hidden projects, however the key is spelled', () => {
-    const input = {
-      openFolders: [open(CLAUDE)],
-      sessions: [sessionIn(CLAUDE)],
-      summaries: summaryMap(scrumSummary(CLAUDE)),
-    };
-    expect(buildProjects({ ...input, hidden: [normalizePathKey(CLAUDE)] })).toEqual([]);
-    expect(buildProjects({ ...input, hidden: [CLAUDE.toUpperCase()] })).toEqual([]);
-    expect(buildProjects({ ...input, hidden: ['c:/elsewhere'] })).toHaveLength(1);
   });
 });
 
@@ -107,7 +99,6 @@ describe('buildProjects session facts', () => {
         sessionIn(CLAUDE, 'waiting', { seen: true }),
       ],
       summaries: summaryMap(scrumSummary(CLAUDE)),
-      hidden: [],
     });
     const project = projects[0]!;
     expect(project.worstStatus).toBe('waiting');
@@ -131,18 +122,18 @@ describe('buildProjects attention', () => {
       },
     });
   const build = (summary = scrumSummary(CLAUDE), sessions = [sessionIn(CLAUDE, 'working')]) =>
-    buildProjects({ openFolders: [open(CLAUDE)], sessions, summaries: summaryMap(summary), hidden: [] })[0]!;
+    buildProjects({ openFolders: [open(CLAUDE)], sessions, summaries: summaryMap(summary) })[0]!;
 
   it('is quiet by default', () => {
     expect(build()).toMatchObject({ needsAttention: false, attentionReasons: [] });
   });
 
-  it('turns each scrum flag into a reason', () => {
+  it('raises only a stalled sprint; a blocked story and the release verdict are not warnings', () => {
     expect(build(attention({ stalled: true, stalledMinutes: 18 })).attentionReasons).toEqual(['stalled 18m']);
-    expect(build(attention({ blocked: true, blockedStory: '026' })).attentionReasons).toEqual(['blocked 026']);
-    expect(build(attention({ releaseNo: true })).attentionReasons).toEqual(['releasable: NO']);
-    expect(build(attention({ releaseMissed: true })).attentionReasons).toEqual(['release verdict missed']);
     expect(build(attention({ stalled: true, stalledMinutes: 20, releaseNo: true })).needsAttention).toBe(true);
+    for (const flags of [{ blocked: true, blockedStory: '026' }, { releaseNo: true }, { releaseMissed: true }]) {
+      expect(build(attention(flags))).toMatchObject({ needsAttention: false, attentionReasons: [] });
+    }
   });
 
   it('counts a waiting session until it has been seen, once per project however many wait', () => {
@@ -164,7 +155,6 @@ describe('buildProjects attention', () => {
       openFolders: [],
       sessions: [sessionIn(MMO, 'waiting')],
       summaries: summaryMap(plainSummary(MMO)),
-      hidden: [],
     })[0]!;
     expect(project).toMatchObject({ section: 'other', needsAttention: true });
   });
@@ -192,7 +182,6 @@ describe('buildProjects order', () => {
         stalled,
         plainSummary(paths.other),
       ),
-      hidden: [],
     });
     expect(projects.map((p) => p.name)).toEqual(['stalled', 'sprinting', 'alpha', 'zeta', 'other']);
   });

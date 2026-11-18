@@ -323,31 +323,36 @@ lister and the focuser.
 | `main/tray.ts`, `main/notifier.ts`, `main/toast-protocol.ts` | Tile, badge and tooltip from the projects; scrum toasts; `scrum-control://project/<encoded key>`. |
 
 Renderer API (`window.claudeControl`, see `shared/ipc.ts`): `getProjects()`, `onProjectsChanged(cb)`,
-`focusProject(key)`, `openProjectFolder(key)`, `hideProject(key)`, `unhideProject(key)`, `getHostRoots()`.
+`focusProject(key)`, `openProjectFolder(key)`, `getHostRoots()`.
 
 Decisions:
 
 - **Which windows count.** A lock counts when its pid is alive and the pid owns a visible window titled
   after one of its folders (whole title segment, so `claude` never matches `claude-control`). When the
   pid owns no window at all (an extension host rather than the main process) every VS Code window is
-  checked instead. The fallback matches known project paths only (live sessions and the history index),
-  skips a folder name that two known projects share, skips paths inside an already open folder, and never
-  gives one window to two folders. WSL-remote windows have no Windows-side lock, so they are found by
+  checked instead. The fallback matches known project paths only - live sessions, the history index and
+  the folders VS Code itself records (`core/projects/vscodeFolders.ts`: `storage.json`'s `windowsState`
+  and every `workspaceStorage/*/workspace.json`, read by mtime). A folder name that two known paths share
+  is used only when exactly one of them is in VS Code's opened-window list; paths inside an already open
+  folder are skipped, and one window never goes to two folders. WSL-remote windows have no Windows-side lock, so they are found by
   title.
 - **No window list, no cross-check.** Where windows cannot be enumerated (the CLI, or koffi failing to
   load) every live lock counts and the title fallback is off. `npm run cli` therefore shows fewer open
   windows than the app.
+- **Every open window is a project.** A folder with ai-scrum lands under Scrum, any other under Other -
+  with or without a session. Nothing can be hidden.
 - **A project not scanned yet is not shown.** Whether it has scrum decides its section, so it waits for
   the monitor's first summary instead of appearing under Other for a moment. A failed scan still yields a
   summary (with `error`), so nothing waits forever.
-- **Attention** is scrum's four flags plus sessions `waiting` that have not been seen; `done` and
+- **Attention** is a stalled sprint plus sessions `waiting` that have not been seen (a blocked story and
+  the release flags stay in the summary and drive their toasts, but raise nothing); `done` and
   `stale` do not count. A project counts once however many sessions wait. `ProjectView.sessions` holds the
   engine's visible sessions (not only the tray-worthy ones), most urgent first.
 - **A sprint counts as running** while it is in progress and while its release check still runs (phase 4).
 - **The tooltip** adds a last line `N projects need you` while the badge is above zero, and shortens by
   dropping whole lines (`+N more`) before it cuts one.
 - **Toasts.** The first computation is the baseline; a project that shows up later, or comes back from
-  hidden, announces nothing for its first summary. Each `dedupeKey` is announced once per run, and only
-  events whose toggle is on are marked announced. Hidden projects are not monitored at all.
-- **Settings.** `projects.hidden` holds project keys (`normalizePathKey`); comparison normalizes both
-  sides. `scrumNotifications` merges kind by kind over the defaults.
+  announces nothing for its first summary. Each `dedupeKey` is announced once per run, and only events
+  whose toggle is on are marked announced.
+- **Settings.** `scrumNotifications` merges kind by kind over the defaults. A `projects` key in an older
+  settings file is dropped.

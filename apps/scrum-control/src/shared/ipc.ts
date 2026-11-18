@@ -241,8 +241,6 @@ export const IPC = {
   getProjects: 'cc:get-projects',
   focusProject: 'cc:focus-project',
   openProjectFolder: 'cc:open-project-folder',
-  hideProject: 'cc:hide-project',
-  unhideProject: 'cc:unhide-project',
   getHostRoots: 'cc:get-host-roots',
 
   // main → renderer (send)
@@ -297,10 +295,6 @@ export interface RendererApi {
   focusProject(key: string): Promise<FocusResult>;
   /** Opens the project's folder in Explorer. */
   openProjectFolder(key: string): Promise<ProjectActionResult>;
-  /** Adds the project to `settings.projects.hidden`. */
-  hideProject(key: string): Promise<void>;
-  /** Removes the key from `settings.projects.hidden`. */
-  unhideProject(key: string): Promise<void>;
   /** The Claude state roots in use, Windows first - for Settings -> Diagnostics. */
   getHostRoots(): Promise<HostRootInfo[]>;
   onProjectsChanged(listener: (projects: ProjectView[]) => void): () => void;

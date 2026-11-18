@@ -15,7 +15,7 @@ import {
   restoreDetailBounds,
   saveDetailBounds,
 } from './detailWindowState.ts';
-import { appIcon } from './icon-assets.ts';
+import { appIcon, applyTaskbarIcon } from './icon-assets.ts';
 
 /**
  * Window `backgroundColor` is painted before the renderer runs, so it has to be picked from the
@@ -137,6 +137,7 @@ export class WindowManager {
     });
 
     this.harden(window);
+    applyTaskbarIcon(window);
     window.once('ready-to-show', () => {
       window.show();
       window.webContents.send('cc:navigate', target);
@@ -179,6 +180,7 @@ export class WindowManager {
     });
 
     this.harden(window);
+    applyTaskbarIcon(window);
     window.once('ready-to-show', () => {
       window.show();
       // The latest target, not the first: a retarget before this point sent nothing the page could receive.

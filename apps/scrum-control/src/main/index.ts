@@ -16,6 +16,7 @@ import { REFRESH_CADENCE_MS } from '../core/context/windowSource.ts';
 import { createEngine } from '../core/createEngine.ts';
 import type { SessionId } from '../core/model/types.ts';
 import { ProjectsService } from '../core/projects/service.ts';
+import { createVsCodeFolderReader } from '../core/projects/vscodeFolders.ts';
 import { UPDATES_DIR, UpdateSource } from '../core/updates/updateSource.ts';
 import { IPC, type AppState, type FocusResult } from '../shared/ipc.ts';
 import { applyAutostart, AUTOSTART_FLAG, healAutostartPath } from './autostart.ts';
@@ -23,6 +24,7 @@ import { WindowFocuser } from './focus/focuser.ts';
 import { createWindowLister } from './focus/windowList.ts';
 import { createWindowProbe } from './focus/windowProbe.ts';
 import { broadcast, registerIpc } from './ipc.ts';
+import { APP_USER_MODEL_ID } from './icon-assets.ts';
 import { Notifier } from './notifier.ts';
 import {
   applyStagedUpdate,
@@ -77,7 +79,7 @@ if (!gotLock) {
 
 async function bootstrap(): Promise<void> {
   // Required on Windows for toasts to be attributed to this app (F5).
-  app.setAppUserModelId('solutions.aidu.scrum-control');
+  app.setAppUserModelId(APP_USER_MODEL_ID);
   const protocolRegistration = registerToastProtocol();
   // No outbound requests by default (N1) — the opt-in exact-context-window lookup and the
   // opt-in update check are the two exceptions, so there is nothing here for Electron's HTTP
@@ -137,6 +139,8 @@ async function bootstrap(): Promise<void> {
     settings: () => settings.get(),
     configDir: paths.root,
     listWindows: createWindowLister(),
+    // VS Code's own folder list, so a window with no Claude lock and no session is found too.
+    vscodeFolders: createVsCodeFolderReader(process.env.APPDATA),
   });
 
   const notifier = new Notifier({
@@ -153,13 +157,9 @@ async function bootstrap(): Promise<void> {
   const tray = new TrayPresenter({
     onTogglePopover: (bounds) => windows.togglePopover(bounds),
     onOpenWindow: (tab: MainTab) => windows.openMain(tab),
-    onFocusSession: (sessionId) => {
-      void focusSession(sessionId);
-    },
     onFocusProject: (projectKey) => {
       void focusProject(projectKey);
     },
-    onMarkAllSeen: () => engine.dismissAll(),
     onRefresh: () => {
       void engine.refreshNow();
     },
@@ -170,7 +170,6 @@ async function bootstrap(): Promise<void> {
 
   engine.on('sessions', (snapshot) => {
     lastState = snapshot;
-    tray.update(snapshot);
     broadcast(IPC.stateChanged, snapshot);
     // Piggybacks on the engine's own refresh cadence (tick + file-change driven) instead of a
     // separate timer. `getLiveSessions()` is the unfiltered list on purpose — see its doc.
@@ -265,7 +264,6 @@ async function bootstrap(): Promise<void> {
   await engine.start();
   lastState = engine.getSnapshot();
   tray.create();
-  tray.update(lastState);
   // After the engine: the first pass over the open windows is the baseline for scrum toasts.
   await projects.start();
 

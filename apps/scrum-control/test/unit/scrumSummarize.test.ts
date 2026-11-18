@@ -105,6 +105,8 @@ describe('summarize', () => {
       stage: 'implement',
       step: 'D2 Motor mount',
       stepAt: '2026-11-17 10:06',
+      deliverablesDone: 1,
+      deliverablesTotal: 5,
     });
     expect(sprint?.lastTrail).toBe('2026-11-17 10:06 · 026 · D2 Motor mount · started');
     expect(sprint?.stories.map((s) => [s.id, s.isDone])).toEqual([

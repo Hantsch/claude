@@ -86,6 +86,8 @@ function sprintSummary(snap: Snapshot, sprint: Sprint): ScrumSprint {
       stage: flow.stage,
       step: flow.step,
       stepAt: flow.stepAt,
+      deliverablesDone: story?.deliverablesDone ?? 0,
+      deliverablesTotal: story?.deliverablesTotal ?? 0,
     };
   }
   return {

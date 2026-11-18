@@ -54,6 +54,7 @@ import {
 } from '../shared/presentation.ts';
 import { EMPTY_PROJECTS, EMPTY_STATE, api } from './api.ts';
 import { ContextBar } from './components/ContextBar.tsx';
+import { FocusStory } from './components/popover/FocusStory.tsx';
 import { OpenWindowButton } from './components/popover/OpenWindowButton.tsx';
 import { ScrumBlock } from './components/popover/ScrumBlock.tsx';
 import { ScrumProjectRow } from './components/popover/ScrumProjectRow.tsx';
@@ -69,6 +70,7 @@ import {
   subagentMessage,
   subagentSummary,
 } from './lib/popoverModel.ts';
+import { focusLine, phaseStrip } from './lib/projectCard.ts';
 import { popoverSections, popoverSummary, scrumBlockModel } from './lib/projectRows.ts';
 import { buildMetricParts, type MetricPart } from './lib/subagentParts.ts';
 import './styles.css';
@@ -862,7 +864,7 @@ function Popover(): React.JSX.Element {
   // The two sections. The projects arrive sorted (scrum first, attention first, a running sprint,
   // then name) and the sessions inside each already by urgency, so nothing is re-sorted here;
   // `popoverSections` only decides which sessions a project lists and drops Other projects with
-  // nothing to list.
+  // neither a window nor a session to list.
   const sections = popoverSections(projects, shown);
   const projectByKey = new Map(projects.map((project) => [project.key, project]));
   const summary = popoverSummary(projects);
@@ -1144,10 +1146,13 @@ function Popover(): React.JSX.Element {
           {sections.scrum.map((row) => {
             const project = projectByKey.get(row.key);
             const expanded = expandedProjects.has(row.key);
+            const sprint = project?.scrum?.sprint ?? null;
+            const focus = sprint ? focusLine(sprint) : null;
             return (
               <Fragment key={row.key}>
                 <ScrumProjectRow
                   row={row}
+                  strip={phaseStrip(project?.scrum ?? null)}
                   path={project?.path ?? row.name}
                   expanded={expanded}
                   // Same function the → / ← handler calls, so click and keyboard cannot drift.
@@ -1156,6 +1161,7 @@ function Popover(): React.JSX.Element {
                 />
                 {expanded && (
                   <div className="pj-body">
+                    {focus && <FocusStory focus={focus} />}
                     {row.sessions.length === 0 && <div className="pj-nosessions">no session running</div>}
                     {renderSessions(row.sessions)}
                     <ScrumBlock block={scrumBlockModel(project?.scrum ?? null)} />
@@ -1198,9 +1204,11 @@ function Popover(): React.JSX.Element {
                   )}
                   <span className="spacer" />
                   <StatusRollup counts={row.counts} />
-                  <span className="count">
-                    {row.sessions.length === 1 ? '1 session' : `${row.sessions.length} sessions`}
-                  </span>
+                  {row.sessions.length > 0 && (
+                    <span className="count">
+                      {row.sessions.length === 1 ? '1 session' : `${row.sessions.length} sessions`}
+                    </span>
+                  )}
                   {row.canOpenWindow && <OpenWindowButton onOpen={() => openProjectWindow(row.key)} />}
                 </div>
                 {!collapsed && renderSessions(row.sessions)}

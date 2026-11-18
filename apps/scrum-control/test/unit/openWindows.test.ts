@@ -129,6 +129,22 @@ describe('findOpenFolders from titles', () => {
     expect(found).toEqual([]);
   });
 
+  it('breaks a shared folder name by the folders VS Code lists as open, and only when exactly one is', () => {
+    const windows = [win(100, 'app - Visual Studio Code')];
+    const knownPaths = ['c:\\a\\app', 'c:\\b\\app'];
+    const pick = (openedPaths: string[]) =>
+      folders(findOpenFolders({ locks: [], alivePids: new Set(), windows, knownPaths, openedPaths }));
+    expect(pick(['C:\\B\\app'])).toEqual(['c:\\b\\app|title|100']);
+    expect(pick(['c:\\a\\app', 'c:\\b\\app'])).toEqual([]);
+    expect(pick(['c:\\elsewhere'])).toEqual([]);
+  });
+
+  it('never takes a folder named like the app, whose name is a segment of every title', () => {
+    const windows = [win(100, 'x.md - claude - Visual Studio Code')];
+    const found = findOpenFolders({ locks: [], alivePids: new Set(), windows, knownPaths: ['c:\\tools\\Visual Studio Code'] });
+    expect(found).toEqual([]);
+  });
+
   it('does not reopen a folder a lock already found, nor claim the lock window again', () => {
     const a = 'c:\\development\\Hantsch\\claude';
     const windows = [win(100, 'claude - Visual Studio Code')];

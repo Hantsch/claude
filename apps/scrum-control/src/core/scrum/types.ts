@@ -26,6 +26,9 @@ export interface ScrumFocus {
   step: string | null;
   /** The trail's own timestamp of the step's start, as written (`09:52:01`). */
   stepAt: string | null;
+  /** The story's deliverables ticked off and in total, from its story file; 0 / 0 when it lists none. */
+  deliverablesDone: number;
+  deliverablesTotal: number;
 }
 
 /** A sprint in progress. A planned sprint is `nextPlanned`; a finished one in phase 4 is `releasing`. */

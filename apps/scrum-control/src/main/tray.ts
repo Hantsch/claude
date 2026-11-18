@@ -5,25 +5,21 @@
  * sprint disc, attention notch), the badge (projects that need attention) and the tooltip (one
  * line per running sprint), and `TRAY_TILE_ICON` maps the tile onto the shapes
  * `tray-icons.ts` already draws. Left click opens the compact popover (§8), right click a
- * native menu that lists the projects first and the live sessions after them.
+ * native menu that lists the projects - each one jumps to its VS Code window - and then the
+ * app's own entries. Sessions are not listed there: the popover and the main window have them.
  */
 
 import { Menu, Tray, nativeTheme, screen } from 'electron';
-import { STATUS_LABEL } from '../core/model/status.ts';
 import type { ProjectView, TrayProjectsState } from '../core/projects/types.ts';
 import { TRAY_TILE_ICON, projectMenuLabel, trayStateFromProjects } from '../core/projects/trayState.ts';
-import type { AppState } from '../shared/ipc.ts';
-import { clampLabel, sessionLabel } from '../shared/presentation.ts';
+import { clampLabel } from '../shared/presentation.ts';
 import { trayImage, trayPixelSize } from './icon-assets.ts';
 
 export interface TrayPresenterDeps {
   onTogglePopover: (bounds: Electron.Rectangle) => void;
   onOpenWindow: (tab: 'projects' | 'sessions' | 'history' | 'settings') => void;
-  onFocusSession: (sessionId: string) => void;
   /** A project row of the menu was chosen: focus its VS Code window. */
   onFocusProject: (projectKey: string) => void;
-  /** "Mark all as seen" — dismisses every settled session from the tray surfaces. */
-  onMarkAllSeen: () => void;
   onRefresh: () => void;
   onQuit: () => void;
 }
@@ -31,7 +27,6 @@ export interface TrayPresenterDeps {
 export class TrayPresenter {
   private readonly deps: TrayPresenterDeps;
   private tray: Tray | null = null;
-  private state: AppState | null = null;
   private projects: ProjectView[] = [];
   private tile: TrayProjectsState = trayStateFromProjects([]);
   private lastKey = '';
@@ -60,11 +55,6 @@ export class TrayPresenter {
     // `nativeTheme.shouldUseDarkColors`, so a live OS theme switch has to invalidate the cached
     // key and rebuild, not wait for the next unrelated state change.
     nativeTheme.on('updated', this.onThemeChange);
-  }
-
-  /** The live sessions changed: only the menu lists them, the tile and tooltip follow the projects. */
-  update(state: AppState): void {
-    this.state = state;
   }
 
   /** The projects changed: redraw the tile, the badge and the tooltip. */
@@ -112,61 +102,25 @@ export class TrayPresenter {
   }
 
   /**
-   * The right-click menu doubles as a keyboard-reachable version of the popover: the
-   * sessions are listed so the fast path works even if the popover is unavailable.
+   * The right-click menu is navigation: one entry per project that jumps to its VS Code window
+   * (greyed out when the project has none open), then the app's own entries.
    */
   private buildMenu(): Menu {
-    // Same list as the popover: what is in flight, unacknowledged, or recent. "Open Claude
-    // Control" is one item below for everything else.
-    const sessions = this.state?.traySessions ?? [];
-    const hidden = (this.state?.sessions.length ?? 0) - sessions.length;
     const items: Electron.MenuItemConstructorOptions[] = [];
 
-    // Projects first: they are what the tile and the badge are about.
     for (const project of this.projects.slice(0, 12)) {
       items.push({
         label: clampLabel(projectMenuLabel(project), 80),
+        enabled: project.hasWindow,
         click: () => this.deps.onFocusProject(project.key),
       });
     }
     if (this.projects.length > 12) {
       items.push({ label: `… ${this.projects.length - 12} more projects`, enabled: false });
     }
-    if (this.projects.length > 0) items.push({ type: 'separator' });
 
-    if (sessions.length === 0) {
-      items.push({ label: 'Nothing needs you', enabled: false });
-    } else {
-      for (const session of sessions.slice(0, 12)) {
-        items.push({
-          label: `${clampLabel(sessionLabel(session), 48)} — ${STATUS_LABEL[session.status]} · ${session.project.name}${session.branch ? ` · ${session.branch}` : ''}`,
-          click: () => this.deps.onFocusSession(session.sessionId),
-        });
-      }
-      if (sessions.length > 12) {
-        items.push({ label: `… ${sessions.length - 12} more`, enabled: false });
-      }
-    }
-    if (hidden > 0) {
-      items.push({ label: `${hidden} settled session(s) hidden`, enabled: false });
-    }
-
-    // The badge has to be dismissible, otherwise the icon claims something is open with no
-    // way for the user to answer it. Offered only when there is something to dismiss. Same
-    // action as the popover's "Mark all as seen": the settled rows leave this menu too, not
-    // just the badge.
-    if ((this.state?.attention ?? 0) > 0) {
-      items.push(
-        { type: 'separator' },
-        {
-          label: `Mark all as seen (${this.state?.attention ?? 0})`,
-          click: () => this.deps.onMarkAllSeen(),
-        },
-      );
-    }
-
+    if (items.length > 0) items.push({ type: 'separator' });
     items.push(
-      { type: 'separator' },
       { label: 'Open Scrum Control', click: () => this.deps.onOpenWindow('projects') },
       { label: 'History', click: () => this.deps.onOpenWindow('history') },
       { label: 'Settings', click: () => this.deps.onOpenWindow('settings') },

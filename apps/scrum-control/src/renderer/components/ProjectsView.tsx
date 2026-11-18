@@ -1,14 +1,14 @@
 /**
- * The Projects tab (CONCEPT §7): one card per scrum project, then a compact list of the other
- * projects that have sessions. Fed by `getProjects()` on mount and `onProjectsChanged`.
+ * The Projects tab (CONCEPT §7): one compact row per project - scrum projects first, then every
+ * other open window or session folder - on a shared grid, each expandable into its full card. Fed by
+ * `getProjects()` on mount and `onProjectsChanged`.
  */
 
 import { useEffect, useState } from 'react';
 import type { ProjectView } from '../../shared/ipc.ts';
-import { STATUS_COLOR_VAR, STATUS_LABEL } from '../../shared/presentation.ts';
 import { api, EMPTY_PROJECTS } from '../api.ts';
-import { hasWslHost } from '../lib/projectCard.ts';
-import { ProjectCard, useProjectActions } from './projects/ProjectCard.tsx';
+import { parseExpanded } from '../lib/projectCard.ts';
+import { ProjectCard } from './projects/ProjectCard.tsx';
 import '../projects-view.css';
 
 export function ProjectsView(): React.JSX.Element {
@@ -36,6 +36,25 @@ export function ProjectsView(): React.JSX.Element {
   return <ProjectsList projects={projects} loaded={loaded} now={now} />;
 }
 
+/** Where the expanded rows are remembered, so a tab switch or a reopened window keeps them. */
+const EXPANDED_KEY = 'scrum-control.projects.expanded';
+
+function loadExpanded(): Set<string> {
+  try {
+    return parseExpanded(window.localStorage.getItem(EXPANDED_KEY));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveExpanded(keys: Set<string>): void {
+  try {
+    window.localStorage.setItem(EXPANDED_KEY, JSON.stringify([...keys]));
+  } catch {
+    /* storage unavailable: expansion simply does not survive */
+  }
+}
+
 /** The presentational half, so it can be rendered with fixture data. */
 export function ProjectsList({
   projects,
@@ -46,8 +65,20 @@ export function ProjectsList({
   loaded: boolean;
   now: number;
 }): React.JSX.Element {
+  const [expanded, setExpanded] = useState<Set<string>>(loadExpanded);
   const scrum = projects.filter((project) => project.section === 'scrum');
   const other = projects.filter((project) => project.section === 'other');
+
+  useEffect(() => saveExpanded(expanded), [expanded]);
+  const toggle = (key: string): void => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  const anyOpen = projects.some((project) => expanded.has(project.key));
 
   if (projects.length === 0) {
     return (
@@ -59,57 +90,49 @@ export function ProjectsList({
     );
   }
 
+  const rows = (list: ProjectView[]): React.JSX.Element[] =>
+    list.map((project) => (
+      <ProjectCard
+        key={project.key}
+        project={project}
+        now={now}
+        expanded={expanded.has(project.key)}
+        onToggle={() => toggle(project.key)}
+      />
+    ));
+
   return (
     <div className="pv">
-      {scrum.length > 0 && <div className="section-title">Scrum projects</div>}
-      {scrum.map((project) => (
-        <ProjectCard key={project.key} project={project} now={now} />
-      ))}
+      <div className="pv-toolbar">
+        <span className="section-title">Projects</span>
+        <span className="spacer" />
+        <button
+          type="button"
+          onClick={() => setExpanded(anyOpen ? new Set() : new Set(projects.map((project) => project.key)))}
+        >
+          {anyOpen ? 'Collapse all' : 'Expand all'}
+        </button>
+      </div>
+      <div className="pv-line pv-header" aria-hidden="true">
+        <span />
+        <span>Project</span>
+        <span>Sprint</span>
+        <span className="pv-c-bar" />
+        <span className="pv-c-title">Goal / milestone</span>
+        <span>Release</span>
+        <span>Debt</span>
+        <span>Architect</span>
+        <span>Sessions</span>
+        <span className="pv-c-age">Trail</span>
+        <span />
+      </div>
+      {rows(scrum)}
       {other.length > 0 && (
         <>
-          <div className="section-title">Other</div>
-          <ul className="pv-other">
-            {other.map((project) => (
-              <OtherRow key={project.key} project={project} />
-            ))}
-          </ul>
+          <div className="pv-divider">Other</div>
+          {rows(other)}
         </>
       )}
     </div>
-  );
-}
-
-function OtherRow({ project }: { project: ProjectView }): React.JSX.Element {
-  const actions = useProjectActions(project);
-  return (
-    <li className="pv-other-row">
-      <span className="pv-name" title={project.name}>
-        {project.name}
-      </span>
-      {hasWslHost(project.hosts) && <span className="pv-badge">WSL</span>}
-      <span className="pv-path" title={project.path}>
-        {project.path}
-      </span>
-      {project.statusCounts.map(({ status, count }) => (
-        <span key={status} className="pv-count" title={STATUS_LABEL[status]}>
-          <span className="dot sm" style={{ background: `var(${STATUS_COLOR_VAR[status]})` }} /> {count}{' '}
-          {STATUS_LABEL[status].toLowerCase()}
-        </span>
-      ))}
-      <span className="pv-actions">
-        {project.hasWindow && (
-          <button type="button" onClick={actions.openWindow}>
-            Open window
-          </button>
-        )}
-        <button type="button" onClick={actions.openFolder}>
-          Open folder
-        </button>
-        <button type="button" onClick={actions.hide}>
-          Hide
-        </button>
-      </span>
-      {actions.message && <span className="pv-reason">{actions.message}</span>}
-    </li>
   );
 }

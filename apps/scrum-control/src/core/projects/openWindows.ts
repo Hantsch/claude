@@ -12,7 +12,8 @@
  *     extension host, not the main process) the check looks at every VS Code window instead.
  *  2. **A title.** A VS Code window whose Claude extension wrote no lock is recognised by its
  *     title naming the folder of a *known* project path. Known paths only - nothing is guessed
- *     from a title, and a folder name that two known projects share is not used at all.
+ *     from a title. A folder name that two known projects share is used only when exactly one of
+ *     them is among the folders VS Code itself lists as open.
  *
  * Without a window list (the CLI cannot enumerate windows) only pid liveness is available: every
  * live lock counts and the title source is skipped.
@@ -49,8 +50,13 @@ export interface OpenWindowsInput {
   alivePids: ReadonlySet<number>;
   /** Visible top-level windows, or null when they cannot be enumerated. */
   windows: readonly TopLevelWindow[] | null;
-  /** Project paths seen in live sessions and in the history index. */
+  /** Project paths seen in live sessions and in the history index, and the folders VS Code knows. */
   knownPaths: readonly string[];
+  /**
+   * The folders VS Code lists as having a window (`storage.json`). Never a window by itself - it
+   * can lag - but when a folder name is shared by several known paths, the one listed here wins.
+   */
+  openedPaths?: readonly string[];
 }
 
 /** VS Code and its forks, by executable name; falls back to the title when the name is unknown. */
@@ -98,10 +104,19 @@ export function findOpenFolders(input: OpenWindowsInput): OpenFolder[] {
       keys.add(key);
       byName.set(name, keys);
     }
+    const opened = new Set((input.openedPaths ?? []).map((path) => normalizePathKey(path)));
+    const unambiguous = (key: string, name: string): boolean => {
+      const mates = byName.get(name.toLowerCase());
+      if (!mates || mates.size === 1) return true;
+      const listed = [...mates].filter((mate) => opened.has(mate));
+      return listed.length === 1 && listed[0] === key;
+    };
     for (const [key, path] of known) {
       if (found.has(key) || insideOpen(path)) continue;
       const name = folderBaseName(path);
-      if ((byName.get(name.toLowerCase())?.size ?? 0) !== 1) continue;
+      // A folder named like the app would match the last segment of every window title.
+      if (/^(visual studio code|vscodium)\b/i.test(name)) continue;
+      if (!unambiguous(key, name)) continue;
       const match = codeWindows.find((window) => !claimed.has(window.handle) && titleMatches(window.title, name, 'segment'));
       if (!match) continue;
       claimed.add(match.handle);

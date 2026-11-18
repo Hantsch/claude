@@ -1,3 +1,4 @@
+import type { PhaseStrip } from '../../lib/projectCard.ts';
 import type { ScrumRowModel } from '../../lib/projectRows.ts';
 import { StatusDot } from '../StatusDot.tsx';
 import { StatusRollup } from '../StatusRollup.tsx';
@@ -5,21 +6,25 @@ import { OpenWindowButton } from './OpenWindowButton.tsx';
 import { WslBadge } from './WslBadge.tsx';
 
 /**
- * The head of one scrum project in the popover (CONCEPT section 6): dot, name, sprint line and
- * Open window on the first line; the progress bar, the milestone and the session counts on the
- * second; the attention marks on a third only when there are any. It is one keyboard stop
- * (`data-nav-key="p:<key>"`): Enter or Space expands it, as does a click on the row.
+ * The head of one scrum project in the popover (CONCEPT section 6), compact: dot, name, the
+ * sprint's phase strip (`S23 ▮▮▣▯▯▯ Build 4/6`, or the band line without a sprint), the session
+ * counts and Open window on one line; the attention marks on a second only when there are any.
+ * The milestone, the story in focus and its deliverables are in the expanded body. It is one
+ * keyboard stop (`data-nav-key="p:<key>"`): Enter or Space expands it, as does a click on the row.
  *
- * Presentational only; every rule behind what it shows is in `lib/projectRows.ts`.
+ * Presentational only; every rule behind what it shows is in `lib/projectRows.ts` and
+ * `lib/projectCard.ts`.
  */
 export function ScrumProjectRow({
   row,
+  strip,
   path,
   expanded,
   onToggle,
   onOpenWindow,
 }: {
   row: ScrumRowModel;
+  strip: PhaseStrip | null;
   path: string;
   expanded: boolean;
   onToggle: () => void;
@@ -52,31 +57,32 @@ export function ScrumProjectRow({
           {row.name}
         </span>
         {row.wsl && <WslBadge distros={row.wslDistros} />}
-        <span className="pj-line" title={row.line}>
-          {row.line}
-        </span>
+        {strip ? (
+          <span className="pj-strip" title={strip.title}>
+            <span className="pj-strip-id">{strip.sprintId}</span>
+            {strip.steps.map((step) => (
+              <span
+                key={step.phase}
+                className={`pj-step ${step.state}`}
+                aria-current={step.state === 'current' ? 'step' : undefined}
+              >
+                {step.state === 'done' ? '✓' : ''}
+                {step.text}
+                {step.state === 'current' && strip.count && <span className="pj-strip-count">{strip.count}</span>}
+              </span>
+            ))}
+            {!strip.steps.some((step) => step.state === 'current') && (
+              <span className="pj-strip-label">{strip.label}</span>
+            )}
+          </span>
+        ) : (
+          <span className="pj-line" title={row.line}>
+            {row.line}
+          </span>
+        )}
+        {row.counts.length > 0 && <StatusRollup counts={row.counts} />}
         {row.canOpenWindow && <OpenWindowButton onOpen={onOpenWindow} />}
       </span>
-      {(row.progress || row.milestone || row.counts.length > 0) && (
-        <span className="pj-l2">
-          {row.progress && (
-            <span
-              className="pj-bar"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={row.progress.total}
-              aria-valuenow={row.progress.done}
-              title={row.progress.title}
-            >
-              <span className="pj-bar-fill" style={{ width: `${row.progress.percent}%` }} />
-            </span>
-          )}
-          <span className="pj-milestone" title={row.milestone ?? undefined}>
-            {row.milestone}
-          </span>
-          {row.counts.length > 0 && <StatusRollup counts={row.counts} />}
-        </span>
-      )}
       {row.attention.length > 0 && (
         <span className="pj-l3">
           {row.attention.map((mark) => (

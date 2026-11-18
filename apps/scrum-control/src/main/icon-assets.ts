@@ -12,7 +12,7 @@
  * packaged app they live inside `app.asar`, which only the patched `fs` can open.
  */
 
-import { app, nativeImage, nativeTheme, type NativeImage } from 'electron';
+import { app, nativeImage, nativeTheme, type BrowserWindow, type NativeImage } from 'electron';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -80,6 +80,31 @@ export function appIcon(): NativeImage | undefined {
   const image = read('app.png');
   if (image) cache.set('app', image);
   return image ?? undefined;
+}
+
+/** The AppUserModelID the app runs under; also what toasts are attributed to (F5). */
+export const APP_USER_MODEL_ID = 'solutions.aidu.scrum-control';
+
+/**
+ * Taskbar icon for a dev run. With an explicit AppUserModelID (index.ts) the taskbar does not
+ * take the button icon from the window but from what that ID resolves to — in a dev run that
+ * is `electron.exe`, so the button showed Electron's logo even though the title bar was right.
+ * The per-window relaunch icon overrides it (the same property Chrome uses for per-profile
+ * taskbar icons); Windows ignores it unless a relaunch command and display name are set too.
+ * The packaged exe carries `app.ico` itself, and its portable unpack path is a temp folder
+ * that must not end up as a relaunch command, so this is a dev-only no-op otherwise.
+ */
+export function applyTaskbarIcon(window: BrowserWindow): void {
+  if (process.platform !== 'win32' || app.isPackaged) return;
+  const iconPath = join(app.getAppPath(), 'assets', 'icons', 'app.ico');
+  if (!existsSync(iconPath)) return;
+  window.setAppDetails({
+    appId: APP_USER_MODEL_ID,
+    appIconPath: iconPath,
+    appIconIndex: 0,
+    relaunchCommand: `"${process.execPath}" "${app.getAppPath()}"`,
+    relaunchDisplayName: 'Scrum Control',
+  });
 }
 
 /**

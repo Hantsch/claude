@@ -14,23 +14,16 @@ import type { WindowInfo } from '../../src/main/focus/win32.ts';
 import { createWindowLister } from '../../src/main/focus/windowList.ts';
 import { plainSummary, scrumSummary, sessionIn, sprint, summaryMap } from '../fixtures/projects.ts';
 
-describe('settings: projects and scrum notifications', () => {
-  it('defaults to nothing hidden and the CONCEPT section 8 toggles', () => {
+describe('settings: scrum notifications', () => {
+  it('defaults to the CONCEPT section 8 toggles', () => {
     const settings = mergeSettings(undefined);
-    expect(settings.projects).toEqual({ hidden: [] });
     expect(settings.scrumNotifications).toEqual(DEFAULT_SCRUM_NOTIFICATIONS);
     expect(settings.scrumNotifications.storyDone).toBe(false);
     expect(settings.scrumNotifications.stalled).toBe(true);
   });
 
-  it('keeps a persisted hidden list, trimmed and without duplicates or junk', () => {
-    const settings = mergeSettings({ projects: { hidden: ['c:/a', ' c:/a ', 42, '', null, 'c:/b'] } });
-    expect(settings.projects.hidden).toEqual(['c:/a', 'c:/b']);
-  });
-
-  it('ignores a hidden list that is not a list', () => {
-    expect(mergeSettings({ projects: { hidden: 'c:/a' } }).projects.hidden).toEqual([]);
-    expect(mergeSettings({ projects: 7 }).projects.hidden).toEqual([]);
+  it('drops the retired hidden-projects list of an older settings file', () => {
+    expect(mergeSettings({ projects: { hidden: ['c:/a'] } })).not.toHaveProperty('projects');
   });
 
   it('merges toggles over the defaults, one kind at a time, ignoring non-booleans and unknown kinds', () => {
@@ -40,15 +33,12 @@ describe('settings: projects and scrum notifications', () => {
 
   it('never shares the default objects between merges', () => {
     const a = mergeSettings(undefined);
-    a.projects.hidden.push('x');
     a.scrumNotifications.storyDone = true;
-    expect(DEFAULT_SETTINGS.projects.hidden).toEqual([]);
     expect(DEFAULT_SETTINGS.scrumNotifications.storyDone).toBe(false);
-    expect(mergeSettings(undefined).projects.hidden).toEqual([]);
   });
 
   it('survives a round trip through JSON', () => {
-    const first = mergeSettings({ projects: { hidden: ['c:/a'] }, scrumNotifications: { storyDone: true } });
+    const first = mergeSettings({ scrumNotifications: { storyDone: true } });
     expect(mergeSettings(JSON.parse(JSON.stringify(first)))).toEqual(first);
   });
 });
@@ -164,7 +154,6 @@ describe('cli formatProjectLines', () => {
       openFolders: open,
       sessions: [sessionIn(claude, 'working'), sessionIn(claude, 'working', { host: 'wsl:Ubuntu' }), sessionIn(claude, 'done')],
       summaries: summaryMap(scrumSummary(claude, { sprint: sprint(), bandLine: 'S14 Build 4/12 · 026 D4/5', milestone: { id: 'M3', name: 'Login' } })),
-      hidden: [],
     });
     const lines = formatProjectLines(project!, '◐');
     expect(lines[0]).toBe('  ◐ claude                 S14 Build 4/12 · 026 D4/5 · M3 Login');
@@ -177,19 +166,18 @@ describe('cli formatProjectLines', () => {
       sessions: [],
       summaries: summaryMap(
         scrumSummary(claude, {
-          attention: { stalled: false, stalledMinutes: 0, blocked: false, blockedStory: null, releaseNo: true, releaseMissed: false },
+          attention: { stalled: true, stalledMinutes: 18, blocked: false, blockedStory: null, releaseNo: false, releaseMissed: false },
         }),
       ),
-      hidden: [],
     });
     expect(formatProjectLines(project!, '!')).toEqual([
       '  ! claude                 no sprint',
-      '      window: open · no sessions · ATTENTION: releasable: NO',
+      '      window: open · no sessions · ATTENTION: stalled 18m',
     ]);
   });
 
   it('prints an Other project without a sprint line', () => {
-    const [project] = buildProjects({ openFolders: [], sessions: [sessionIn(claude)], summaries: summaryMap(plainSummary(claude)), hidden: [] });
+    const [project] = buildProjects({ openFolders: [], sessions: [sessionIn(claude)], summaries: summaryMap(plainSummary(claude)) });
     expect(formatProjectLines(project!, '◐')[0]).toBe('  ◐ claude');
   });
 });

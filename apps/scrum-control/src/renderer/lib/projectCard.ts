@@ -11,6 +11,7 @@ import type {
   ScrumStoryStage,
 } from '../../core/scrum/types.ts';
 import { formatAge } from './format.ts';
+import { milestoneLabel } from './projectRows.ts';
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'dim' | 'info';
 
@@ -191,6 +192,8 @@ export interface FocusLine {
   blocked: boolean;
   /** `since 09:52:01`, null when the trail gave no time. */
   since: string | null;
+  /** The story's deliverables as a bar, null when its story file lists none. */
+  deliverables: { done: number; total: number; meter: Meter } | null;
 }
 
 export function focusLine(sprint: ScrumSprint): FocusLine | null {
@@ -205,7 +208,82 @@ export function focusLine(sprint: ScrumSprint): FocusLine | null {
     stage: parts.join(' · '),
     blocked: focus.stage === 'blocked',
     since: focus.stepAt ? `since ${focus.stepAt}` : null,
+    deliverables: deliverablesOf(focus),
   };
+}
+
+function deliverablesOf(focus: { deliverablesDone: number; deliverablesTotal: number }): FocusLine['deliverables'] {
+  const total = focus.deliverablesTotal;
+  if (!(total > 0)) return null;
+  const done = Math.min(Math.max(focus.deliverablesDone, 0), total);
+  // One cell per deliverable up to ten, else scaled. Progress, not a limit: never amber or red.
+  const cells = Math.min(total, METER_CELLS);
+  const filled = total <= METER_CELLS ? done : Math.round((done / total) * METER_CELLS);
+  return { done, total, meter: { cells, filled, fraction: done / total, tone: 'ok' } };
+}
+
+// --- The popover's phase strip ---
+
+/**
+ * Short names for the phases that are not current, so all six fit one popover line. Three letters,
+ * not two: `Rl` reads as `RI` in the UI font.
+ */
+const PHASE_SHORT: Record<StepperPhase, string> = {
+  clarify: 'Cla',
+  refine: 'Ref',
+  build: 'Bld',
+  gate: 'Gate',
+  review: 'Rev',
+  release: 'Rel',
+};
+
+export interface StripStep extends Step {
+  /** The full name for the current phase, the short one for the others. */
+  text: string;
+}
+
+/**
+ * The popover row's compact sprint state: the sprint id, all six phases by name - the current one
+ * in full, the others short, done ones ticked - and, while it builds, the stories done:
+ * `S23 ✓Cla ✓Ref [Build 4/6] Gate Rev Rel`. Null without a running sprint or phase 4; the row then shows
+ * its band line (`no sprint`).
+ */
+export interface PhaseStrip {
+  sprintId: string;
+  steps: StripStep[];
+  /** `Build`, `Refine`, `Planned`, `Done`, `Release` - shown on its own only when no step is current. */
+  label: string;
+  /** `4/6` stories done, only in Build. */
+  count: string | null;
+  /** Every phase with its state, for the tooltip. */
+  title: string;
+}
+
+export function phaseStrip(scrum: ProjectScrumSummary | null): PhaseStrip | null {
+  if (!scrum) return null;
+  const sprint = scrum.sprint;
+  let id: string;
+  let phase: ScrumSprintPhase;
+  let count: string | null = null;
+  if (sprint) {
+    id = sprint.id;
+    phase = sprint.phase;
+    if (phase === 'build') count = `${sprint.storiesDone}/${sprint.storiesTotal}`;
+  } else if (scrum.releasing) {
+    id = scrum.releasing.id;
+    phase = 'release';
+  } else {
+    return null;
+  }
+  const steps = stepper(phase).map((step) => ({
+    ...step,
+    text: step.state === 'current' ? step.label : PHASE_SHORT[step.phase],
+  }));
+  const label = phase[0]!.toUpperCase() + phase.slice(1);
+  const title = steps
+    .map((step) => (step.state === 'done' ? `✓ ${step.label}` : step.state === 'current' ? `● ${step.label}` : step.label))
+    .join(' · ');
+  return { sprintId: id, steps, label, count, title };
 }
 
 function minutesText(minutes: number): string {
@@ -254,4 +332,122 @@ export function hasWslHost(hosts: readonly string[]): boolean {
 /** Distro names of the WSL hosts, for the badge's tooltip. */
 export function wslDistros(hosts: readonly string[]): string[] {
   return hosts.filter((host) => host.startsWith('wsl:')).map((host) => host.slice('wsl:'.length));
+}
+
+// --- The compact row ---
+
+/** One cell of a project's one-line row. */
+export interface Cell {
+  text: string;
+  tone: Tone | null;
+  /** The longer wording, for the tooltip. */
+  title: string | null;
+}
+
+/**
+ * The Projects tab's collapsed row: one line per project, every cell already worded. The
+ * expanded card below it still shows everything; this is what fits a glance across all of them.
+ */
+export interface CompactRow {
+  /** `S14 Build · 4/12 stories`, `S41 Release`, or `no sprint` (dim). */
+  sprint: Cell;
+  /** Sprint progress 0..100, null without a running sprint. */
+  percent: number | null;
+  /** The sprint's title, else the milestone; null when neither is known. */
+  title: string | null;
+  release: Cell | null;
+  debt: Cell | null;
+  architect: Cell | null;
+  /** Age of the last trail line (`4m ago`), null without one. */
+  age: string | null;
+  stalled: boolean;
+}
+
+function meterTone(row: MeterRow): Tone | null {
+  if (row.due) return 'bad';
+  return row.meter && row.meter.tone !== 'ok' ? row.meter.tone : null;
+}
+
+export function compactRow(scrum: ProjectScrumSummary | null, now: number): CompactRow {
+  if (!scrum) {
+    return {
+      sprint: { text: '—', tone: 'dim', title: 'No ai-scrum state in this folder' },
+      percent: null,
+      title: null,
+      release: null,
+      debt: null,
+      architect: null,
+      age: null,
+      stalled: false,
+    };
+  }
+
+  const sprint = scrum.sprint;
+  let sprintCell: Cell;
+  let percent: number | null = null;
+  if (sprint) {
+    sprintCell = { text: sprintHeadline(sprint), tone: scrum.attention.blocked ? 'warn' : null, title: null };
+    const { done, total } = sprint.progress;
+    if (total > 0) percent = Math.round((Math.min(Math.max(done, 0), total) / total) * 100);
+  } else if (scrum.releasing) {
+    sprintCell = { text: `${scrum.releasing.id} Release`, tone: 'info', title: 'phase 4 running' };
+  } else {
+    sprintCell = { text: 'no sprint', tone: 'dim', title: null };
+  }
+
+  const release = releaseRow(scrum);
+  const debt = techDebtRow(scrum);
+  const architect = architectRow(scrum);
+
+  return {
+    sprint: sprintCell,
+    percent,
+    title: sprint?.title || scrum.releasing?.title || milestoneLabel(scrum),
+    release: { text: release.text, tone: release.tone, title: release.detail },
+    debt: { text: debt.text, tone: meterTone(debt), title: 'Tech debt: open items / limit' },
+    architect: architect
+      ? {
+          text: architect.text,
+          tone: meterTone(architect),
+          title: `Stories since the last architecture review / cadence · ${architect.lastReview}`,
+        }
+      : null,
+    age: sprint && sprint.trailAt !== null ? formatAge(Math.max(0, now - sprint.trailAt)) : null,
+    stalled: scrum.attention.stalled,
+  };
+}
+
+/**
+ * The collapsed row's second line: where the sprint stands in its six phases and, while it
+ * builds, every story as a chip. Null without a running sprint or phase 4; a phase-4 release
+ * that outlived its sprint shows the stepper at Release.
+ */
+export interface CompactSprintLine {
+  steps: Step[];
+  /** The stories as chips while the sprint builds; null in every other phase. */
+  chips: StoryChip[] | null;
+}
+
+export function compactSprintLine(scrum: ProjectScrumSummary | null): CompactSprintLine | null {
+  if (!scrum) return null;
+  const sprint = scrum.sprint;
+  if (sprint) {
+    return {
+      steps: stepper(sprint.phase),
+      chips: sprint.phase === 'build' && sprint.stories.length > 0 ? storyChips(sprint) : null,
+    };
+  }
+  if (scrum.releasing) return { steps: stepper('release'), chips: null };
+  return null;
+}
+
+/** Which projects are expanded, read back from storage. Anything unreadable is "none". */
+export function parseExpanded(raw: string | null): Set<string> {
+  if (!raw) return new Set();
+  try {
+    const value: unknown = JSON.parse(raw);
+    return new Set(Array.isArray(value) ? value.filter((key): key is string => typeof key === 'string') : []);
+  } catch {
+    return new Set();
+  }
 }

@@ -24,8 +24,9 @@ import { filterByToggles, scrumEvents } from '../scrum/events.ts';
 import { ScrumMonitor } from '../scrum/monitor.ts';
 import type { ProjectScrumSummary, ScrumNotification } from '../scrum/types.ts';
 import { findOpenFolders, type OpenFolder, type TopLevelWindow } from './openWindows.ts';
-import { buildProjects, groupIntoProjects, isHiddenProject } from './projects.ts';
+import { buildProjects, groupIntoProjects } from './projects.ts';
 import type { ProjectView } from './types.ts';
+import { NO_VSCODE_FOLDERS, type VsCodeFolders } from './vscodeFolders.ts';
 
 /** What the service needs from the engine. */
 export interface ProjectsEngine {
@@ -40,7 +41,7 @@ export type ProjectsMonitor = Pick<ScrumMonitor, 'setProjects' | 'setWorking' | 
 
 export interface ProjectsServiceOptions {
   engine: ProjectsEngine;
-  settings: () => Pick<AppSettings, 'projects' | 'scrumNotifications'>;
+  settings: () => Pick<AppSettings, 'scrumNotifications'>;
   /** The scrum monitor. Default: a real one reading `configDir`. */
   monitor?: ProjectsMonitor;
   /** The Claude Code config directory the default monitor reads plugin versions from. */
@@ -49,6 +50,8 @@ export interface ProjectsServiceOptions {
   listWindows?: () => readonly TopLevelWindow[] | null;
   /** Which of these pids are alive. Default: signal-0 liveness. */
   alivePids?: (pids: readonly number[]) => Promise<ReadonlySet<number>>;
+  /** The folders VS Code itself knows (`createVsCodeFolderReader`). Must be cheap and must not throw. Default: none. */
+  vscodeFolders?: () => VsCodeFolders;
 }
 
 export interface ProjectsServiceEvents {
@@ -63,6 +66,7 @@ export class ProjectsService {
   private readonly settings: ProjectsServiceOptions['settings'];
   private readonly listWindows: () => readonly TopLevelWindow[] | null;
   private readonly alivePids: (pids: readonly number[]) => Promise<ReadonlySet<number>>;
+  private readonly vscodeFolders: () => VsCodeFolders;
 
   private projects: ProjectView[] = [];
   private openFolders: OpenFolder[] = [];
@@ -89,6 +93,7 @@ export class ProjectsService {
     this.listWindows = options.listWindows ?? (() => null);
     this.alivePids =
       options.alivePids ?? (async (pids) => new Set(pids.filter((pid) => isAliveSync(pid))));
+    this.vscodeFolders = options.vscodeFolders ?? (() => NO_VSCODE_FOLDERS);
   }
 
   on<K extends keyof ProjectsServiceEvents>(event: K, listener: ProjectsServiceEvents[K]): this {
@@ -127,7 +132,7 @@ export class ProjectsService {
     return this.projects.find((project) => project.key === key);
   }
 
-  /** Settings changed (hidden projects, toggles): recompute now. */
+  /** Settings changed (notification toggles): recompute now. */
   refreshSettings(): Promise<void> {
     return this.recompute();
   }
@@ -165,7 +170,6 @@ export class ProjectsService {
   private async computeOnce(): Promise<void> {
     const snapshot = this.engine.getSnapshot();
     const settings = this.settings();
-    const hidden = settings.projects.hidden;
 
     const locks = this.engine.getIdeWindows();
     const alive = locks.length > 0 ? await this.alivePids([...new Set(locks.map((lock) => lock.pid))]) : new Set<number>();
@@ -177,17 +181,24 @@ export class ProjectsService {
     } catch {
       windows = null;
     }
+    let vscode: VsCodeFolders = NO_VSCODE_FOLDERS;
+    if (windows !== null) {
+      try {
+        vscode = this.vscodeFolders();
+      } catch {
+        vscode = NO_VSCODE_FOLDERS;
+      }
+    }
     this.openFolders = findOpenFolders({
       locks,
       alivePids: alive,
       windows,
-      knownPaths: snapshot.projects.map((project) => project.path),
+      knownPaths: [...snapshot.projects.map((project) => project.path), ...vscode.known],
+      openedPaths: vscode.opened,
     });
 
     // The monitor follows the shown projects: open folders and the homes of live sessions.
-    const buckets = groupIntoProjects(this.openFolders, snapshot.sessions).filter(
-      (bucket) => !isHiddenProject(bucket.key, hidden),
-    );
+    const buckets = groupIntoProjects(this.openFolders, snapshot.sessions);
     this.monitor.setProjects(buckets.map((bucket) => bucket.path));
     for (const bucket of buckets) {
       this.monitor.setWorking(bucket.key, bucket.sessions.some((session) => session.status === 'working'));
@@ -198,7 +209,6 @@ export class ProjectsService {
       openFolders: this.openFolders,
       sessions: snapshot.sessions,
       summaries,
-      hidden,
     });
 
     this.announce(summaries, settings.scrumNotifications);

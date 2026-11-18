@@ -91,20 +91,6 @@ export function registerIpc(deps: IpcDeps): void {
     return failure === '' ? { ok: true, message: `Opened ${project.path}` } : { ok: false, message: failure };
   });
 
-  ipcMain.handle(IPC.hideProject, (_event, key: unknown) => {
-    if (typeof key !== 'string' || key.trim() === '') return;
-    const hidden = deps.settings.get().projects.hidden;
-    if (hidden.includes(key)) return;
-    deps.settings.set({ projects: { hidden: [...hidden, key] } });
-  });
-
-  ipcMain.handle(IPC.unhideProject, (_event, key: unknown) => {
-    if (typeof key !== 'string') return;
-    const hidden = deps.settings.get().projects.hidden;
-    if (!hidden.includes(key)) return;
-    deps.settings.set({ projects: { hidden: hidden.filter((entry) => entry !== key) } });
-  });
-
   ipcMain.handle(IPC.getHostRoots, (): HostRootInfo[] =>
     deps.hostRoots().map((root) => ({ id: root.id, kind: root.kind, distro: root.distro, claudeDir: root.claudeDir })),
   );

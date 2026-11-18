@@ -39,12 +39,12 @@ describe('Projects tab wiring', () => {
     expect(view).toContain('api.onProjectsChanged');
   });
 
-  it('settings offers a toggle for every scrum notification kind, WSL, unhide and the roots', () => {
+  it('settings offers a toggle for every scrum notification kind, WSL and the roots - and no unhide', () => {
     const settings = source('renderer/components/SettingsView.tsx');
     expect(settings).toContain('SCRUM_NOTIFICATION_KINDS.map');
     expect(settings).toContain('scrumNotifications');
     expect(settings).toContain('wsl: { ...settings.wsl');
-    expect(settings).toContain('api.unhideProject');
+    expect(settings).not.toContain('unhideProject');
     expect(settings).toContain('api.getHostRoots()');
   });
 });

@@ -1,24 +1,27 @@
 /**
- * One scrum project (CONCEPT §7): the scrum-cockpit's pane lifted into a card - head with the
- * project's name, path and actions, the running sprint when there is one, and the idle rows.
+ * One project in the Projects tab (CONCEPT §7): a compact row that expands into the
+ * scrum-cockpit's pane lifted into a card - path and actions, the running sprint, the idle rows.
  */
 
 import { useState } from 'react';
 import type { ProjectView } from '../../../shared/ipc.ts';
-import { STATUS_LABEL, STATUS_COLOR_VAR } from '../../../shared/presentation.ts';
 import { api } from '../../api.ts';
 import { milestoneLabel } from '../../lib/projectRows.ts';
 import {
   architectRow,
   backlogText,
+  compactRow,
+  compactSprintLine,
   hasWslHost,
   nextRow,
   phaseRow,
   releaseRow,
   techDebtRow,
   wslDistros,
+  type Cell,
   type Tone,
 } from '../../lib/projectCard.ts';
+import { StatusRollup } from '../StatusRollup.tsx';
 import { Meter } from './Meter.tsx';
 import { SprintBlock } from './SprintBlock.tsx';
 
@@ -44,7 +47,6 @@ export function useProjectActions(project: ProjectView): {
   message: string | null;
   openWindow: () => void;
   openFolder: () => void;
-  hide: () => void;
 } {
   const [message, setMessage] = useState<string | null>(null);
   return {
@@ -61,86 +63,185 @@ export function useProjectActions(project: ProjectView): {
         if (!result.ok) setMessage(result.message);
       });
     },
-    hide: () => void api.hideProject(project.key),
   };
 }
 
-export function ProjectCard({ project, now }: { project: ProjectView; now: number }): React.JSX.Element {
+/**
+ * One project as a compact, expandable row (CONCEPT §7). Collapsed it is a single line on the
+ * list's shared grid, so every project's sprint, release and meters line up in columns; a click
+ * (or Enter / Space) opens the full card underneath - path, actions, the running sprint and the
+ * idle rows. Works for `other` projects too: they simply have no scrum cells.
+ */
+export function ProjectCard({
+  project,
+  now,
+  expanded,
+  onToggle,
+}: {
+  project: ProjectView;
+  now: number;
+  expanded: boolean;
+  onToggle: () => void;
+}): React.JSX.Element {
   const scrum = project.scrum;
   const actions = useProjectActions(project);
   const wsl = hasWslHost(project.hosts);
+  const row = compactRow(scrum, now);
+  const sprintLine = expanded ? null : compactSprintLine(scrum);
+  const reasons = project.attentionReasons;
 
   return (
-    <section className={`pv-card${project.needsAttention ? ' attention' : ''}`}>
-      <header className="pv-head">
-        <div className="pv-title">
-          <span className="pv-name" title={project.name}>
-            {project.name}
-          </span>
+    <section className={`pv-item${project.needsAttention ? ' attention' : ''}${expanded ? ' open' : ''}`}>
+      <div
+        className="pv-line"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        title={reasons.length > 0 ? reasons.join('\n') : undefined}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          // Not for a key that bubbled up from the Open window button.
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <span className={`pv-chev${expanded ? ' open' : ''}`} aria-hidden="true">
+          ▶
+        </span>
+        <span className="pv-c-name">
+          <span className="pv-name">{project.name}</span>
           {wsl && (
             <span className="pv-badge" title={`Sessions run in WSL: ${wslDistros(project.hosts).join(', ')}`}>
               WSL
             </span>
           )}
-          {project.statusCounts.map(({ status, count }) => (
-            <span key={status} className="pv-count" title={STATUS_LABEL[status]}>
-              <span className="dot sm" style={{ background: `var(${STATUS_COLOR_VAR[status]})` }} /> {count}{' '}
-              {STATUS_LABEL[status].toLowerCase()}
+          {reasons.length > 0 && (
+            <span className="pv-flag" aria-label={`${reasons.length} need attention`}>
+              ⚠
             </span>
-          ))}
-          <span className="spacer" />
-          <span className="pv-actions">
-            {project.hasWindow && (
-              <button type="button" onClick={actions.openWindow} title="Bring this project's VS Code window forward">
-                Open window
-              </button>
-            )}
-            <button type="button" onClick={actions.openFolder} title="Show the folder in Explorer">
-              Open folder
+          )}
+        </span>
+        <CellView cell={row.sprint} className="pv-c-sprint" />
+        <span className="pv-c-bar">
+          {row.percent !== null && (
+            <span className="pv-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={row.percent}>
+              <span className="pv-bar-fill" style={{ width: `${row.percent}%` }} />
+            </span>
+          )}
+        </span>
+        <span className="pv-c-title" title={row.title ?? undefined}>
+          {row.title ?? (scrum ? '' : project.path)}
+        </span>
+        <CellView cell={row.release} className="pv-c-release" />
+        <CellView cell={row.debt} className="pv-c-debt" />
+        <CellView cell={row.architect} className="pv-c-arch" />
+        <span className="pv-c-sessions">
+          {project.statusCounts.length > 0 && <StatusRollup counts={project.statusCounts} />}
+        </span>
+        <span className={`pv-c-age${row.stalled ? ' warn' : ''}`}>{row.age}</span>
+        <span className="pv-c-actions">
+          {project.hasWindow && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.openWindow();
+              }}
+              title="Bring this project's VS Code window forward"
+            >
+              Open window
             </button>
-            <button type="button" onClick={actions.hide} title="Leave this project out of the overview. Settings lists it for unhiding.">
-              Hide
-            </button>
-          </span>
-        </div>
-        <div className="pv-path" title={project.path}>
-          {project.path}
-        </div>
-        {project.attentionReasons.length > 0 && (
-          <div className="pv-reasons">
-            {project.attentionReasons.map((reason) => (
-              <span key={reason} className="pv-reason">
-                ⚠ {reason}
-              </span>
+          )}
+        </span>
+      </div>
+      {sprintLine && (
+        // Part of the row: a click here toggles it too. The expanded card shows the full stepper.
+        <div className="pv-subline" onClick={onToggle}>
+          <ol className="pv-ministeps" aria-label="Sprint phase">
+            {sprintLine.steps.map((step) => (
+              <li
+                key={step.phase}
+                className={`pv-ministep ${step.state}`}
+                aria-current={step.state === 'current' ? 'step' : undefined}
+              >
+                {step.state === 'done' ? '✓ ' : ''}
+                {step.label}
+              </li>
             ))}
+          </ol>
+          {sprintLine.chips && (
+            <ul className="pv-minichips" aria-label="Stories">
+              {sprintLine.chips.map((chip) => (
+                <li key={chip.id} className={`pv-chip ${chip.state}`} title={chip.title}>
+                  {chip.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {actions.message && !expanded && <div className="pv-line-message">{actions.message}</div>}
+
+      {expanded && (
+        <div className="pv-body">
+          <div className="pv-body-head">
+            <span className="pv-path" title={project.path}>
+              {project.path}
+            </span>
+            <span className="pv-actions">
+              <button type="button" onClick={actions.openFolder} title="Show the folder in Explorer">
+                Open folder
+              </button>
+            </span>
           </div>
-        )}
-        {actions.message && <div className="pv-reasons">{actions.message}</div>}
-      </header>
-
-      {scrum?.error && <div className="pv-error">Could not read the project&rsquo;s ai-scrum state: {scrum.error}</div>}
-
-      {scrum && (
-        <>
-          {scrum.sprint ? (
-            <SprintBlock sprint={scrum.sprint} scrum={scrum} now={now} />
-          ) : scrum.releasing ? (
-            <div className="pv-sprint">
-              <div className="pv-sprint-head">
-                <span className="pv-sprint-title">{scrum.releasing.id} Release</span>
-                <span className="pv-sprint-name" title={scrum.releasing.title}>
-                  {scrum.releasing.title}
+          {reasons.length > 0 && (
+            <div className="pv-reasons">
+              {reasons.map((reason) => (
+                <span key={reason} className="pv-reason">
+                  ⚠ {reason}
                 </span>
-              </div>
-              <div className="pv-timeleft">
-                phase 4 running{scrum.releasing.step ? ` · ${scrum.releasing.step.replace(/-/g, ' ')}` : ''}
-              </div>
+              ))}
             </div>
-          ) : null}
-          <IdleRows project={project} />
-        </>
+          )}
+          {actions.message && <div className="pv-reasons">{actions.message}</div>}
+          {scrum?.error && (
+            <div className="pv-error">Could not read the project&rsquo;s ai-scrum state: {scrum.error}</div>
+          )}
+          {scrum && (
+            <div className="pv-body-grid">
+              {scrum.sprint ? (
+                <SprintBlock sprint={scrum.sprint} scrum={scrum} now={now} />
+              ) : scrum.releasing ? (
+                <div className="pv-sprint">
+                  <div className="pv-sprint-head">
+                    <span className="pv-sprint-title">{scrum.releasing.id} Release</span>
+                    <span className="pv-sprint-name" title={scrum.releasing.title}>
+                      {scrum.releasing.title}
+                    </span>
+                  </div>
+                  <div className="pv-timeleft">
+                    phase 4 running{scrum.releasing.step ? ` · ${scrum.releasing.step.replace(/-/g, ' ')}` : ''}
+                  </div>
+                </div>
+              ) : null}
+              <IdleRows project={project} />
+            </div>
+          )}
+        </div>
       )}
     </section>
+  );
+}
+
+function CellView({ cell, className }: { cell: Cell | null; className: string }): React.JSX.Element {
+  if (!cell) return <span className={className} />;
+  return (
+    <span className={`${className}${cell.tone ? ` ${cell.tone}` : ''}`} title={cell.title ?? undefined}>
+      {cell.text}
+    </span>
   );
 }
 

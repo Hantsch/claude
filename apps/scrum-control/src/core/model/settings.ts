@@ -156,15 +156,6 @@ export interface WslSettings {
   enabled: boolean;
 }
 
-/** Which projects the overview leaves out (CONCEPT §3). */
-export interface ProjectsSettings {
-  /**
-   * Project keys (`normalizePathKey` of the folder). A hidden project counts nowhere: no row,
-   * no tray state, no toast.
-   */
-  hidden: string[];
-}
-
 export interface AppSettings {
   /** See `SETTINGS_SCHEMA_VERSION`. Absent in files written before migrations existed. */
   schemaVersion: number;
@@ -185,8 +176,6 @@ export interface AppSettings {
   updates: UpdateSettings;
   /** Sessions in WSL distros. Read by `core/`. */
   wsl: WslSettings;
-  /** Hidden projects (CONCEPT §3). Read by `core/projects`. */
-  projects: ProjectsSettings;
   /** One toggle per scrum notification kind (CONCEPT §8). Read by `core/projects`. */
   scrumNotifications: ScrumNotificationToggles;
 }
@@ -278,9 +267,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   wsl: {
     enabled: true,
   },
-  projects: {
-    hidden: [],
-  },
   scrumNotifications: { ...DEFAULT_SCRUM_NOTIFICATIONS },
 };
 
@@ -343,7 +329,6 @@ export function mergeSettings(partial: unknown): AppSettings {
     contextWindows: { ...DEFAULT_SETTINGS.contextWindows },
     updates: { ...DEFAULT_SETTINGS.updates },
     wsl: { ...DEFAULT_SETTINGS.wsl },
-    projects: { hidden: [] },
     scrumNotifications: { ...DEFAULT_SCRUM_NOTIFICATIONS },
   };
   if (!partial || typeof partial !== 'object') return base;
@@ -410,17 +395,6 @@ export function mergeSettings(partial: unknown): AppSettings {
   const w = p.wsl as Record<string, unknown> | undefined;
   if (w && typeof w === 'object') {
     if (typeof w.enabled === 'boolean') base.wsl.enabled = w.enabled;
-  }
-
-  const pr = p.projects as Record<string, unknown> | undefined;
-  if (pr && typeof pr === 'object' && Array.isArray(pr.hidden)) {
-    const seen = new Set<string>();
-    for (const entry of pr.hidden) {
-      if (typeof entry !== 'string') continue;
-      const key = entry.trim();
-      if (key !== '') seen.add(key);
-    }
-    base.projects.hidden = [...seen];
   }
 
   const sn = p.scrumNotifications as Record<string, unknown> | undefined;

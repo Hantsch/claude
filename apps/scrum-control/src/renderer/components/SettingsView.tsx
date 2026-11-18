@@ -319,36 +319,6 @@ export function SettingsView(): React.JSX.Element {
         </span>
       </div>
 
-      <div className="section-title">Projects</div>
-      {settings.projects.hidden.length === 0 ? (
-        <div className="hint">
-          No project is hidden. Hide one from its card on the Projects tab; it is listed here
-          so you can bring it back.
-        </div>
-      ) : (
-        <ul className="pv-hidden-list">
-          {settings.projects.hidden.map((key) => (
-            <li key={key} className="pv-hidden-item">
-              <span className="pv-hidden-key mono" title={key}>
-                {key}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  void api.unhideProject(key);
-                  setSettings({
-                    ...settings,
-                    projects: { ...settings.projects, hidden: settings.projects.hidden.filter((k) => k !== key) },
-                  });
-                }}
-              >
-                Unhide
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
       <div className="section-title">Notifications</div>
       <div className="field">
         <span>Enabled</span>

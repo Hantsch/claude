@@ -15,18 +15,27 @@ section on release.
   project, whether an ai-scrum sprint is running, which story it is on and how far along it is,
   for every open VS Code window and every WSL session on the machine, in one place in the tray.
 - **A tray icon that tells sprints from sessions.** A thin ring while no sprint runs, a disc with a
-  white core while one does, an amber notched disc when a project needs you (a stalled sprint, a
-  blocked story, a release verdict of NO, or a session waiting for an answer); the badge counts those
-  projects and the tooltip lists the running sprints. Right-click lists the projects, and choosing
-  one brings its VS Code window forward. A project can be hidden; a hidden project counts nowhere.
-- **A popover of projects, not sessions.** Left-click shows the scrum projects first — sprint
-  line, progress bar, milestone, session counts, a `WSL` badge, what needs you in amber — and the
-  other projects with a running session below; a row unfolds into its sessions and a short scrum
-  block, and **Open window** brings the project's VS Code window forward.
-- **A Projects tab in the main window.** One card per scrum project with the cockpit's rows
-  (phase, release verdict, tech debt and architect against their limits, backlog, next sprint)
-  and, while a sprint runs, its phase stepper, story chips, the story in focus and the time left.
-  Settings gain the WSL switch, the hidden projects and a toggle per scrum notification.
+  white core while one does, an amber notched disc when a project needs you (a stalled sprint or a
+  session waiting for an answer); the badge counts those
+  projects and the tooltip lists the running sprints. Right-click lists the projects - choosing
+  one brings its VS Code window forward - and the app's own entries, no sessions.
+- **A popover of projects, not sessions.** Left-click shows the scrum projects first, one compact
+  line each — the sprint's six phases by name, done ones ticked and the current one highlighted
+  with, in Build, the stories done (`S23 ✓Cla ✓Ref [Build 4/6] Gate Rev Rel`), session counts, a
+  `WSL` badge, a stalled sprint in amber — and every other open window or session folder below. A row unfolds into the story in
+  focus with its deliverables done (`1/4 deliverables`), its sessions and a short scrum block
+  (milestone, tech debt, architect). **Open window**, a clearly marked button on every row,
+  brings the project's VS Code window forward.
+- **A Projects tab in the main window.** Every open VS Code window is listed - ai-scrum projects
+  first, all other folders under Other, with or without a Claude session; a window whose folder
+  never had a Claude session is found through the folders VS Code itself records. One compact row
+  per project across the full width - sprint, progress, goal, release verdict, tech debt, architect,
+  sessions, trail age - lined up in columns, and under it, while a sprint runs, the phase stepper
+  and, in Build, every story as a chip; a click unfolds it into the cockpit's rows (phase, release verdict, tech debt and
+  architect against their limits, backlog, next sprint) and, while a sprint runs, its phase
+  stepper, story chips, the story in focus and the time left. Expand all / Collapse all, and the
+  unfolded rows are remembered.
+  Settings gain the WSL switch and a toggle per scrum notification.
 - **Notifications for the scrum events that need you.** A stalled sprint, a blocked story and a
   written release verdict (yes, NO or UNVERIFIED) raise a toast; the first scan after start only
   sets the baseline and announces nothing.

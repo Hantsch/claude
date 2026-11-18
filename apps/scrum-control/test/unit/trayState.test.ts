@@ -18,7 +18,7 @@ import { plainSummary, scrumSummary, sessionIn, sprint, summaryMap } from '../fi
 
 function project(path: string, summary: ProjectScrumSummary, sessions: ReturnType<typeof sessionIn>[] = []): ProjectView {
   const folder: OpenFolder = { path, key: normalizePathKey(path), pid: 1, via: 'lock' };
-  const [view] = buildProjects({ openFolders: [folder], sessions, summaries: summaryMap(summary), hidden: [] });
+  const [view] = buildProjects({ openFolders: [folder], sessions, summaries: summaryMap(summary) });
   if (!view) throw new Error('project was not shown');
   return view;
 }

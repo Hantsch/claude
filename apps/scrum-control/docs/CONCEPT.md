@@ -67,7 +67,10 @@ inside a WSL terminal of a Windows VS Code window. Both must be seen.
   window per workspace, so the pid alone is not enough.
 - Fallback, for a window whose Claude extension did not write a lock: a top-level window of a
   `Code.exe` process whose title contains the folder name of a **known** project path (session
-  cwds and project slugs of all roots). Known paths only — nothing is guessed from a title.
+  cwds and project slugs of all roots, and the folders VS Code itself records in its user data:
+  `storage.json` → `windowsState`, `workspaceStorage/*/workspace.json`). Known paths only — nothing
+  is guessed from a title. A folder name two known paths share counts only when exactly one of them
+  is in VS Code's opened-window list.
 - A project *has scrum* when scan.ts says so (`hasScrum`: the project has ai-scrum's profile or
   lock).
 
@@ -75,12 +78,12 @@ Sections, in this order:
 
 1. **Scrum projects** — `hasScrum` and (an open window *or* at least one live session). Shown even
    with no session running.
-2. **Other** — not `hasScrum`, and at least one live session. A non-scrum window with no session
-   is not shown at all.
+2. **Other** — not `hasScrum`, and an open window or at least one live session. Every open VS Code
+   window is listed in one of the two sections.
 
 A session belongs to the project whose folder contains its (mapped) cwd, the longest match
-winning; a session in no open folder is its own project keyed by its cwd. A project can be
-hidden in Settings (`projects.hidden`, by project key); hidden projects still count nowhere.
+winning; a session in no open folder is its own project keyed by its cwd. Projects cannot be
+hidden: the list is what is open.
 
 ## 4. Scrum state per project
 
@@ -113,7 +116,7 @@ The tray shows **sprints, not sessions**.
 | --- | --- |
 | `idle` — thin hollow ring | no sprint running in any shown project |
 | `sprint` — disc with a white core (claude-control's `working` shape, sprint colour) | ≥ 1 sprint in progress, nothing needs you |
-| `attention` — notched amber disc (claude-control's `waiting` shape) | any scrum attention flag, or any session `waiting` (needs you) |
+| `attention` — notched amber disc (claude-control's `waiting` shape) | a stalled sprint, or any session `waiting` (needs you). A blocked story and the release verdict do not raise it: a blocked sprint stalls anyway, and the verdict is shown in the Projects tab, not raised |
 
 The overlay badge counts projects needing attention (a project with a waiting session counts
 once). Tooltip: one line per running sprint, `S14 Build 4/12 · claude`, else `No sprint running`.
@@ -134,13 +137,18 @@ mapping changes.
 └───────────────────────────────────────────────────┘
 ```
 
-- A scrum row: status dot (project's worst state), name, sprint line (or `no sprint · next SNN
-  planned` / `no sprint`), progress bar, current milestone, session counts by status, `WSL`
-  badge when a session runs there. Attention in amber text (`⚠ stalled 18m`, `⚠ blocked 026`,
-  `✗ releasable: NO`).
-- Expanding a row shows the project's sessions with claude-control's existing session rows and
-  drill-down, and a compact scrum block (release verdict, tech debt, architect, next sprint).
-- *Other* rows behave like claude-control's project groups.
+- A scrum row is one line: status dot (project's worst state), name, `WSL` badge when a session
+  runs there, the phase strip — sprint id, the six phases by short name (done ones ticked), the
+  current one in full and highlighted with, in Build only, stories done
+  (`S23 ✓Cla ✓Ref [Build 4/6] Gate Rev Rel`); without a sprint the band line
+  (`no sprint · next SNN planned` / `no sprint`) — session counts by status, **Open window**.
+  Attention in amber text on a second line only when there is any (`⚠ stalled 18m`,
+  `⚠ 1 session needs you`).
+- Expanding a row shows the story in focus (id, title, stage and step, deliverables done as a
+  small bar), the project's sessions with claude-control's existing session rows and drill-down,
+  and a compact scrum block (milestone, time left, tech debt, architect, next sprint).
+- *Other* rows behave like claude-control's project groups; every non-scrum open window is
+  listed, with or without a session.
 - Each project row has **Open window** (focuses its VS Code window); session rows keep **Jump**.
 - Keyboard navigation and hidden-session handling stay as they are.
 
@@ -154,8 +162,10 @@ Tabs: **Projects** (new, first), Sessions, History, Settings.
   ● focus), the focus story with its stage and step and start time, time left at the average,
   and the last trail line with its age. No buttons that run commands — the app cannot type into
   a session. **Open window** and **Open folder** (Explorer) only.
-- **Settings:** additions — WSL on/off with the detected roots listed (Diagnostics), hidden
-  projects (unhide), scrum notification toggles.
+- **Projects, collapsed:** one line per project, and under it, while a sprint runs, the phase
+  stepper and — in Build — the stories as chips.
+- **Settings:** additions — WSL on/off with the detected roots listed (Diagnostics), scrum
+  notification toggles.
 
 ## 8. Notifications
 

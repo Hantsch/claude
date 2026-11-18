@@ -25,7 +25,7 @@ type Session = ReturnType<typeof sessionIn>;
 
 function view(path: string, summary: ProjectScrumSummary, sessions: Session[] = []): ProjectView {
   const folder: OpenFolder = { path, key: normalizePathKey(path), pid: 7, via: 'lock' };
-  const [project] = buildProjects({ openFolders: [folder], sessions, summaries: summaryMap(summary), hidden: [] });
+  const [project] = buildProjects({ openFolders: [folder], sessions, summaries: summaryMap(summary) });
   if (!project) throw new Error('project was not shown');
   return project;
 }
@@ -86,11 +86,9 @@ describe('sessionsToShow', () => {
 });
 
 describe('attentionMarks', () => {
-  it('uses a warning sign for stalls and blocks and a cross for release problems', () => {
-    expect(attentionMarks(['stalled 18m', 'blocked 026', 'releasable: NO', '1 session needs you'])).toEqual([
+  it('marks every reason with an amber warning sign', () => {
+    expect(attentionMarks(['stalled 18m', '1 session needs you'])).toEqual([
       { glyph: '⚠', text: 'stalled 18m', tone: 'warn' },
-      { glyph: '⚠', text: 'blocked 026', tone: 'warn' },
-      { glyph: '✗', text: 'releasable: NO', tone: 'bad' },
       { glyph: '⚠', text: '1 session needs you', tone: 'warn' },
     ]);
   });
@@ -185,14 +183,18 @@ describe('projectRowModel', () => {
 });
 
 describe('popoverSections', () => {
-  it('splits scrum and other, and leaves out an Other project with nothing listed', () => {
+  it('splits scrum and other; Other keeps a window without a listed session, drops a project with neither', () => {
     const scrum = building();
     const shownOther = sessionIn('c:\\p\\other', 'done');
     const other = view('c:\\p\\other', plainSummary('c:\\p\\other'), [shownOther]);
-    const settled = view('c:\\p\\settled', plainSummary('c:\\p\\settled'), [sessionIn('c:\\p\\settled', 'done')]);
-    const sections = popoverSections([scrum, other, settled], [shownOther]);
+    const windowOnly = view('c:\\p\\window', plainSummary('c:\\p\\window'));
+    const settled = {
+      ...view('c:\\p\\settled', plainSummary('c:\\p\\settled'), [sessionIn('c:\\p\\settled', 'done')]),
+      hasWindow: false,
+    };
+    const sections = popoverSections([scrum, other, windowOnly, settled], [shownOther]);
     expect(sections.scrum.map((row) => row.name)).toEqual(['claude']);
-    expect(sections.other.map((row) => row.name)).toEqual(['other']);
+    expect(sections.other.map((row) => row.name)).toEqual(['other', 'window']);
   });
 
   it('keeps a scrum project that lists no session', () => {
@@ -227,7 +229,7 @@ describe('scrumBlockModel', () => {
     ]);
   });
 
-  it('adds the release verdict, the time left and the next planned sprint', () => {
+  it('adds the time left and the next planned sprint, and leaves the release verdict out', () => {
     const block = scrumBlockModel(
       scrumSummary(P, {
         sprint: sprint({ minutesLeft: 75 }),
@@ -245,26 +247,9 @@ describe('scrumBlockModel', () => {
     );
     expect(block.facts.map((fact) => [fact.label, fact.value, fact.tone])).toEqual([
       ['Time left', '~1h 15m left', null],
-      ['Release', 'releasable: NO · gate red', 'bad'],
       ['Tech debt', '0/8', null],
       ['Next', 'S15 planned · 1 story', null],
     ]);
-  });
-
-  it('says a release check is running instead of quoting the last verdict', () => {
-    const block = scrumBlockModel(
-      scrumSummary(P, {
-        release: {
-          kind: 'yes',
-          verdict: 'releasable: yes',
-          step: 'release-check',
-          isRunning: true,
-          sprintId: null,
-          endedAt: null,
-        },
-      }),
-    );
-    expect(block.facts[0]).toEqual({ label: 'Release', value: 'checking…', tone: null });
   });
 
   it('passes the update hints through', () => {

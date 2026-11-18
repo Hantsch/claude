@@ -13,6 +13,7 @@ import {
   timeLeftText,
   trailLine,
 } from '../../lib/projectCard.ts';
+import { Meter } from './Meter.tsx';
 
 export function SprintBlock({
   sprint,
@@ -69,6 +70,12 @@ export function SprintBlock({
               {focus.stage}
               {focus.stage && focus.since ? ' · ' : ''}
               {focus.since}
+            </div>
+          )}
+          {focus.deliverables && (
+            <div className="pv-focus-step pv-deliv">
+              <Meter meter={focus.deliverables.meter} />
+              {focus.deliverables.done}/{focus.deliverables.total} deliverables
             </div>
           )}
         </div>

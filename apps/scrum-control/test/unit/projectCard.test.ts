@@ -3,11 +3,15 @@ import type { ProjectScrumSummary, ScrumSprint } from '../../src/core/scrum/type
 import {
   architectRow,
   backlogText,
+  compactRow,
+  compactSprintLine,
   focusLine,
   hasWslHost,
   meter,
   nextRow,
+  parseExpanded,
   phaseRow,
+  phaseStrip,
   releaseRow,
   sprintHeadline,
   stepper,
@@ -32,7 +36,7 @@ function sprint(over: Partial<ScrumSprint> = {}): ScrumSprint {
       { id: '027', title: 'd', isDone: false },
     ],
     progress: { done: 2, total: 4, unit: 'stories' },
-    focus: { id: '026', title: 'Migration', stage: 'implement', step: 'D4 Migration', stepAt: '09:52:01' },
+    focus: { id: '026', title: 'Migration', stage: 'implement', step: 'D4 Migration', stepAt: '09:52:01', deliverablesDone: 3, deliverablesTotal: 5 },
     trailAt: 1_000_000,
     avgStoryMinutes: 4.4,
     minutesLeft: 8.6,
@@ -170,8 +174,9 @@ describe('running sprint', () => {
       stage: 'implementing · D4 Migration',
       blocked: false,
       since: 'since 09:52:01',
+      deliverables: { done: 3, total: 5, meter: { cells: 5, filled: 3, fraction: 0.6, tone: 'ok' } },
     });
-    expect(focusLine(sprint({ focus: { id: '026', title: 'M', stage: 'blocked', step: 'needs a decision', stepAt: null } }))).toMatchObject({
+    expect(focusLine(sprint({ focus: { id: '026', title: 'M', stage: 'blocked', step: 'needs a decision', stepAt: null, deliverablesDone: 0, deliverablesTotal: 0 } }))).toMatchObject({
       stage: 'blocked · needs a decision',
       blocked: true,
       since: null,
@@ -215,5 +220,128 @@ describe('phase row with a phase name that is only a table rule', () => {
     const { phaseRow } = await import('../../src/renderer/lib/projectCard.ts');
     const row = phaseRow({ phase: '---', milestonesDone: 6, milestonesTotal: 7 } as never);
     expect(row.text).toBe('6/7 milestones');
+  });
+});
+
+describe('compact row', () => {
+  it('a project without ai-scrum state has only a dim placeholder', () => {
+    expect(compactRow(null, 0)).toMatchObject({
+      sprint: { text: '—', tone: 'dim' },
+      percent: null,
+      title: null,
+      release: null,
+      debt: null,
+      architect: null,
+      age: null,
+    });
+  });
+
+  it('a running sprint gives headline, percent, title and trail age', () => {
+    const row = compactRow(summary({ sprint: sprint() }), 1_000_000 + 4 * 60_000);
+    expect(row.sprint).toEqual({ text: 'S14 Build · 2/4 stories', tone: null, title: null });
+    expect(row.percent).toBe(50);
+    expect(row.title).toBe('Login');
+    expect(row.age).toBe('4m ago');
+  });
+
+  it('without a sprint it falls back to the milestone and says "no sprint"', () => {
+    const row = compactRow(summary(), 0);
+    expect(row.sprint).toMatchObject({ text: 'no sprint', tone: 'dim' });
+    expect(row.title).toBe('M3 Login');
+    expect(row.percent).toBeNull();
+  });
+
+  it('colours the meters: red when due, amber near the limit, plain otherwise', () => {
+    expect(compactRow(summary({ techDebt: { count: 19, limit: 10, due: true } }), 0).debt).toMatchObject({
+      text: '19 / 10',
+      tone: 'bad',
+    });
+    expect(compactRow(summary({ techDebt: { count: 9, limit: 10, due: false } }), 0).debt?.tone).toBe('warn');
+    expect(compactRow(summary(), 0).debt?.tone).toBeNull();
+    expect(compactRow(summary({ architect: { since: 3, every: 0, due: false, lastReview: null } }), 0).architect).toBeNull();
+  });
+
+  it('carries the release verdict as the tooltip', () => {
+    const row = compactRow(
+      summary({ release: { kind: 'NO', verdict: 'releasable: NO — lint', step: 'release-check', isRunning: false, sprintId: null, endedAt: null } }),
+      0,
+    );
+    expect(row.release).toEqual({ text: '✗ NO', tone: 'bad', title: 'releasable: NO — lint' });
+  });
+});
+
+describe('compact sprint line', () => {
+  it('shows the stepper and, in Build, every story as a chip', () => {
+    const line = compactSprintLine(summary({ sprint: sprint() }));
+    expect(line?.steps.map((step) => `${step.label}:${step.state}`)).toEqual([
+      'Clarify:done',
+      'Refine:done',
+      'Build:current',
+      'Gate:todo',
+      'Review:todo',
+      'Release:todo',
+    ]);
+    expect(line?.chips?.map((chip) => chip.text)).toEqual(['✓ 024', '✓ 025', '● 026', '027']);
+  });
+
+  it('has no chips outside Build', () => {
+    const line = compactSprintLine(summary({ sprint: sprint({ phase: 'refine' }) }));
+    expect(line?.steps.find((step) => step.state === 'current')?.label).toBe('Refine');
+    expect(line?.chips).toBeNull();
+  });
+
+  it('puts a phase-4 release without a sprint at Release, and is null with neither', () => {
+    const line = compactSprintLine(summary({ releasing: { id: 'S13', title: 'x', step: null } }));
+    expect(line?.steps.find((step) => step.state === 'current')?.label).toBe('Release');
+    expect(line?.chips).toBeNull();
+    expect(compactSprintLine(summary())).toBeNull();
+    expect(compactSprintLine(null)).toBeNull();
+  });
+});
+
+describe('popover phase strip', () => {
+  it('names sprint, phase and - in Build only - the stories done', () => {
+    expect(phaseStrip(summary({ sprint: sprint() }))).toMatchObject({
+      sprintId: 'S14',
+      label: 'Build',
+      count: '2/4',
+      title: '✓ Clarify · ✓ Refine · ● Build · Gate · Review · Release',
+    });
+    expect(phaseStrip(summary({ sprint: sprint() }))?.steps.map((step) => `${step.text}:${step.state}`)).toEqual([
+      'Cla:done',
+      'Ref:done',
+      'Build:current',
+      'Gate:todo',
+      'Rev:todo',
+      'Rel:todo',
+    ]);
+    expect(phaseStrip(summary({ sprint: sprint({ phase: 'refine' }) }))).toMatchObject({ label: 'Refine', count: null });
+  });
+
+  it('shows a phase-4 release at Release and is null without a sprint', () => {
+    expect(phaseStrip(summary({ releasing: { id: 'S13', title: 'x', step: null } }))).toMatchObject({
+      sprintId: 'S13',
+      label: 'Release',
+      count: null,
+    });
+    expect(phaseStrip(summary())).toBeNull();
+    expect(phaseStrip(null)).toBeNull();
+  });
+
+  it('scales the deliverables bar past ten and leaves it out without deliverables', () => {
+    const many = focusLine(sprint({ focus: { ...sprint().focus!, deliverablesDone: 6, deliverablesTotal: 12 } }));
+    expect(many?.deliverables?.meter).toMatchObject({ cells: 10, filled: 5, tone: 'ok' });
+    const none = focusLine(sprint({ focus: { ...sprint().focus!, deliverablesDone: 0, deliverablesTotal: 0 } }));
+    expect(none?.deliverables).toBeNull();
+  });
+});
+
+describe('parseExpanded', () => {
+  it('reads a stored list of keys and treats anything else as none', () => {
+    expect([...parseExpanded('["a","b"]')]).toEqual(['a', 'b']);
+    expect(parseExpanded(null).size).toBe(0);
+    expect(parseExpanded('not json').size).toBe(0);
+    expect(parseExpanded('{"a":1}').size).toBe(0);
+    expect([...parseExpanded('["a",1,null]')]).toEqual(['a']);
   });
 });
