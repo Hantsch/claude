@@ -6,7 +6,7 @@
 
 import { BrowserWindow, app, clipboard, ipcMain, shell } from 'electron';
 import type { WindowSource } from '../core/context/windowSource.ts';
-import type { UpdateSource } from '../core/updates/updateSource.ts';
+import type { UpdateService } from '../core/updates/updateService.ts';
 import type { ControlEngine } from '../core/engine.ts';
 import type { HostRoot } from '../core/hosts/roots.ts';
 import type { ProjectsService } from '../core/projects/service.ts';
@@ -39,8 +39,8 @@ export interface IpcDeps {
   protocolRegistration: ProtocolRegistration;
   /** Null when no data dir was supplied (story 005, D6) — no fetch is possible, only an estimate. */
   windowSource: WindowSource | null;
-  /** Null unless this is a packaged portable install (story 019, D4) — no update is possible otherwise. */
-  updateSource: UpdateSource | null;
+  /** Null unless this is a packaged Windows install — no update is possible otherwise. */
+  updater: UpdateService | null;
   projects: ProjectsService;
   /** The Claude state roots in use right now, Windows first. */
   hostRoots: () => HostRoot[];
@@ -153,7 +153,7 @@ export function registerIpc(deps: IpcDeps): void {
     platform: `${process.platform} ${process.arch}`,
     protocolTarget: deps.protocolRegistration,
     modelWindows: deps.windowSource?.status() ?? null,
-    updates: deps.updateSource?.status() ?? null,
+    updates: deps.updater?.status() ?? null,
   }));
 
   ipcMain.handle(IPC.quit, () => {
@@ -167,12 +167,15 @@ export function registerIpc(deps: IpcDeps): void {
     return deps.windowSource.refresh({ force: true });
   });
 
-  // Mirrors the model-windows handler above: a forced check happens inside the call, so a
-  // later "Check now" Settings button can show its own outcome immediately (story 019, D5).
+  // Mirrors the model-windows handler above: a forced check happens inside the call, so the
+  // Settings "Check now" button shows its own outcome immediately.
   ipcMain.handle(IPC.refreshUpdateCheck, async () => {
-    if (!deps.updateSource) return null;
-    return deps.updateSource.refresh({ force: true });
+    if (!deps.updater) return null;
+    return deps.updater.refresh({ force: true });
   });
+
+  // "Install and restart" in Settings. Main decides: nothing installs unless a download is ready.
+  ipcMain.handle(IPC.installUpdate, () => deps.updater?.installAndRestart() ?? false);
 
   // The popover sizes itself to its content, so it can ask for the height it needs (§8).
   ipcMain.handle('cc:popover-height', (_event, height: number) => {

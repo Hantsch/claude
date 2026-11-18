@@ -9,7 +9,7 @@ A public plugin marketplace for Claude Code. The marketplace content has no buil
 product is markdown (commands, agents, templates) plus two JSON manifests, and the PowerShell
 scripts in [scripts/](scripts/) only validate and release that content. The one exception to
 "no application" lives apart in [apps/scrum-control/](apps/scrum-control/): **Scrum Control**, a
-standalone Windows tray app (Electron, portable EXE) with its own `CLAUDE.md`, its own test lanes
+standalone Windows tray app (Electron, NSIS installer) with its own `CLAUDE.md`, its own test lanes
 and its own releases (`scrum-control-v*` tags). Nothing under `plugins/` depends on it, and the
 plugin tooling ignores it.
 
@@ -70,13 +70,16 @@ its `CLAUDE.md` before touching it. What couples it to the rest of this reposito
   the scrum-cockpit mod and the app. Check both when you edit it, and give both a changelog note
   (`plugins/scrum-cockpit/CHANGELOG.md` and `apps/scrum-control/CHANGELOG.md`) when it changes what
   users see.
-- **Its releases are separate**: tags `scrum-control-v<semver>`, a GitHub release with the portable
-  EXE and `SHA256SUMS.txt`, cut by `.github/workflows/scrum-control-release.yml` through
+- **Its releases are separate**: tags `scrum-control-v<semver>`, a GitHub release (marked latest)
+  with the installer, its `.blockmap`, `latest.yml` and `SHA256SUMS.txt`, cut by `.github/workflows/scrum-control-release.yml` through
   `apps/scrum-control/scripts/` on pushes that touch `apps/scrum-control/`,
   `plugins/scrum-cockpit/hooks/scan.ts` or `plugins/scrum-cockpit/types/index.d.ts`. The first
-  release needs no tag: it ships `package.json`'s version on the first such push. The app's self-update reads exactly those
-  releases, and the plugin releases in the same repository never concern it - nor it them: the
-  root `scripts/` look only at `plugins/<name>/` paths and `<name>-v*` tags.
+  release needs no tag: it ships `package.json`'s version on the first such push. The app's
+  self-update (`electron-updater`) reads the repository's **latest** GitHub release, which is why
+  the plugin releases create tags but **never a GitHub release**: one would become "latest" and
+  every installed app's update check would fail on its missing `latest.yml`. Otherwise the two lanes
+  never concern each other: the root `scripts/` look only at `plugins/<name>/` paths and
+  `<name>-v*` tags.
 - **One release at a time**: both release workflows share the concurrency group
   `release-${{ github.ref }}`, so the app and the plugins never push to `main` at once. Keep that
   group name identical in both if you ever touch either file.

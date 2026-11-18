@@ -15,7 +15,7 @@ import type {
 import { acceleratorFromChord, formatAccelerator } from '../../shared/accelerator.ts';
 import { SCRUM_NOTIFICATION_KINDS, type ScrumNotificationKind } from '../../core/scrum/types.ts';
 import { api } from '../api.ts';
-import { formatUpdateStatusLine } from '../lib/updateStatusLine.ts';
+import { formatUpdatePhase, formatUpdateStatusLine, withV } from '../lib/updateStatusLine.ts';
 import '../projects-view.css';
 
 /** What each scrum notification toggle is called (CONCEPT section 8). */
@@ -80,6 +80,12 @@ export function SettingsView(): React.JSX.Element {
     return api.onShortcutStatusChanged(setShortcutStatus);
   }, []);
 
+  // Check and download progress arrive from main while the window is open.
+  useEffect(
+    () => api.onUpdateStatusChanged((status) => setDiagnostics((prev) => (prev ? { ...prev, updates: status } : prev))),
+    [],
+  );
+
   // The detected roots follow the WSL switch: turning it off drops the distros at once.
   const wslEnabled = settings?.wsl.enabled;
   useEffect(() => {
@@ -139,6 +145,30 @@ export function SettingsView(): React.JSX.Element {
       });
   };
 
+  const checkForUpdates = (): void => {
+    setUpdatesResult(null);
+    setUpdatesPending(true);
+    void api
+      .refreshUpdateCheck()
+      .then((status) => {
+        setUpdatesPending(false);
+        setDiagnostics((prev) => (prev ? { ...prev, updates: status } : prev));
+        if (!status) {
+          setUpdatesResult('Updates are only available in the installed app.');
+        } else if (status.lastOutcome === 'failed') {
+          setUpdatesResult(status.lastError ? `Check failed: ${status.lastError}` : 'Check failed.');
+        } else if (status.phase === 'ready') {
+          setUpdatesResult(`${withV(status.readyVersion ?? '?')} is ready to install.`);
+        } else {
+          setUpdatesResult(status.updateAvailable ? formatUpdatePhase(status) : 'Up to date.');
+        }
+      })
+      .catch((error: unknown) => {
+        setUpdatesPending(false);
+        setUpdatesResult(error instanceof Error ? `Check failed: ${error.message}` : 'Check failed.');
+      });
+  };
+
   const toggleUpdates = (checked: boolean): void => {
     void apply({
       ...settings,
@@ -154,24 +184,13 @@ export function SettingsView(): React.JSX.Element {
       );
       return;
     }
-    setUpdatesPending(true);
-    void api
-      .refreshUpdateCheck()
-      .then((status) => {
-        setUpdatesPending(false);
-        setDiagnostics((prev) => (prev ? { ...prev, updates: status } : prev));
-        if (!status) {
-          setUpdatesResult('Check did not run.');
-        } else if (status.lastOutcome === 'ok') {
-          setUpdatesResult(status.updateAvailable ? `Update ${status.latestVersion} staged.` : 'Up to date.');
-        } else {
-          setUpdatesResult(status.lastError ? `Check failed: ${status.lastError}` : 'Check failed.');
-        }
-      })
-      .catch((error: unknown) => {
-        setUpdatesPending(false);
-        setUpdatesResult(error instanceof Error ? `Check failed: ${error.message}` : 'Check failed.');
-      });
+    checkForUpdates();
+  };
+
+  const installUpdate = (): void => {
+    void api.installUpdate().then((started) => {
+      if (!started) setUpdatesResult('Nothing to install yet.');
+    });
   };
 
   const setSeconds = (key: 'tWorkMs', seconds: number): void => {
@@ -576,13 +595,29 @@ export function SettingsView(): React.JSX.Element {
           onChange={(event) => toggleUpdates(event.target.checked)}
         />
         <span className="hint">
-          Checks GitHub for a newer release and stages the installer in the background, at most
-          once per calendar day. This is the second (and only other) network request Claude
-          Control ever makes, alongside the exact-context-window lookup above; off by default.
+          Checks GitHub for a newer release once a day and downloads the installer in the
+          background. When it is ready you are asked to install and restart; otherwise it installs
+          quietly the next time Scrum Control quits. This is the second (and only other) network
+          request Scrum Control ever makes, alongside the exact-context-window lookup above; off by
+          default.
         </span>
-        {updatesPending && <span className="hint">Checking…</span>}
+        {updatesPending && (
+          <span className="hint">{diagnostics?.updates ? formatUpdatePhase(diagnostics.updates) : 'Checking…'}</span>
+        )}
         {!updatesPending && updatesResult && <span className="hint">{updatesResult}</span>}
       </div>
+      {settings.updates.enabled && diagnostics?.updates && (
+        <div className="row-actions">
+          <button type="button" disabled={updatesPending} onClick={checkForUpdates}>
+            Check now
+          </button>
+          {diagnostics.updates.phase === 'ready' && (
+            <button type="button" onClick={installUpdate}>
+              Install {withV(diagnostics.updates.readyVersion ?? '')} and restart
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="row-actions">
         <button type="button" onClick={() => void api.resetSettings().then(setSettings)}>

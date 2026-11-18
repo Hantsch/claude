@@ -9,6 +9,16 @@ section on release.
 
 ## Unreleased
 
+- **Ships as an installer instead of a portable EXE.** `ScrumControl-Setup-<version>.exe` installs
+  for your user only (no admin rights), to `%LOCALAPPDATA%\Programs` or a folder you choose, with
+  Start menu and desktop shortcuts and an entry in *Apps & features*. Uninstalling also removes the
+  autostart entry and the toast-button registration. Autostart and toast buttons now point at a
+  stable path instead of the portable build's temporary unpack folder.
+- **Updates through the installer.** With *Check for updates* on, Scrum Control checks once a day,
+  downloads only the changed parts of the new installer in the background and verifies it. When
+  the download finishes you are asked to *Install and restart*; choose Later and it installs
+  quietly the next time Scrum Control quits. Settings gains *Check now* and *Install and restart*,
+  the tray menu *Restart to install vX.Y.Z* while an update is waiting.
 - New app icon: Scrum Control has its own icon instead of the one inherited from claude-control.
 
 - **A sprint and project overview across everything you have open.** Scrum Control shows, per

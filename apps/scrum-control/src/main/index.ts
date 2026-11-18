@@ -17,7 +17,6 @@ import { createEngine } from '../core/createEngine.ts';
 import type { SessionId } from '../core/model/types.ts';
 import { ProjectsService } from '../core/projects/service.ts';
 import { createVsCodeFolderReader } from '../core/projects/vscodeFolders.ts';
-import { UPDATES_DIR, UpdateSource } from '../core/updates/updateSource.ts';
 import { IPC, type AppState, type FocusResult } from '../shared/ipc.ts';
 import { applyAutostart, AUTOSTART_FLAG, healAutostartPath } from './autostart.ts';
 import { WindowFocuser } from './focus/focuser.ts';
@@ -26,12 +25,6 @@ import { createWindowProbe } from './focus/windowProbe.ts';
 import { broadcast, registerIpc } from './ipc.ts';
 import { APP_USER_MODEL_ID } from './icon-assets.ts';
 import { Notifier } from './notifier.ts';
-import {
-  applyStagedUpdate,
-  selfUpdateTarget,
-  showAppliedNotice,
-  UPDATE_CHECK_TICK_MS,
-} from './selfUpdate.ts';
 import { SettingsStore } from './settings.ts';
 import { ShortcutManager } from './shortcuts.ts';
 import {
@@ -43,32 +36,23 @@ import {
   type ToastAction,
 } from './toast-protocol.ts';
 import { TrayPresenter } from './tray.ts';
+import { announceUpdatedVersion, createUpdater } from './updater.ts';
 import { WindowManager, type MainTab } from './windows.ts';
 
 /**
  * The data directory is pinned to `%APPDATA%\scrum-control` for packaged and dev runs alike,
- * and before anything reads `userData` (the staged-update lookup below, the single-instance
- * lock): Electron would otherwise derive it from the product name ("Scrum Control") when
+ * and before anything reads `userData` (the single-instance lock, the settings): Electron would otherwise derive it from the product name ("Scrum Control") when
  * packaged and from the package name in dev. One stable name keeps the app clear of
  * claude-control's `%APPDATA%\claude-control` and lets the CLI find the same files.
  */
 app.setPath('userData', join(app.getPath('appData'), 'scrum-control'));
 
 /**
- * Story 019 D4, and deliberately the very first thing this process does — before the lock, so
- * the swap is the same one-per-launch event whether or not another instance is already running,
- * and before anything has a file handle of its own. It only ever acts on a packaged, portable
- * install (AC10), never quits or relaunches (AC3), and swallows every failure (AC6): a null
- * return is the normal case. This session goes on running the old code either way; the flag is
- * kept only so the "Updated to …" toast is left to the *next* start, which is the one actually
- * running the new file.
+ * How often the background tick asks the update service to reconsider. The real cadence (one
+ * check a day, a half-hour backoff after a failure) lives inside `UpdateService`; this only has
+ * to be fine enough that a machine left running gets there without a restart.
  */
-const appliedUpdate = applyStagedUpdate({
-  env: process.env,
-  isPackaged: app.isPackaged,
-  updatesDir: join(app.getPath('userData'), UPDATES_DIR),
-  currentVersion: app.getVersion(),
-});
+const UPDATE_CHECK_TICK_MS = 60 * 60 * 1000;
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -90,17 +74,15 @@ async function bootstrap(): Promise<void> {
 
   const settings = new SettingsStore(app.getPath('userData'));
 
-  // The update source exists only where an update could actually be applied — packaged and
-  // portable, the same gate the swap above uses. A dev run constructs nothing at all, so there
-  // is no object that could check or download anything (AC10). `enabled` follows the opt-in
-  // setting; `refresh()` re-reads it on every call, so nothing is requested while it is off.
-  const updateSource =
-    selfUpdateTarget(process.env, app.isPackaged) !== null
-      ? new UpdateSource(app.getPath('userData'), {
-          currentVersion: installedVersion(),
-          enabled: settings.get().updates.enabled,
-        })
-      : null;
+  // The updater exists only where an update can actually be applied — a packaged Windows
+  // install. A dev run constructs nothing at all, so there is no object that could check or
+  // download anything. `enabled` follows the opt-in setting; nothing is requested while it is
+  // off. A download that completes while the app runs is offered once ("Install and restart");
+  // otherwise it installs quietly on the next quit.
+  const updater = createUpdater({
+    enabled: settings.get().updates.enabled,
+    onChange: (status) => broadcast(IPC.updateStatusChanged, status),
+  });
 
   // Heal first (a login item from an earlier install may point at an old EXE path), then
   // apply — so the setting always wins over whatever is currently registered.
@@ -163,6 +145,10 @@ async function bootstrap(): Promise<void> {
     onRefresh: () => {
       void engine.refreshNow();
     },
+    readyUpdate: () => updater?.status().readyVersion ?? null,
+    onInstallUpdate: () => {
+      updater?.installAndRestart();
+    },
     onQuit: () => quit(),
   });
 
@@ -196,7 +182,7 @@ async function bootstrap(): Promise<void> {
   settings.onChange((next) => {
     void engine.updateSettings(next);
     void projects.refreshSettings();
-    updateSource?.setEnabled(next.updates.enabled);
+    updater?.setEnabled(next.updates.enabled);
     applyAutostart(next.ui.autostart);
     shortcutManager.apply(next.ui.globalShortcut);
     broadcast(IPC.shortcutStatusChanged, shortcutManager.status());
@@ -216,7 +202,7 @@ async function bootstrap(): Promise<void> {
     quit,
     protocolRegistration,
     windowSource,
-    updateSource,
+    updater,
     projects,
     hostRoots,
     focusProject,
@@ -236,29 +222,21 @@ async function bootstrap(): Promise<void> {
     app.on('before-quit', () => clearInterval(windowRefreshTimer));
   }
 
-  // The same shape for the opt-in update check (story 019, D4). `updateSource` is null unless
-  // this is a packaged portable install, so a dev run arms no timer and makes no request at
-  // all (AC10); `refresh()` is a no-op while `updates.enabled` is off, keeps to one real check
-  // per calendar day on its own, and never throws — so firing it unawaited cannot delay or
-  // break startup (AC6). The tick is hourly only so a machine left running crosses midnight.
-  if (updateSource) {
-    void updateSource.refresh();
+  // The same shape for the opt-in update check. `updater` is null unless this is a packaged
+  // Windows install, so a dev run arms no timer and makes no request at all; `refresh()` is a
+  // no-op while `updates.enabled` is off, keeps to its own cadence and never throws — so firing
+  // it unawaited cannot delay or break startup.
+  if (updater) {
+    void updater.refresh();
     const updateCheckTimer = setInterval(() => {
-      void updateSource.refresh();
+      void updater.refresh();
     }, UPDATE_CHECK_TICK_MS);
     updateCheckTimer.unref?.();
     app.on('before-quit', () => clearInterval(updateCheckTimer));
   }
 
-  // The other half of D4: the one-time "Updated to vX.Y.Z" toast, shown on the first start that
-  // is actually running the new version. Skipped when *this* run did the swap — that session is
-  // still the old build and the marker is left on disk for the next start to announce.
-  showAppliedNotice({
-    env: process.env,
-    isPackaged: app.isPackaged,
-    updatesDir: join(app.getPath('userData'), UPDATES_DIR),
-    swappedThisRun: appliedUpdate !== null,
-  });
+  // "Updated to vX.Y.Z", once, on the first start of a newer version than the one before.
+  announceUpdatedVersion(app.getPath('userData'));
 
   // Live tier first (N5), tray immediately afterwards.
   await engine.start();
@@ -398,12 +376,10 @@ async function bootstrap(): Promise<void> {
  * Makes `scrum-control://` ours, so the shell can hand a toast button's URI back to the app
  * (D6). Windows-only: that is the only platform where the buttons exist, and registering a
  * scheme elsewhere would be a side effect nothing asked for. A dev run has no exe of its own,
- * so the registration has to name Electron plus the script it should run. `protocolClientTarget`
- * (D4) additionally prefers the portable build's stable exe path over the temp extraction dir
- * `process.execPath` would otherwise record.
+ * so the registration has to name Electron plus the script it should run.
  */
 function registerToastProtocol(): ProtocolRegistration {
-  const target = protocolClientTarget(process.env, process.execPath, app.isPackaged, process.argv[1]);
+  const target = protocolClientTarget(process.execPath, app.isPackaged, process.argv[1]);
   let outcome: { ok: true } | { ok: false; error?: unknown };
   try {
     const ok = target.path
@@ -417,21 +393,6 @@ function registerToastProtocol(): ProtocolRegistration {
   return buildProtocolRegistration(process.platform, target, outcome, process.execPath);
 }
 
-/**
- * What is *installed*, which in exactly one session is not what this process is running: the
- * start that swapped a staged update in keeps executing the old code it already loaded, so
- * `app.getVersion()` reports the old version until the next launch (D4's whole premise).
- *
- * Handing that stale version to `UpdateSource` would make this session compare the release it
- * just applied against the version it no longer has on disk, decide it is outdated — the stage
- * that would have said otherwise was consumed by the swap — and download the entire release a
- * second time for nothing. The applied tag is the truthful baseline, and it is what Settings
- * should name too. `v1.3.0` and `1.3.0` both come out as `1.3.0`.
- */
-function installedVersion(): string {
-  const applied = appliedUpdate?.version;
-  return applied ? applied.replace(/^[vV]/, '') : app.getVersion();
-}
 
 /** Parses the `--show` dev flag. Returns null when the app should start tray-only. */
 export function surfaceToShow(

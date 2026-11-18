@@ -25,7 +25,7 @@ npm ci
 npm run cli            # print the live session list and exit
 npm run cli -- --watch # keep printing status changes
 npm run dev            # run the tray app with hot reload
-npm run package        # build release\ScrumControl-<version>-portable.exe
+npm run package        # build release\ScrumControl-Setup-<version>.exe (+ .blockmap, latest.yml)
 
 npm test               # vitest with fixtures, including the N2 read-only check
 npm run test:perf      # non-blocking perf lane: the N4/N5 budgets
@@ -81,7 +81,9 @@ Merging into `main` releases, with no separate publish step.
 `plugins/scrum-cockpit/types/index.d.ts`. It derives the version from the Conventional-Commit
 subjects of the commits touching those paths since the last `scrum-control-v*` tag (`feat:` minor,
 `<type>!:`/`BREAKING CHANGE` major, `chore:`/`docs:`/`ci:`/`test:`/`style:`/`build:` no release,
-anything else patch), builds the portable EXE and publishes a GitHub release tagged
-`scrum-control-v<version>` with the EXE and `SHA256SUMS.txt`. The notes come from the
+anything else patch), builds the NSIS installer and publishes a GitHub release tagged
+`scrum-control-v<version>`, marked as the repository's latest, with the installer, its
+`.blockmap`, `latest.yml` and `SHA256SUMS.txt` — the first three are what the app's self-update
+(`electron-updater`) reads. The notes come from the
 `## Unreleased` section of [CHANGELOG.md](CHANGELOG.md); a release with an empty section fails
 rather than shipping without notes. See CONCEPT §9 for the full contract.

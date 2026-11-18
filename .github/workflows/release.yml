@@ -17,7 +17,8 @@ on:
         default: ''
 
 # Needed to push the release commit + tag. Plugins get no GitHub release - the release page is
-# Scrum Control's (scrum-control-release.yml); Claude Code reads plugin versions from the manifests.
+# Scrum Control's (scrum-control-release.yml), whose self-update reads the repository's latest
+# release, so one created here would break it. Claude Code reads plugin versions from the manifests.
 permissions:
   contents: write
 

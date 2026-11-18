@@ -42,7 +42,7 @@ Not a plugin: a small program that lives beside them.
 
 | You want … | App | Start with | |
 | --- | --- | --- | --- |
-| a tray icon that shows which of your projects has a sprint running and which sessions need you, across all open VS Code windows and WSL | [Scrum Control](apps/scrum-control/) (Windows, portable EXE) | download it from the [releases](../../releases) | [changes](apps/scrum-control/CHANGELOG.md) |
+| a tray icon that shows which of your projects has a sprint running and which sessions need you, across all open VS Code windows and WSL | [Scrum Control](apps/scrum-control/) (Windows installer) | download it from the [releases](../../releases) | [changes](apps/scrum-control/CHANGELOG.md) |
 
 ## Install
 

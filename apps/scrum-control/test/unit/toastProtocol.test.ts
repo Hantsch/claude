@@ -158,23 +158,13 @@ describe('toastActionFromArgv', () => {
 });
 
 describe('protocolClientTarget', () => {
-  it('prefers the portable exe env var, with no extra args, over everything else', () => {
-    const env = { PORTABLE_EXECUTABLE_FILE: 'D:/Downloads/ScrumControl.exe' };
-    expect(protocolClientTarget(env, 'C:/Temp/7zS1/electron.exe', true, 'C:/app/out/main/index.js')).toEqual({
-      path: 'D:/Downloads/ScrumControl.exe',
-    });
-    expect(protocolClientTarget(env, 'C:/Temp/7zS1/electron.exe', false, undefined)).toEqual({
-      path: 'D:/Downloads/ScrumControl.exe',
-    });
-  });
-
-  it('registers with no arguments when packaged and the env var is absent', () => {
-    expect(protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, undefined)).toEqual({});
-    expect(protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, 'C:/app/out/main/index.js')).toEqual({});
+  it('registers with no arguments when packaged', () => {
+    expect(protocolClientTarget('C:/app/ScrumControl.exe', true, undefined)).toEqual({});
+    expect(protocolClientTarget('C:/app/ScrumControl.exe', true, 'C:/app/out/main/index.js')).toEqual({});
   });
 
   it('registers Electron plus the resolved script path in dev', () => {
-    expect(protocolClientTarget({}, 'C:/electron/electron.exe', false, 'out/main/index.js')).toEqual({
+    expect(protocolClientTarget('C:/electron/electron.exe', false, 'out/main/index.js')).toEqual({
       path: 'C:/electron/electron.exe',
       args: [resolve('out/main/index.js')],
     });
@@ -200,8 +190,8 @@ describe('buildProtocolRegistration', () => {
     });
   });
 
-  it('registers with process.execPath when packaged and non-portable (no explicit target path)', () => {
-    const target = protocolClientTarget({}, 'C:/app/ScrumControl.exe', true, undefined);
+  it('registers with process.execPath when packaged (no explicit target path)', () => {
+    const target = protocolClientTarget('C:/app/ScrumControl.exe', true, undefined);
     const registration = buildProtocolRegistration('win32', target, { ok: true }, 'C:/app/ScrumControl.exe');
     expect(registration).toEqual({
       state: 'registered',

@@ -21,6 +21,10 @@ export interface TrayPresenterDeps {
   /** A project row of the menu was chosen: focus its VS Code window. */
   onFocusProject: (projectKey: string) => void;
   onRefresh: () => void;
+  /** The downloaded update waiting to be installed, or null — read each time the menu opens. */
+  readyUpdate: () => string | null;
+  /** "Restart to install vX.Y.Z" was chosen. */
+  onInstallUpdate: () => void;
   onQuit: () => void;
 }
 
@@ -126,8 +130,13 @@ export class TrayPresenter {
       { label: 'Settings', click: () => this.deps.onOpenWindow('settings') },
       { type: 'separator' },
       { label: 'Refresh now', click: () => this.deps.onRefresh() },
-      { label: 'Quit', click: () => this.deps.onQuit() },
     );
+    const ready = this.deps.readyUpdate();
+    if (ready) {
+      const version = /^v/i.test(ready) ? ready : `v${ready}`;
+      items.push({ label: `Restart to install ${version}`, click: () => this.deps.onInstallUpdate() });
+    }
+    items.push({ label: 'Quit', click: () => this.deps.onQuit() });
 
     return Menu.buildFromTemplate(items);
   }

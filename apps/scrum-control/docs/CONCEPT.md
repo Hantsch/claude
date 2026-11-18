@@ -21,7 +21,8 @@ otherwise.
 | appId / AppUserModelId | `solutions.aidu.claude-control` | `solutions.aidu.scrum-control` |
 | data dir | `%APPDATA%\claude-control` | `%APPDATA%\scrum-control` |
 | toast URI scheme | `claude-control` | `scrum-control` |
-| portable exe | `ClaudeControl-<v>-portable.exe` | `ScrumControl-<v>-portable.exe` |
+| download | `ClaudeControl-<v>-portable.exe` | installer `ScrumControl-Setup-<v>.exe` (NSIS, per user) |
+| update cache | `%APPDATA%\claude-control\updates` | `%LOCALAPPDATA%\scrum-control-updater` |
 | default global hotkey | `Ctrl+Alt+C` | `Ctrl+Alt+S` |
 | releases | GitHub `Hantsch/claude-control` | GitHub `Hantsch/claude`, tags `scrum-control-v<semver>` |
 
@@ -185,18 +186,26 @@ The first scan after app start establishes the baseline and announces nothing.
 
 ## 9. Updates and releases
 
-- **Self-update** works as in claude-control (opt-in, daily, SHA256-verified, staged, swapped on
-  next start), but the source is `Hantsch/claude`, which also publishes plugin releases: list
-  `GET /repos/Hantsch/claude/releases?per_page=100`, keep non-draft, non-prerelease releases
-  whose tag is `scrum-control-v<semver>`, take the highest version. Assets
-  `ScrumControl-<v>-portable.exe` and `SHA256SUMS.txt`.
+- **Distribution:** an assisted NSIS installer (`ScrumControl-Setup-<v>.exe`), per user, no admin
+  rights, default `%LOCALAPPDATA%\Programs`, Start menu and desktop shortcuts. Its uninstaller
+  also removes the autostart Run value and the `scrum-control://` protocol key, but not on an
+  update (the old uninstaller runs then too). No portable build.
+- **Self-update** (opt-in, off by default) is `electron-updater`'s NSIS updater, behind a policy of
+  its own (`core/updates/updateService.ts`): one check a day, a 30-minute backoff after a failure,
+  a forced check from Settings. The GitHub provider reads `latest.yml` from the repository's
+  *latest* release — plugin releases create no GitHub release, and every `scrum-control-v*` release
+  is created with `--latest` — downloads the installer differentially via its `.blockmap` and
+  verifies the SHA-512 from `latest.yml`. A finished download is offered once ("Install and
+  restart" → `quitAndInstall(silent, run after)`); otherwise it installs silently on the next quit.
+  Turning the setting off also stops a downloaded update from installing on quit.
 - **Release lane** (in this repository's `.github/workflows/`): on push to `main` touching
   `apps/scrum-control/**`, `plugins/scrum-cockpit/hooks/scan.ts` or
   `plugins/scrum-cockpit/types/index.d.ts`; Windows runner; bump from the Conventional-Commit
   subjects of commits touching those paths since the last `scrum-control-v*` tag; notes from
   `apps/scrum-control/CHANGELOG.md` `## Unreleased`; commits `chore(release): scrum-control
-  <v> [skip ci]`, tags `scrum-control-v<v>`, creates the GitHub release with the exe and
-  `SHA256SUMS.txt`. Shares the concurrency group of the plugin release so the two never push at
+  <v> [skip ci]`, tags `scrum-control-v<v>`, checks `latest.yml` against the installer it built,
+  and creates the GitHub release, marked latest, with the installer, its `.blockmap`, `latest.yml`
+  and `SHA256SUMS.txt`. Shares the concurrency group of the plugin release so the two never push at
   once. With no tag yet, the first releasable push ships `package.json`'s version (`0.1.0`); a
   `workflow_dispatch` input `version` does the same by hand.
 - **PR lane:** on PRs and pushes touching the same paths: `npm ci`, typecheck, `npm test`.

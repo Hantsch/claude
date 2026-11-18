@@ -91,8 +91,8 @@ export const APP_USER_MODEL_ID = 'solutions.aidu.scrum-control';
  * is `electron.exe`, so the button showed Electron's logo even though the title bar was right.
  * The per-window relaunch icon overrides it (the same property Chrome uses for per-profile
  * taskbar icons); Windows ignores it unless a relaunch command and display name are set too.
- * The packaged exe carries `app.ico` itself, and its portable unpack path is a temp folder
- * that must not end up as a relaunch command, so this is a dev-only no-op otherwise.
+ * The packaged exe carries `app.ico` itself (and the installer's shortcut carries the same
+ * AppUserModelID), so this is a dev-only no-op otherwise.
  */
 export function applyTaskbarIcon(window: BrowserWindow): void {
   if (process.platform !== 'win32' || app.isPackaged) return;

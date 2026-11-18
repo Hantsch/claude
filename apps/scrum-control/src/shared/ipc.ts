@@ -147,24 +147,19 @@ export interface ModelWindowStatus {
 }
 
 /**
- * Mirrors `core/updates/updateSource.ts`'s `UpdateStatus` (story 019, D3) — duplicated for the
- * same boundary reason as `ModelWindowStatus` above: `core/updates` touches the filesystem and
- * network and is therefore excluded from `tsconfig.web.json`. Keep the two shapes in sync by
- * hand.
+ * Mirrors `core/updates/updateService.ts`'s `UpdateStatus` — duplicated for the same boundary
+ * reason as `ModelWindowStatus` above: `core/updates` is not part of `tsconfig.web.json`. Keep
+ * the two shapes in sync by hand (a type test in `updateService.test.ts` checks they match).
  */
 export interface UpdateStatus {
   enabled: boolean;
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
-  staged: {
-    version: number;
-    releaseVersion: string;
-    assetName: string;
-    sha256: string;
-    stagedAt: number;
-    file: string;
-  } | null;
+  /** `ready` = downloaded and verified; installs on quit, or now via "Install and restart". */
+  phase: 'idle' | 'checking' | 'downloading' | 'ready';
+  downloadPercent: number | null;
+  readyVersion: string | null;
   checkedAt: number | null;
   lastOutcome: RefreshOutcome;
   lastError?: string;
@@ -201,13 +196,13 @@ export interface DiagnosticsInfo {
   platform: string;
   /**
    * The exe path registered for `claude-control://` toast buttons (D4/D5) — e.g. Jump or Mute
-   * this session on Windows. Lets a user tell whether it still points at a portable EXE that
-   * has since moved or been deleted.
+   * this session on Windows. Lets a user tell whether it still points at an exe that has since
+   * moved or been deleted.
    */
   protocolTarget: ProtocolRegistration;
   /** Status of the opt-in exact-context-window table (story 005, D3/D6). Null with no data dir. */
   modelWindows: ModelWindowStatus | null;
-  /** Status of the opt-in self-update check (story 019, D3/D5). Null where no update source exists. */
+  /** Status of the opt-in self-update. Null where no update is possible (dev, unpackaged). */
   updates: UpdateStatus | null;
 }
 
@@ -238,6 +233,7 @@ export const IPC = {
   quit: 'cc:quit',
   refreshModelWindows: 'cc:refresh-model-windows',
   refreshUpdateCheck: 'cc:refresh-update-check',
+  installUpdate: 'cc:install-update',
   getProjects: 'cc:get-projects',
   focusProject: 'cc:focus-project',
   openProjectFolder: 'cc:open-project-folder',
@@ -249,6 +245,7 @@ export const IPC = {
   settingsChanged: 'cc:settings-changed',
   shortcutStatusChanged: 'cc:shortcut-status',
   projectsChanged: 'cc:projects-changed',
+  updateStatusChanged: 'cc:update-status',
 } as const;
 
 /** Shape exposed on `window.claudeControl` by the preload script. */
@@ -287,8 +284,12 @@ export interface RendererApi {
   quit(): Promise<void>;
   /** Forces an immediate fetch of the exact-context-window table (Settings toggle, D6). */
   refreshModelWindows(): Promise<ModelWindowStatus | null>;
-  /** Forces an immediate self-update check (Settings button, story 019, D5). */
+  /** Forces an immediate self-update check (Settings). Resolves once a download it started is done. */
   refreshUpdateCheck(): Promise<UpdateStatus | null>;
+  /** Quits, installs the downloaded update and restarts. False when nothing is downloaded. */
+  installUpdate(): Promise<boolean>;
+  /** Check and download progress, pushed by main. */
+  onUpdateStatusChanged(listener: (status: UpdateStatus) => void): () => void;
   /** The overview's projects: scrum projects first, then the rest (CONCEPT section 3). */
   getProjects(): Promise<ProjectView[]>;
   /** Brings the project's VS Code window forward (by pid and title). */

@@ -42,29 +42,38 @@ project. Stopped distros are never touched, so nothing is booted by looking.
 
 ## Install
 
-1. Download `ScrumControl-<version>-portable.exe` from the
-   [GitHub releases](https://github.com/Hantsch/claude/releases) of this repository — the ones
-   tagged `scrum-control-v*`.
-2. Put it anywhere and start it. It lives in the tray; there is no installer.
+1. Download `ScrumControl-Setup-<version>.exe` from the
+   [latest release](https://github.com/Hantsch/claude/releases/latest) of this repository (tagged
+   `scrum-control-v*`).
+2. Run it. It installs for your user only — no admin rights — to `%LOCALAPPDATA%\Programs` or a
+   folder you choose, adds Start menu and desktop shortcuts, and starts Scrum Control in the tray.
 
-The EXE is **not code-signed**, so on first run Windows SmartScreen shows *"Windows protected
-your PC"*. Choose **More info** → **Run anyway**. Each release also ships a `SHA256SUMS.txt`:
+The installer is **not code-signed**, so Windows SmartScreen shows *"Windows protected your PC"*.
+Choose **More info** → **Run anyway**. Each release also ships a `SHA256SUMS.txt`:
 
 ```powershell
-(Get-FileHash .\ScrumControl-0.1.0-portable.exe -Algorithm SHA256).Hash
+(Get-FileHash .\ScrumControl-Setup-0.1.0.exe -Algorithm SHA256).Hash
 ```
 
 **Requirements:** Windows 10/11 and Claude Code with its state in `~/.claude` (or point the app at
-another directory in Settings). The EXE bundles its own runtime; you do not need Node.
+another directory in Settings). The app bundles its own runtime; you do not need Node.
 
-Settings live in `%APPDATA%\scrum-control\settings.json`.
+Settings live in `%APPDATA%\scrum-control\settings.json`. Uninstall from *Settings → Apps*; that
+also removes the autostart entry and leaves your settings in place.
 
-### Auto-update
+### Updates
 
-Off by default. Turn it on in Settings and, once a day, the app checks this repository's releases
-for a newer `scrum-control-v*` version, downloads its portable EXE and verifies it against
-`SHA256SUMS.txt` before staging it. A staged update is swapped in the next time you start the app —
-never a self-restart. Any failure is silent and leaves the app as it was.
+Off by default. Turn on *Check for updates* in Settings and, once a day, the app checks this
+repository's latest release, downloads the new installer in the background (only the changed
+parts, when it can) and verifies its SHA-512. Then:
+
+| While Scrum Control runs | What happens |
+| --- | --- |
+| the download finishes | you are asked: **Install and restart** or **Later** |
+| you chose Later | it installs quietly the next time Scrum Control quits |
+| you want it now | Settings → *Install and restart*, or the tray menu → *Restart to install vX.Y.Z* |
+
+A failed check or download changes nothing; Settings → Diagnostics shows why.
 
 ## What it does not do
 

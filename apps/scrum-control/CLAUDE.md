@@ -10,7 +10,7 @@ flow are in [CONTRIBUTING.md](CONTRIBUTING.md). Run every command from `apps/scr
 | --- | --- | --- | --- | --- |
 | Story | local, before a story is done | `npm test` (whole suite) | the story | ≤ 30 s |
 | PR | `.github/workflows/scrum-control-validate.yml` at the repo root | typecheck, `npm test` | the merge | `npm test` ≤ 30 s |
-| Release | `.github/workflows/scrum-control-release.yml` at the repo root | when a release is due: `npm test`, then build and publish the portable EXE | the release | `npm test` ≤ 30 s; 0 s when nothing releases |
+| Release | `.github/workflows/scrum-control-release.yml` at the repo root | when a release is due: `npm test`, then build and publish the installer | the release | `npm test` ≤ 30 s; 0 s when nothing releases |
 | Perf | `npm run test:perf`, local only | N4/N5 strict 2 s budgets, `fileParallelism: false` | nothing; reports | none (non-blocking) |
 
 Budgets are targets from one local measurement; exceeding one opens a story, nothing enforces it.

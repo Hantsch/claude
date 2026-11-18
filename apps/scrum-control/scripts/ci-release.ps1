@@ -17,10 +17,14 @@
        Unreleased section fails the run - that is the "no release without release notes" rule.
     4. One commit "chore(release): scrum-control <version> [skip ci]" + one annotated tag
        scrum-control-v<version>.
-    5. `npm run package` builds the portable EXE, and a SHA256SUMS file is written next to it.
-    6. Everything is pushed and a GitHub release is created from the tag, with the notes from
-       the changelog plus the download hint, and ScrumControl-<version>-portable.exe +
-       SHA256SUMS.txt attached as assets - the two files the app's self-update looks for.
+    5. `npm run package` builds the NSIS installer ScrumControl-Setup-<version>.exe together with
+       its .blockmap and latest.yml, latest.yml is checked against the installer, and a
+       SHA256SUMS file is written next to them.
+    6. Everything is pushed and a GitHub release is created from the tag and marked as the
+       repository's latest, with the notes from the changelog plus the download hint, and the
+       installer, its .blockmap, latest.yml and SHA256SUMS.txt attached. The first three are what
+       the app's self-update (electron-updater) reads from the latest release; the sums are for
+       people verifying a download by hand.
 
     A scrum-control-v* tag on HEAD itself means an earlier run got as far as the tag. If GitHub
     already has its release, nothing happens. If not, the run recovers it: no plan, tests, bump
@@ -40,7 +44,7 @@
     already carries (the first release), package.json is left as it is.
 .PARAMETER DryRun
     Do everything except commit, tag, push and create the release. The tests still run, files
-    are still modified and the EXE is still built, so you can inspect both - revert with `git checkout -- .`.
+    are still modified and the installer is still built, so you can inspect both - revert with `git checkout -- .`.
 .EXAMPLE
     pwsh -File apps/scrum-control/scripts/ci-release.ps1 -DryRun
 .EXAMPLE
@@ -95,15 +99,17 @@ function Test-GitHubRelease {
 
 function Get-Artifact {
     param([Parameter(Mandatory = $true)][string]$Version)
-    $exeName = "ScrumControl-$Version-portable.exe"
+    $exeName = "ScrumControl-Setup-$Version.exe"
     [pscustomobject]@{
-        Version  = $Version
-        Tag      = "$tagPrefix$Version"
-        ExeName  = $exeName
-        ExePath  = Join-Path $appRoot "release/$exeName"
-        SumsPath = Join-Path $appRoot 'release/SHA256SUMS.txt'
-        Hash     = $null
-        SizeMb   = $null
+        Version      = $Version
+        Tag          = "$tagPrefix$Version"
+        ExeName      = $exeName
+        ExePath      = Join-Path $appRoot "release/$exeName"
+        BlockmapPath = Join-Path $appRoot "release/$exeName.blockmap"
+        LatestPath   = Join-Path $appRoot 'release/latest.yml'
+        SumsPath     = Join-Path $appRoot 'release/SHA256SUMS.txt'
+        Hash         = $null
+        SizeMb       = $null
     }
 }
 
@@ -120,7 +126,18 @@ function Build-Artifact {
     } finally {
         Pop-Location
     }
-    if (-not (Test-Path $Artifact.ExePath)) { throw "expected artifact not found: $($Artifact.ExePath)" }
+    foreach ($path in @($Artifact.ExePath, $Artifact.BlockmapPath, $Artifact.LatestPath)) {
+        if (-not (Test-Path $path)) { throw "expected artifact not found: $path" }
+    }
+
+    # electron-updater trusts latest.yml to name this release's version and installer. A name that
+    # drifted (a space in artifactName, a stale file from another build) would make every update
+    # check fail after publishing, so it is checked here instead.
+    $latest = Get-Content -Path $Artifact.LatestPath -Raw -Encoding UTF8
+    $versionPattern = '(?m)^version:\s*' + [regex]::Escape($Artifact.Version) + '[ \t\r]*$'
+    $pathPattern = '(?m)^path:\s*' + [regex]::Escape($Artifact.ExeName) + '[ \t\r]*$'
+    if ($latest -notmatch $versionPattern) { throw "latest.yml does not name version $($Artifact.Version)" }
+    if ($latest -notmatch $pathPattern) { throw "latest.yml does not name the installer $($Artifact.ExeName)" }
 }
 
 function Write-Sums {
@@ -132,9 +149,8 @@ function Write-Sums {
     $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
     [IO.File]::WriteAllText($sumsPath, "$hash *$exeName`n", (New-Object System.Text.UTF8Encoding($false)))
 
-    # Self-check: the update-checker trusts this exact producing format - "<sha256> *<filename>"
-    # per line - so a corrupted write here must fail the release loudly instead of shipping a
-    # checksums file consumers can't parse.
+    # Self-check: the documented format is "<sha256> *<filename>" per line, so a corrupted write
+    # here must fail the release loudly instead of shipping a checksums file nobody can use.
     $sumsLines = Get-Content -Path $sumsPath -Encoding UTF8
     foreach ($line in $sumsLines) {
         if ($line -notmatch '^[0-9a-f]{64} \*.+$') {
@@ -167,10 +183,10 @@ function Add-DownloadHint {
 
 ### Download
 
-**[$exeName](https://github.com/$repoSlug/releases/download/$tag/$exeName)** $([char]0x2014) portable, no installer. Put it anywhere and start it; it lives in the tray.
+**[$exeName](https://github.com/$repoSlug/releases/download/$tag/$exeName)** $([char]0x2014) the installer. Installs for your user only (no admin rights), adds Start menu and desktop shortcuts, and starts Scrum Control in the tray. Already installed? Turn on *Check for updates* in Settings and it updates itself.
 
-The EXE is not code-signed, so Windows SmartScreen shows *"Windows protected your PC"* on
-first run $([char]0x2014) choose **More info** then **Run anyway**.
+The installer is not code-signed, so Windows SmartScreen shows *"Windows protected your PC"*
+$([char]0x2014) choose **More info** then **Run anyway**.
 
 Verify the download against ``SHA256SUMS.txt``:
 
@@ -190,18 +206,18 @@ function Publish-Release {
     $version = $Artifact.Version
     $tag = $Artifact.Tag
     $exeName = $Artifact.ExeName
-    $exePath = $Artifact.ExePath
-    $sumsPath = $Artifact.SumsPath
+    $assets = @($Artifact.ExePath, $Artifact.BlockmapPath, $Artifact.LatestPath, $Artifact.SumsPath)
 
     if ($DryRun) {
-        Write-Host "[dry-run] gh release create $tag --title `"$productName $version`" --notes-file $NotesPath $exePath $sumsPath" -ForegroundColor DarkGray
+        Write-Host "[dry-run] gh release create $tag --title `"$productName $version`" --latest --notes-file $NotesPath $($assets -join ' ')" -ForegroundColor DarkGray
         Write-Host ''
         Write-Host '--- release notes ---' -ForegroundColor DarkGray
         Get-Content -Path $NotesPath | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
         exit 0
     }
 
-    & gh release create $tag --title "$productName $version" --notes-file $NotesPath $exePath $sumsPath
+    # --latest: electron-updater finds the newest version through the repository's latest release.
+    & gh release create $tag --title "$productName $version" --latest --notes-file $NotesPath @assets
     if ($LASTEXITCODE -ne 0) { throw "gh release create failed for $tag" }
     Write-Host "created GitHub release $tag" -ForegroundColor Green
 

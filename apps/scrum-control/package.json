@@ -14,7 +14,7 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
-    "package": "npm run build && electron-builder --win portable",
+    "package": "npm run build && electron-builder --win --publish never",
     "cli": "tsx src/cli/index.ts",
     "icons": "node scripts/build-icons.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "chokidar": "^5.0.0",
+    "electron-updater": "^6.8.9",
     "koffi": "^3.1.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

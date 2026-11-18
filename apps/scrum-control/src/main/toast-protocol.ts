@@ -185,22 +185,15 @@ export interface ProtocolClientTarget {
 /**
  * What to register with `app.setAsDefaultProtocolClient` (D4).
  *
- * `process.execPath` is normally stable, but electron-builder's `portable` target extracts to a
- * per-run temp dir and points `execPath` there — a path that stops existing once the app exits,
- * so a toast button pressed later launches nothing. That target also exports
- * `PORTABLE_EXECUTABLE_FILE`: the *launched* exe's own stable path. Prefer it when present,
- * with no extra args since it is a full standalone exe. Otherwise fall back to today's
- * behaviour: no-argument registration when packaged (the exe finds itself), or Electron plus
- * the script path in dev (there is no exe of its own to register).
+ * The installed app's `process.execPath` is stable (the per-user install directory), so a
+ * packaged run registers with no arguments and the exe finds itself. A dev run has no exe of
+ * its own: it registers Electron plus the script path.
  */
 export function protocolClientTarget(
-  env: NodeJS.ProcessEnv,
   execPath: string,
   isPackaged: boolean,
   script: string | undefined,
 ): ProtocolClientTarget {
-  const portableExe = env.PORTABLE_EXECUTABLE_FILE;
-  if (portableExe) return { path: portableExe };
   if (isPackaged || !script) return {};
   return { path: execPath, args: [resolve(script)] };
 }
@@ -222,7 +215,7 @@ export type ProtocolRegistrationOutcome = { ok: true } | { ok: false; error?: un
 /**
  * Pure builder: platform + {@link protocolClientTarget}'s result + the registration outcome →
  * {@link ProtocolRegistration}. `execPath` is only used as the reported path when `target.path`
- * is absent — the packaged, non-portable case, where `setAsDefaultProtocolClient(scheme)` is
+ * is absent — the packaged case, where `setAsDefaultProtocolClient(scheme)` is
  * called with no explicit path and Windows registers `process.execPath` for it.
  */
 export function buildProtocolRegistration(

@@ -1,7 +1,8 @@
 name: scrum-control-release
 
-# Releases Scrum Control (apps/scrum-control/) as tag scrum-control-v<version> with the portable
-# EXE and SHA256SUMS.txt - the two files the app's opt-in self-update looks for. The plugins have
+# Releases Scrum Control (apps/scrum-control/) as tag scrum-control-v<version>: a GitHub release,
+# marked latest, with the NSIS installer, its .blockmap and latest.yml - what the app's opt-in
+# self-update (electron-updater) reads from the latest release - plus SHA256SUMS.txt. The plugins have
 # their own release workflow (release.yml) and their own tags in the same repository.
 #
 # The first release has no tag to derive a bump from: plan-release.ps1 then answers "initial" and
@@ -47,7 +48,7 @@ concurrency:
 jobs:
   release:
     name: Release
-    # electron-builder produces the Windows portable target, so this has to be a Windows runner.
+    # electron-builder produces the Windows NSIS installer, so this has to be a Windows runner.
     runs-on: windows-latest
     # The release commit itself is chore(release) and would be skipped anyway; the marker
     # makes it explicit and saves a run.

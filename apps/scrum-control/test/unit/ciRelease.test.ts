@@ -21,8 +21,8 @@ const TAG_PREFIX = 'scrum-control-v';
 /** The release lane's test run also writes the timing report that release.yml uploads. */
 const NPM_TEST = 'npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json';
 
-// One stub for both tools: logs "<tool> <args>"; `npm run package` leaves the artifact the
-// script expects; the exit codes of `gh release view|create` come from the environment.
+// One stub for both tools: logs "<tool> <args>"; `npm run package` leaves the installer, its
+// blockmap and latest.yml where the script expects them; the exit codes of `gh release view|create` come from the environment.
 const STUB = `import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 const [name, ...args] = process.argv.slice(2);
@@ -30,7 +30,11 @@ appendFileSync(process.env.STUB_LOG, name + ' ' + args.join(' ') + '\\n');
 if (name === 'npm' && args.join(' ') === 'run package') {
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
   mkdirSync('release', { recursive: true });
-  writeFileSync(path.join('release', 'ScrumControl-' + version + '-portable.exe'), 'stub exe');
+  const exe = 'ScrumControl-Setup-' + version + '.exe';
+  writeFileSync(path.join('release', exe), 'stub exe');
+  writeFileSync(path.join('release', exe + '.blockmap'), 'stub blockmap');
+  const latest = process.env.STUB_LATEST_VERSION ?? version;
+  writeFileSync(path.join('release', 'latest.yml'), 'version: ' + latest + '\\nfiles:\\n  - url: ' + exe + '\\npath: ' + exe + '\\n');
 }
 if (name === 'gh') {
   const sub = args.slice(0, 2).join(' ');
@@ -177,6 +181,19 @@ describe('ci-release test gate', () => {
     expect(output.indexOf('=== test ===')).toBeLessThan(output.indexOf('[dry-run] git commit'));
   });
 
+  it('a latest.yml that names another version stops the release before anything is pushed', async () => {
+    const fx = await makeFixture();
+    fx.commitAt(`${APP}/src/thing.ts`, 'feat: add a thing');
+    const originBefore = fx.git('ls-remote', 'origin');
+
+    const { code, output } = fx.run([], { STUB_LATEST_VERSION: '9.9.9' });
+
+    expect(code, output).not.toBe(0);
+    expect(output).toContain('latest.yml does not name version 1.1.0');
+    expect(fx.log().filter((l) => l.startsWith('gh release create'))).toEqual([]);
+    expect(fx.git('ls-remote', 'origin')).toBe(originBefore);
+  });
+
   it('the release workflow leaves testing to the script and says why', () => {
     const workflow = readFileSync(path.join(gitRootDir, '.github/workflows/scrum-control-release.yml'), 'utf8');
     expect(workflow).not.toContain('npm test');
@@ -248,10 +265,14 @@ describe('ci-release with a tag at HEAD', () => {
     expect(log.filter((l) => l === 'npm run package')).toHaveLength(1);
     expect(log.filter((l) => l.startsWith('gh release create '))).toHaveLength(1);
     expect(log.filter((l) => l.startsWith('gh release create scrum-control-v1.1.0 '))).toHaveLength(1);
-    // The two files the app's self-update looks for travel with the release.
+    // What the app's self-update reads (installer, blockmap, latest.yml) travels with the
+    // release, plus the sums, and the release is marked latest - where electron-updater looks.
     const create = log.find((l) => l.startsWith('gh release create ')) ?? '';
-    expect(create).toContain('ScrumControl-1.1.0-portable.exe');
+    expect(create).toContain('ScrumControl-Setup-1.1.0.exe');
+    expect(create).toContain('ScrumControl-Setup-1.1.0.exe.blockmap');
+    expect(create).toContain('latest.yml');
     expect(create).toContain('SHA256SUMS.txt');
+    expect(create).toContain('--latest');
     expect(create).toContain('Scrum Control 1.1.0');
     expect(fx.git('rev-parse', 'HEAD')).toBe(head);
     expect(fx.git('ls-remote', '--tags', 'origin')).toBe(originTags);
@@ -376,7 +397,7 @@ describe('ci-release in the shared repository', () => {
     expect(log.filter((l) => l === 'npm run package')).toHaveLength(1);
     expect(output).toContain('[dry-run] git tag -a scrum-control-v0.1.0');
     expect(output).toContain('[dry-run] gh release create scrum-control-v0.1.0');
-    expect(output).toContain('ScrumControl-0.1.0-portable.exe');
+    expect(output).toContain('ScrumControl-Setup-0.1.0.exe');
     // Promoted, and the version in package.json untouched.
     const changelog = readFileSync(path.join(fx.clone, APP, 'CHANGELOG.md'), 'utf8');
     expect(changelog).toMatch(/## Unreleased[\s\S]*## 0\.1\.0 /);

@@ -34,7 +34,7 @@ scripts/ci-release.ps1            release orchestration (commit, tag, push)
 .github/workflows/validate.yml    CI on every push and PR
 .github/workflows/release.yml     CI on main: releases every plugin with releasable commits
 .github/workflows/scrum-control-validate.yml   CI for the app: typecheck, tests, release notes
-.github/workflows/scrum-control-release.yml    CI on main: releases the app (portable EXE)
+.github/workflows/scrum-control-release.yml    CI on main: releases the app (installer)
 ```
 
 ## Adding another plugin
@@ -144,9 +144,10 @@ Same habits, different paths:
 - **Notes:** `apps/scrum-control/CHANGELOG.md`, under `## Unreleased`. The same no-release-without-notes
   rule applies; the pre-push hook and `scrum-control-validate.yml` both check it.
 - **Result:** a `chore(release): scrum-control <version> [skip ci]` commit, the tag
-  `scrum-control-v<version>`, and a GitHub release carrying `ScrumControl-<version>-portable.exe`
-  and `SHA256SUMS.txt`. The app's opt-in self-update looks for exactly that tag shape and those two
-  assets, which is why the plugins' tags (`ai-scrum-v…`, ...) never matter to it.
+  `scrum-control-v<version>`, and a GitHub release, marked latest, carrying
+  `ScrumControl-Setup-<version>.exe`, its `.blockmap`, `latest.yml` and `SHA256SUMS.txt`. The app's
+  opt-in self-update reads the repository's latest release, which is why plugin releases create
+  tags (`ai-scrum-v…`, ...) but never a GitHub release.
 - **The first release ships `package.json`'s version**, because there is no tag to derive a bump
   from: while no `scrum-control-v*` tag exists, `plan-release.ps1` reads the app's whole history
   and answers `initial` if any of it is releasable, and the next push to main releases `0.1.0`

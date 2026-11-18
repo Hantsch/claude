@@ -46,7 +46,6 @@ export function applyAutostart(enabled: boolean): void {
  * The self-heal effect is achieved elsewhere: `applyAutostart()` is called unconditionally on
  * every app start (see index.ts) and always writes the *current* `process.execPath`. That
  * alone re-points the login item at wherever the EXE currently is, every time the app starts
- * with autostart on — which is the actual behavior the "portable EXE" acceptance criterion
- * needs. Doing that write unconditionally is the correct behavior, not a bug to avoid.
+ * with autostart on — so a reinstall into another folder heals itself on the next start. Doing that write unconditionally is the correct behavior, not a bug to avoid.
  */
 export function healAutostartPath(): void {}

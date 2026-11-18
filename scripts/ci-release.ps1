@@ -13,7 +13,8 @@
       3. One commit + one annotated tag <name>-v<version> per plugin.
     Finally everything is pushed. No GitHub release is created for a plugin: Claude Code reads
     the version from the manifests, never from releases, and the notes live in the CHANGELOG.
-    The repository's release page belongs to Scrum Control (apps/scrum-control/) alone. The tags
+    The repository's release page belongs to Scrum Control (apps/scrum-control/) alone - its
+    self-update reads the repository's latest release, so a plugin release would break it. The tags
     stay - plan-release.ps1 measures each plugin's commits from its last <name>-v* tag.
 .PARAMETER Plugin
     Only release this plugin instead of every plugin in the marketplace.

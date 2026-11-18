@@ -62,6 +62,7 @@ const api: RendererApi & {
     ipcRenderer.invoke(IPC.refreshModelWindows) as Promise<ModelWindowStatus | null>,
   refreshUpdateCheck: () =>
     ipcRenderer.invoke(IPC.refreshUpdateCheck) as Promise<UpdateStatus | null>,
+  installUpdate: () => ipcRenderer.invoke(IPC.installUpdate) as Promise<boolean>,
   getProjects: () => ipcRenderer.invoke(IPC.getProjects) as Promise<ProjectView[]>,
   focusProject: (key) => ipcRenderer.invoke(IPC.focusProject, key),
   openProjectFolder: (key) => ipcRenderer.invoke(IPC.openProjectFolder, key) as Promise<ProjectActionResult>,
@@ -72,6 +73,8 @@ const api: RendererApi & {
   onSettingsChanged: (listener) => subscribe(IPC.settingsChanged, listener as (payload: never) => void),
   onShortcutStatusChanged: (listener) =>
     subscribe(IPC.shortcutStatusChanged, listener as (payload: never) => void),
+  onUpdateStatusChanged: (listener) =>
+    subscribe(IPC.updateStatusChanged, listener as (payload: never) => void),
   onNavigate: (listener) => subscribe('cc:navigate', listener as (payload: never) => void),
   onDetailTarget: (listener) => subscribe('cc:detail-target', listener as (payload: never) => void),
   setPopoverHeight: (height) => ipcRenderer.invoke('cc:popover-height', height) as Promise<void>,

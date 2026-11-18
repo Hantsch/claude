@@ -13,23 +13,42 @@ files:
 
 # The toast XML path (D6, src/main/icon-assets.ts:toastIconUri) hands Windows a `file:///` URI
 # it opens itself, which cannot reach into `app.asar` — only the patched `fs` can. Unpacking the
-# icon art keeps it reachable by plain file path at `app.asar.unpacked/assets/icons/**` in the
-# packaged portable build.
+# icon art keeps it reachable by plain file path at `app.asar.unpacked/assets/icons/**`.
 asarUnpack:
   - assets/icons/**/*
 
-# N3: portable EXE, started manually. No installer; autostart is an opt-in setting.
+# This block is what makes electron-builder write the update metadata: `latest.yml` and the
+# `.blockmap` next to the installer, and `app-update.yml` inside the app, which tells
+# electron-updater (src/main/updater.ts) where to look. It is gated on `publish` being configured,
+# not on the `--publish` CLI flag - so `npm run package` passes `--publish never` explicitly and
+# nothing here ever uploads: without the flag electron-builder turns publishing on by itself when
+# it detects CI. The release workflow publishes through `gh release create` in
+# scripts/ci-release.ps1, and marks that release as the repository's latest, which is where
+# electron-updater's GitHub provider looks.
+publish:
+  provider: github
+  owner: Hantsch
+  repo: claude
+
 win:
   target:
-    - portable
+    - target: nsis
+      arch:
+        - x64
   icon: assets/icons/app.ico
-  # No electron-updater channel: the opt-in self-update (src/main/selfUpdate.ts) downloads the
-  # portable EXE itself from the repository's `scrum-control-v*` GitHub releases.
+  # No spaces: electron-builder writes the sanitised name into `latest.yml`'s `url`, while GitHub
+  # stores an uploaded asset with spaces turned into dots - the two would no longer match.
+  artifactName: ScrumControl-Setup-${version}.${ext}
 
-portable:
-  artifactName: ScrumControl-${version}-portable.exe
-  requestExecutionLevel: user
-  unpackDirName: false
-
-# No publish target: electron-builder uploads nothing; the release workflow publishes the EXE.
-publish: null
+# An assisted, per-user installer: no admin prompt, installs to %LOCALAPPDATA%\Programs, lets the
+# user pick another folder. Updates run the same installer silently (electron-updater).
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Scrum Control
+  uninstallDisplayName: Scrum Control
+  # Removes the autostart entry and the toast protocol on uninstall (not on update).
+  include: assets/installer.nsh
