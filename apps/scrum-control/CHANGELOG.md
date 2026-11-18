@@ -9,6 +9,10 @@ section on release.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 0.2.0 — 2026-11-18
+
 - **Ships as an installer instead of a portable EXE.** `ScrumControl-Setup-<version>.exe` installs
   for your user only (no admin rights), to `%LOCALAPPDATA%\Programs` or a folder you choose, with
   Start menu and desktop shortcuts and an entry in *Apps & features*. Uninstalling also removes the
