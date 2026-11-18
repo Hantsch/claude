@@ -19,6 +19,9 @@ section on release.
   the download finishes you are asked to *Install and restart*; choose Later and it installs
   quietly the next time Scrum Control quits. Settings gains *Check now* and *Install and restart*,
   the tray menu *Restart to install vX.Y.Z* while an update is waiting.
+
+## 0.1.0 — 2026-11-18
+
 - New app icon: Scrum Control has its own icon instead of the one inherited from claude-control.
 
 - **A sprint and project overview across everything you have open.** Scrum Control shows, per
@@ -59,3 +62,4 @@ section on release.
   setting is off.
 - **Runs side by side with claude-control.** Its own name, data folder, notification scheme and
   shortcut (`Ctrl+Alt+S`), so neither app disturbs the other.
+
