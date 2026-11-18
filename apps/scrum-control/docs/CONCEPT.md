@@ -197,7 +197,8 @@ The first scan after app start establishes the baseline and announces nothing.
   `apps/scrum-control/CHANGELOG.md` `## Unreleased`; commits `chore(release): scrum-control
   <v> [skip ci]`, tags `scrum-control-v<v>`, creates the GitHub release with the exe and
   `SHA256SUMS.txt`. Shares the concurrency group of the plugin release so the two never push at
-  once. A `workflow_dispatch` input `version` makes the first release (`0.1.0`).
+  once. With no tag yet, the first releasable push ships `package.json`'s version (`0.1.0`); a
+  `workflow_dispatch` input `version` does the same by hand.
 - **PR lane:** on PRs and pushes touching the same paths: `npm ci`, typecheck, `npm test`.
 
 ## 10. Not in scope

@@ -18,10 +18,11 @@
     The highest level across all commits wins. Prints key=value lines and, inside GitHub
     Actions, appends the same keys to $env:GITHUB_OUTPUT.
 
-    Before the first release there is no scrum-control-v* tag to measure against, and deriving a
-    bump from the whole history would not land on the version the app calls its first. The plan
-    is then "none": the first release is started by hand (ci-release.ps1 -Version 0.1.0, or the
-    workflow_dispatch input `version`).
+    Before the first release there is no scrum-control-v* tag to measure against. The whole
+    history of those paths is read instead, and if any of it is releasable the level is
+    "initial": the first release ships exactly the version package.json already carries (0.1.0),
+    because a bump derived from the whole history would land past the version the app calls its
+    first. So the first push to main that touches the app releases it, like every later one.
 
     This script only reports - it changes nothing.
 .EXAMPLE
@@ -57,16 +58,13 @@ $tags = @(git -C $gitRoot tag --list "$tagPrefix*" --sort=-v:refname | Where-Obj
 $lastTag = ''
 if ($tags.Count -gt 0) { $lastTag = $tags[0] }
 
-$records = @()
-if ($lastTag) {
-    $range = @("$lastTag..HEAD")
-    $rs = [char]0x1e
-    $us = [char]0x1f
-    $raw = (git -C $gitRoot log @range "--format=%s$us%b$rs" -- @appPaths) -join "`n"
-    $records = @($raw -split $rs | Where-Object { $_.Trim() -ne '' })
-} else {
-    $us = [char]0x1f
-}
+# No tag yet: the whole history of the app's paths, which decides whether the first release is due.
+$range = @()
+if ($lastTag) { $range = @("$lastTag..HEAD") }
+$rs = [char]0x1e
+$us = [char]0x1f
+$raw = (git -C $gitRoot log @range "--format=%s$us%b$rs" -- @appPaths) -join "`n"
+$records = @($raw -split $rs | Where-Object { $_.Trim() -ne '' })
 
 # --- derive the bump ------------------------------------------------------------------
 $noReleaseTypes = @('chore', 'docs', 'ci', 'test', 'style', 'build')
@@ -74,9 +72,6 @@ $rank = @{ 'none' = 0; 'patch' = 1; 'minor' = 2; 'major' = 3 }
 $level = 'none'
 $reasons = @()
 $considered = 0
-if (-not $lastTag) {
-    $reasons += "none    <- no $tagPrefix* tag yet: the first release is started by hand (-Version)"
-}
 
 foreach ($record in $records) {
     $parts = $record -split $us
@@ -110,6 +105,13 @@ foreach ($record in $records) {
 
     $reasons += "$($commitLevel.PadRight(7)) <- $subject"
     if ($rank[$commitLevel] -gt $rank[$level]) { $level = $commitLevel }
+}
+
+# --- first release ----------------------------------------------------------------------
+# Without a tag a releasable history means the first release, at package.json's own version.
+if (-not $lastTag -and $level -ne 'none') {
+    $reasons = @("initial <- no $tagPrefix* tag yet: the first release ships package.json's $current") + $reasons
+    $level = 'initial'
 }
 
 # --- next version ---------------------------------------------------------------------

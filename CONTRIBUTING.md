@@ -146,10 +146,11 @@ Same habits, different paths:
   `scrum-control-v<version>`, and a GitHub release carrying `ScrumControl-<version>-portable.exe`
   and `SHA256SUMS.txt`. The app's opt-in self-update looks for exactly that tag shape and those two
   assets, which is why the plugins' tags (`ai-scrum-v…`, ...) never matter to it.
-- **The first release is started by hand**, because there is no tag to derive a bump from: run the
-  `scrum-control-release` workflow from the Actions tab with `version` = `0.1.0` (the version
-  `package.json` already carries), or locally `pwsh -File apps/scrum-control/scripts/ci-release.ps1
-  -Version 0.1.0 -DryRun` first. Until that tag exists a push releases nothing.
+- **The first release ships `package.json`'s version**, because there is no tag to derive a bump
+  from: while no `scrum-control-v*` tag exists, `plan-release.ps1` reads the app's whole history
+  and answers `initial` if any of it is releasable, and the next push to main releases `0.1.0`
+  (the version `package.json` already carries). Try it locally with
+  `pwsh -File apps/scrum-control/scripts/ci-release.ps1 -DryRun`.
 - **One release at a time:** the app's and the plugins' release workflows share the concurrency
   group `release-${{ github.ref }}`, so they queue instead of pushing to `main` together. GitHub
   keeps only one *waiting* run per group; if a release was skipped because a third run replaced it,

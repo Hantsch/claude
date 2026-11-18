@@ -74,7 +74,7 @@ its `CLAUDE.md` before touching it. What couples it to the rest of this reposito
   EXE and `SHA256SUMS.txt`, cut by `.github/workflows/scrum-control-release.yml` through
   `apps/scrum-control/scripts/` on pushes that touch `apps/scrum-control/`,
   `plugins/scrum-cockpit/hooks/scan.ts` or `plugins/scrum-cockpit/types/index.d.ts`. The first
-  release is started by hand (workflow input `version`). The app's self-update reads exactly those
+  release needs no tag: it ships `package.json`'s version on the first such push. The app's self-update reads exactly those
   releases, and the plugin releases in the same repository never concern it - nor it them: the
   root `scripts/` look only at `plugins/<name>/` paths and `<name>-v*` tags.
 - **One release at a time**: both release workflows share the concurrency group

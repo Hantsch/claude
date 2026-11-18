@@ -9,9 +9,9 @@
     to main releases the app, so apps/scrum-control/CHANGELOG.md must already hold the notes;
     release.ps1 -ValidateNotesOnly then applies the identical check the release itself would.
 
-    Before the first release there is no tag and therefore nothing a push could release by
-    itself - the first release is started by hand (ci-release.ps1 -Version, or the workflow
-    input), and release.ps1 checks the notes then. So there is nothing to check here yet.
+    Before the first release there is no tag; plan-release.ps1 then answers "initial" when the
+    app's history holds a releasable commit, and the next push releases package.json's version -
+    so the notes are checked exactly as for any later release.
 
     Nothing is written and nothing is committed - this only reports.
 
@@ -24,8 +24,8 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-# plan-release.ps1 answers "none" for everything that is not a release by itself: no releasable
-# commit since the last tag, and no tag at all yet.
+# plan-release.ps1 answers "none" when no releasable commit touched the app since the last tag
+# (or, before the first release, in its whole history).
 $plan = & (Join-Path $PSScriptRoot 'plan-release.ps1')
 $bumpLine = $plan | Where-Object { $_ -match '^bump=' } | Select-Object -First 1
 if (-not $bumpLine) { throw 'plan-release.ps1 returned no bump level' }

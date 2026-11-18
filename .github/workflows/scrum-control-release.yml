@@ -4,8 +4,8 @@ name: scrum-control-release
 # EXE and SHA256SUMS.txt - the two files the app's opt-in self-update looks for. The plugins have
 # their own release workflow (release.yml) and their own tags in the same repository.
 #
-# The first release has no tag to derive a bump from: start it by hand with workflow_dispatch and
-# the input `version` (0.1.0). Until then a push to main releases nothing.
+# The first release has no tag to derive a bump from: plan-release.ps1 then answers "initial" and
+# the run ships the version package.json already carries (0.1.0).
 on:
   push:
     branches: [main]
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release exactly this version (required for the first release: 0.1.0)'
+        description: 'Release exactly this version instead of bumping'
         required: false
         type: string
       bump:

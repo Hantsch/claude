@@ -27,14 +27,14 @@
     or git writes - only build, checksum and the GitHub release, with the notes from that
     version's CHANGELOG section.
 
-    The first release has no tag to measure against, so nothing can be derived - and deriving
-    from the whole history would land on 0.1.1 rather than the version the app calls its first.
-    It is therefore started by hand: -Version 0.1.0 (the workflow_dispatch input `version`) ships
-    exactly that version, with package.json already carrying it. Until then a push to main
-    releases nothing. Every later run has a tag and derives its bump.
+    The first release has no tag to measure against, so no bump is derived: when plan-release.ps1
+    finds a releasable commit anywhere in the app's history it answers "initial", and the run
+    ships exactly the version package.json already carries (0.1.0) - a bump derived from the
+    whole history would land past it. -Version 0.1.0 (the workflow_dispatch input `version`) does
+    the same by hand. Every later run has a tag and derives its bump.
 .PARAMETER ForceBump
     Ignore the commit messages and use this level (for a manual workflow_dispatch run). Needs an
-    existing scrum-control-v* tag; the first release takes -Version.
+    existing scrum-control-v* tag; the first release is package.json's version, or -Version.
 .PARAMETER Version
     Release exactly this version instead of bumping. When it equals the version package.json
     already carries (the first release), package.json is left as it is.
@@ -287,16 +287,25 @@ if ($Version) {
     $packageVersion = (Get-Content -Path (Join-Path $appRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
     if ($Version -eq $packageVersion) { $bootstrap = $true }
 } elseif (-not $hasTag) {
-    # First release. There is no tag to measure against, so a bump cannot be derived - and
-    # deriving one from the whole history is wrong anyway (it lands on 0.1.1, not on the
-    # version the app considers its first). It is started by hand with -Version, so a push
-    # to main alone never publishes an app nobody asked to release yet.
-    if ($ForceBump) { throw "no $tagPrefix* tag yet - the first release takes -Version (e.g. -Version 0.1.0), not -ForceBump" }
-    Write-Host "  -> nothing to release: no $tagPrefix* tag yet, the first release is started with -Version" -ForegroundColor DarkGray
-    if ($env:GITHUB_STEP_SUMMARY) {
-        Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'No scrum-control release yet - start the first one with the workflow input version.' -Encoding UTF8
+    # First release. There is no tag to measure against, so no bump is derived: a releasable
+    # history ("initial") ships the version package.json already carries - deriving a bump from
+    # the whole history would land past the version the app considers its first.
+    if ($ForceBump) { throw "no $tagPrefix* tag yet - the first release is package.json's version (or -Version), not -ForceBump" }
+    $bumpLine = $plan | Where-Object { $_ -match '^bump=' } | Select-Object -First 1
+    if (-not $bumpLine) { throw 'plan-release.ps1 returned no bump level' }
+    $bump = ($bumpLine -split '=', 2)[1].Trim()
+    if ($bump -eq 'none') {
+        Write-Host "  -> nothing to release: no $tagPrefix* tag yet and no releasable commit" -ForegroundColor DarkGray
+        if ($env:GITHUB_STEP_SUMMARY) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'No releasable commits - nothing released.' -Encoding UTF8
+        }
+        exit 0
     }
-    exit 0
+    if ($bump -ne 'initial') { throw "plan-release.ps1 returned '$bump' without a $tagPrefix* tag - expected 'initial' or 'none'" }
+    $Version = (Get-Content -Path (Join-Path $appRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "package.json version '$Version' is not semver" }
+    Write-Host "  -> first release: $Version, the version package.json carries" -ForegroundColor Yellow
+    $bootstrap = $true
 } else {
     $bump = $ForceBump
     if (-not $ForceBump) {
