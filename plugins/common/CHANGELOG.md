@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 1.3.0 — 2026-11-18
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - New skill `/common:codex`: runs the Codex CLI as a second agent for code analysis, edits and
   generating or reviewing images. It is not model-invoked - only you or a dedicated process that
   reads it (such as an asset pipeline) start it, so it never triggers in an ordinary conversation.
