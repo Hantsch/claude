@@ -42,7 +42,7 @@ Not a plugin: a small program that lives beside them.
 
 | You want … | App | Start with | |
 | --- | --- | --- | --- |
-| a tray icon that shows which of your projects has a sprint running and which sessions need you, across all open VS Code windows and WSL | [Scrum Control](apps/scrum-control/) (Windows, portable EXE) | download it from the [releases](../../releases) (the `scrum-control-v…` ones) | [changes](apps/scrum-control/CHANGELOG.md) |
+| a tray icon that shows which of your projects has a sprint running and which sessions need you, across all open VS Code windows and WSL | [Scrum Control](apps/scrum-control/) (Windows, portable EXE) | download it from the [releases](../../releases) | [changes](apps/scrum-control/CHANGELOG.md) |
 
 ## Install
 
@@ -78,7 +78,7 @@ now part of tech-rules —
 
 Layout, adding a plugin, testing locally, how releases work: [CONTRIBUTING.md](CONTRIBUTING.md).
 Versions live in [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), each
-plugin's `plugin.json` and the [releases](../../releases) — never in a README.
+plugin's `plugin.json` and its `CHANGELOG.md` — never in a README.
 
 ## License
 

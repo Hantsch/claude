@@ -16,7 +16,8 @@ on:
         options: ['', 'patch', 'minor', 'major']
         default: ''
 
-# Needed to push the release commit + tag and to create the GitHub release.
+# Needed to push the release commit + tag. Plugins get no GitHub release - the release page is
+# Scrum Control's (scrum-control-release.yml); Claude Code reads plugin versions from the manifests.
 permissions:
   contents: write
 
@@ -50,8 +51,6 @@ jobs:
 
       - name: Release
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $params = @{}
           if ('${{ inputs.plugin }}') { $params['Plugin'] = '${{ inputs.plugin }}' }

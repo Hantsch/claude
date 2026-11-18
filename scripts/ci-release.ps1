@@ -11,14 +11,16 @@
          version section. A missing or empty Unreleased section fails the run - that is the
          "no release without release notes" rule.
       3. One commit + one annotated tag <name>-v<version> per plugin.
-    Finally everything is pushed and a GitHub release is created per tag, with the notes
-    from the changelog plus an update hint for consuming projects.
+    Finally everything is pushed. No GitHub release is created for a plugin: Claude Code reads
+    the version from the manifests, never from releases, and the notes live in the CHANGELOG.
+    The repository's release page belongs to Scrum Control (apps/scrum-control/) alone. The tags
+    stay - plan-release.ps1 measures each plugin's commits from its last <name>-v* tag.
 .PARAMETER Plugin
     Only release this plugin instead of every plugin in the marketplace.
 .PARAMETER ForceBump
     Ignore the commit messages and use this level (for a manual workflow_dispatch run).
 .PARAMETER DryRun
-    Do everything except commit, tag, push and create releases. Files are still modified,
+    Do everything except commit, tag and push. Files are still modified,
     so you can inspect the diff - revert it with `git checkout -- .` afterwards.
 .EXAMPLE
     pwsh -File scripts/ci-release.ps1 -DryRun
@@ -56,8 +58,6 @@ if ($Plugin) {
 }
 
 $released = @()
-$notesDir = Join-Path ([IO.Path]::GetTempPath()) "release-notes-$PID"
-New-Item -ItemType Directory -Path $notesDir -Force | Out-Null
 
 foreach ($name in $plugins) {
     Write-Host ''
@@ -80,9 +80,8 @@ foreach ($name in $plugins) {
         continue
     }
 
-    $notesPath = Join-Path $notesDir "$name.md"
     try {
-        & (Join-Path $PSScriptRoot 'release.ps1') -Plugin $name -Bump $bump -PromoteUnreleased -NotesOut $notesPath
+        & (Join-Path $PSScriptRoot 'release.ps1') -Plugin $name -Bump $bump -PromoteUnreleased
     } catch {
         Write-Host ''
         Write-Host "RELEASE BLOCKED for $name`: $($_.Exception.Message)" -ForegroundColor Red
@@ -94,35 +93,11 @@ foreach ($name in $plugins) {
     $version = (Get-Content -Path (Join-Path $repoRoot "plugins/$name/.claude-plugin/plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json).version
     $tag = "$name-v$version"
 
-    # Update hint for consuming projects, appended to the release notes.
-    # Two leading blank lines: without one before "---", Markdown reads it as a heading
-    # underline for the last note instead of a horizontal rule.
-    $hint = @"
-
-
----
-
-### Updating
-
-``````
-/plugin marketplace update hantsch
-/plugin update $name
-``````
-"@
-    if ($bump -eq 'major') {
-        $hint += @"
-
-**Breaking change** - after updating, run ``/$name`:setup`` again in every project that uses
-this plugin, and read the notes above for what changed.
-"@
-    }
-    Add-Content -Path $notesPath -Value $hint -Encoding UTF8
-
     Invoke-Git @('add', "plugins/$name", '.claude-plugin/marketplace.json')
     Invoke-Git @('commit', '-m', "chore(release): $name $version [skip ci]")
     Invoke-Git @('tag', '-a', $tag, '-m', "$name $version")
 
-    $released += [pscustomobject]@{ Name = $name; Version = $version; Tag = $tag; Notes = $notesPath; Bump = $bump }
+    $released += [pscustomobject]@{ Name = $name; Version = $version; Tag = $tag; Bump = $bump }
     Write-Host "  -> $bump release $version, tagged $tag" -ForegroundColor Green
 }
 
@@ -136,16 +111,6 @@ if ($released.Count -eq 0) {
 }
 
 Invoke-Git @('push', '--follow-tags')
-
-foreach ($r in $released) {
-    if ($DryRun) {
-        Write-Host "[dry-run] gh release create $($r.Tag) --title `"$($r.Name) $($r.Version)`" --notes-file $($r.Notes)" -ForegroundColor DarkGray
-        continue
-    }
-    & gh release create $r.Tag --title "$($r.Name) $($r.Version)" --notes-file $r.Notes
-    if ($LASTEXITCODE -ne 0) { throw "gh release create failed for $($r.Tag)" }
-    Write-Host "created GitHub release $($r.Tag)" -ForegroundColor Green
-}
 
 if ($env:GITHUB_STEP_SUMMARY) {
     $lines = @('## Released', '')

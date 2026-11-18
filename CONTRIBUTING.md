@@ -30,7 +30,7 @@ scripts/validate.ps1              manifests, versions, frontmatter, shipped refe
 scripts/plan-release.ps1          derives the semver bump from commit messages
 scripts/check-notes.ps1           refuses a push that would release without release notes
 scripts/release.ps1               version bump in both manifests + changelog promotion
-scripts/ci-release.ps1            release orchestration (commit, tag, push, GitHub release)
+scripts/ci-release.ps1            release orchestration (commit, tag, push)
 .github/workflows/validate.yml    CI on every push and PR
 .github/workflows/release.yml     CI on main: releases every plugin with releasable commits
 .github/workflows/scrum-control-validate.yml   CI for the app: typecheck, tests, release notes
@@ -88,8 +88,9 @@ the notes:
 1. Put every change under `## Unreleased` in the plugin's `CHANGELOG.md`.
 2. Commit with a Conventional-Commit prefix — that is what decides the version bump.
 3. Merge to `main`. CI does the rest: version bump in both manifests, `## Unreleased` promoted
-   to the new version, one `chore(release)` commit, an annotated tag `<plugin>-v<version>`, and
-   a GitHub release whose notes are your changelog section plus an update hint.
+   to the new version, one `chore(release)` commit and an annotated tag `<plugin>-v<version>`.
+   There is no GitHub release for a plugin: Claude Code reads the version from the manifests,
+   users read the changes in the `CHANGELOG.md`, and the release page stays Scrum Control's.
 
 ### How the bump is decided
 
