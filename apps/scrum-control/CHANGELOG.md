@@ -9,6 +9,10 @@ section on release.
 
 ## Unreleased
 
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
+## 0.1.0 — 2026-11-18
+
 - New app icon: Scrum Control has its own icon instead of the one inherited from claude-control.
 
 - **A sprint and project overview across everything you have open.** Scrum Control shows, per
@@ -49,3 +53,4 @@ section on release.
   setting is off.
 - **Runs side by side with claude-control.** Its own name, data folder, notification scheme and
   shortcut (`Ctrl+Alt+S`), so neither app disturbs the other.
+
