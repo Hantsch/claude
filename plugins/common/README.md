@@ -1,7 +1,8 @@
 # common
 
 Shared building blocks that are not tied to any workflow and not to any stack: how Claude
-answers, and three commands that are useful in every repository.
+answers, three commands that are useful in every repository, and a Codex skill for dedicated
+processes.
 
 ## What ships
 
@@ -12,6 +13,7 @@ answers, and three commands that are useful in every repository.
 | `commands/premortem.md` | `/common:premortem` | Assume the plan failed, work backward to causes, early warning signs and preventions. Reads the actual plan first and checks it against the repository. |
 | `commands/secrets-scan.md` | `/common:secrets-scan` | Scan staged changes, the tree or history for credentials, connection strings and secrets leaking through logs. |
 | `commands/architecture-review.md` | `/common:architecture-review` | Whole-codebase review: one reviewer per dimension, findings merged and verified, a dated report plus one draft story per confirmed cluster. Decides which tests run in which lane; `tests` as the scope reviews only the test suite. |
+| `skills/codex/SKILL.md` | skill `/common:codex` | Drives the Codex CLI as a second agent - code analysis, edits, generating and reviewing images. **Never auto-invoked**: you call it, or a dedicated process (e.g. asset generation) loads it. |
 
 ### Where the karpathy rules went
 
@@ -81,6 +83,26 @@ tech-rules' `test-gates`), aiming to bring the blocking lanes within their budge
 the CI runner unless the project's lane map says otherwise), and cuts the moves into stories - the
 lanes change only when those stories are built. Run it when a lane is over budget or after
 `/test-review`.
+
+## Codex skill
+
+`/common:codex <task>` runs OpenAI's [Codex CLI](https://github.com/openai/codex) (`codex exec`)
+as a peer agent. It needs `codex` installed and signed in.
+
+The skill sets `disable-model-invocation: true`: its description never sits in a session's
+context and Claude does not reach for Codex on its own. It is meant for processes that need a
+second model on purpose - for example an asset pipeline in which Claude has Codex generate an
+image and then has it reviewed. Such a process loads it by reading the file:
+
+```
+Read ${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md and follow it in process mode:
+mode image-generate, sandbox workspace-write, output assets/raw/<name>.png
+```
+
+`${CLAUDE_PLUGIN_ROOT}` resolves only inside this plugin, so that process has to be a command or
+skill of `common` too. In process mode the skill takes model, effort and sandbox from the caller
+and does not ask follow-up questions; it still asks before `danger-full-access` or
+`--skip-git-repo-check`.
 
 ## Adding your own style
 

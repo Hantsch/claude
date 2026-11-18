@@ -48,7 +48,7 @@
     {
       "name": "common",
       "source": "./plugins/common",
-      "description": "Stack-agnostic building blocks for every project: the output styles Briefing and KIS, and the premortem and secrets-scan commands.",
+      "description": "Stack-agnostic building blocks for every project: the output styles Briefing and KIS, the premortem, secrets-scan and architecture-review commands, and a Codex CLI skill for dedicated processes.",
       "version": "1.2.0",
       "author": {
         "name": "Hantsch"
