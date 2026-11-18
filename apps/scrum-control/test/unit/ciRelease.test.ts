@@ -330,19 +330,38 @@ describe('ci-release in the shared repository', () => {
     expect(output).toContain('bump=patch');
   });
 
-  it('before the first release a push releases nothing, and -ForceBump is refused', async () => {
+  it('before the first release a releasable push ships the version package.json carries, and -ForceBump is refused', async () => {
     const fx = await makeFixture({ tagged: false, version: '0.1.0' });
     fx.commitAt(`${APP}/src/thing.ts`, 'feat: add a thing');
 
-    const idle = fx.run(['-DryRun']);
-    expect(idle.code, idle.output).toBe(0);
-    expect(idle.output).toContain('no scrum-control-v* tag yet');
-    expect(idle.output).toContain('nothing to release');
-    expect(fx.log()).toEqual([]);
-
+    // Refused before anything is tested, built or written.
     const forced = fx.run(['-DryRun', '-ForceBump', 'patch']);
     expect(forced.code).not.toBe(0);
     expect(forced.output).toContain('-Version');
+    expect(fx.log()).toEqual([]);
+
+    const { code, output } = fx.run(['-DryRun']);
+    expect(code, output).toBe(0);
+    expect(output).toContain('bump=initial');
+    expect(output).toContain('first release: 0.1.0');
+    const log = fx.log();
+    expect(log.filter((l) => l === NPM_TEST)).toHaveLength(1);
+    expect(log.filter((l) => l === 'npm run package')).toHaveLength(1);
+    expect(output).toContain('[dry-run] git tag -a scrum-control-v0.1.0');
+    expect(output).toContain('[dry-run] gh release create scrum-control-v0.1.0');
+    expect(JSON.parse(readFileSync(path.join(fx.clone, APP, 'package.json'), 'utf8')).version).toBe('0.1.0');
+  });
+
+  it('before the first release a history without a releasable commit releases nothing', async () => {
+    const fx = await makeFixture({ tagged: false, version: '0.1.0' });
+    fx.commitAt(`${APP}/README.md`, 'docs: reword the readme');
+
+    const { code, output } = fx.run(['-DryRun']);
+
+    expect(code, output).toBe(0);
+    expect(output).toContain('no scrum-control-v* tag yet');
+    expect(output).toContain('nothing to release');
+    expect(fx.log()).toEqual([]);
   });
 
   it('-Version 0.1.0 makes the first release verbatim, at the version package.json already carries', async () => {
