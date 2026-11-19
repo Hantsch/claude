@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git.exe push*)",
+      "Bash(git -C * push*)",
+      "Bash(*/git push*)",
+      "Bash(*/git.exe push*)",
+      "Bash(*git.exe\" push*)"
+    ]
+  }
+}
