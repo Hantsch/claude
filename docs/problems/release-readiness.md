@@ -4,11 +4,14 @@
 or a release of a project that runs ai-scrum goes red, or a fix commit is needed between a
 sprint's end and its release (§8).*
 
-**Status:** open — C1–C6, C8, C9 built into ai-scrum (`/release-check`, under `## Unreleased`, not yet
-released); C10–C13 built into tech-rules (unreleased) and T-T-Agent-Kingdom (`0cc93eb`) ·
-**Incidents:** 10 (I1–I10) · **Last:** I10, 2026-11-14, T-T-Agent-Kingdom (open) ·
-**Next:** release ai-scrum, `/ai-scrum:setup` in the projects (§6), then count green cycles (§1);
-for I10: release tech-rules, `/tech-rules:setup` and `/test-review all` in T-T-Agent-Kingdom (§6)
+**Status:** open — C1–C6, C8, C9 shipped since ai-scrum 4.10.0 (`/release-check`); C10–C13 shipped in
+tech-rules 2.7.0 and built into T-T-Agent-Kingdom (`0cc93eb`); C16–C18 built into tech-rules and
+ai-scrum (under `## Unreleased`, not yet released); C19 rejected ·
+**Incidents:** 11 (I1–I11) · **Last:** I11, 2026-11-19, wow-market-guide (released on the fifth
+merge) ·
+**Next:** release tech-rules and ai-scrum, then `/tech-rules:setup` in the four Electron projects
+and `/ai-scrum:setup` in the ai-scrum projects (§6), then count green cycles (§1); for I10:
+`/tech-rules:setup` and `/test-review all` in T-T-Agent-Kingdom (§6)
 
 ## 1. The problem
 
@@ -20,7 +23,9 @@ gate. So each fix feels like progress, and the next release fails anyway.
 The question this record answers over time: **which mechanisms make "green at the end of the
 sprint" differ from "green on GitHub", and which of them are closed?** Since I10 it has a second
 form, for a project with no CI at all: green in the sprint gate, red in the release script twenty
-minutes later, on the same machine (M8–M11).
+minutes later, on the same machine (M8–M11). Since I11 a third: every local check green or
+honestly `UNVERIFIED`, and the release job itself red four times on the runner — on traps three
+sibling projects had already solved (M12, M13).
 
 **Solved when** five consecutive sprint → PR → release cycles, in projects with an automatic
 release workflow, are green on the PR's first run and release without a fix commit in between,
@@ -44,9 +49,11 @@ Oldest first; append new rows at the bottom. Mechanisms: §3.
 | I8 | 10-30 | claude-control PR #6, head `5778747` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41051446781), [release](https://github.com/Hantsch/claude-control/actions/runs/41051628005)) | Test, N5: `expected 2061 to be less than 2000`; merged 40 s after the red run, release red the same way (2053 ms) | S06: `releasable: yes · a21373f · build + full test + typecheck` | M3, M2, M6 | S07/023 moved the budgets to the perf lane; S06 still unreleased on main |
 | I9 | 10-30 | claude-control PR dev→main, head `e70e7af` ([validate](https://github.com/Hantsch/claude-control/actions/runs/41064355449)) | Check release notes: "'## Unreleased' in CHANGELOG.md is empty … would release 1.1.2 (patch), but the notes are not ready" | S07: `releasable: yes · e70e7af · npm run build && npm run typecheck && npm test` | M1, M2, M4, M5 | `3499fed` merged origin/main into dev, `612487d` moved the notes; PR #7 [green](https://github.com/Hantsch/claude-control/actions/runs/41069375210) → [release](https://github.com/Hantsch/claude-control/actions/runs/41070172479) v1.1.2 — a **patch** for S06's features (M5) |
 | I10 | 11-14 | T-T-Agent-Kingdom, `npm run deploy` on the dev PC (no CI, no PR), head `3afb763` | Deploy step "Tests (npm test)", exit 1: `chat.test.ts:428` `vi.waitFor(() => expect(started).toEqual(["claude", "codex"]))` - "Compared values have no visual difference" (the value arrived after the wait's 1 s default) - plus an unhandled `fetch failed` from the requests left open at teardown. 1 of 3,913 tests, 238 s | S34: `npm test` 7 red → 2 fixed, 2 pre-existing, 3 "flaky under load", "no blocker"; then two fix commits that afternoon, `4b9e8aa` and `3afb763` "Tests green under full load", 8 min before the red deploy | M8, M9, M10, M11; M3 (gate on Node 25, deploy on Node 22) | wait budget and full-run lock in the project (`0cc93eb`), tech-rules `test-gates` / `test-review` / `solution-architect` (unreleased); the deploy itself re-ran on the green note |
+| I11 | 11-19 | wow-market-guide, PRs #1–#4 dev→main, release lane `deploy.yml` › job `package` on `windows-latest` (private repository: the runs cannot be read without a token; taken from the session transcripts and the fix commits) | Four red runs, one cause each: (1) `release-package.mjs --print-version` ran before the job's `npm ci` — its import of `marked` failed; (2) electron-builder, "Implicit publishing triggered by CI detection" — `CI=true` plus the job's `GH_TOKEN`; (3) the packaged-app icon test — `app.getFileIcon` returned the generic icon; (4) `node_modules/electron/dist/electron.exe` missing — Electron downloads its binary on first use. `package` needs `deploy`, so each run redeployed the server first | S32: `/release-check` `UNVERIFIED` (the `deploy.yml` steps: self-hosted runner, repository variables, `gh`; `release-dry-run: none`), then `/release-prep` "GO with warnings", 16 of 16 steps green | M12, M13; M2, M3 | `9f5242ea`, `29e627a6`, `1e627436`, `e3846818`, one per merge; PR #5 green → v0.1.0 |
 
 All dates 2026. Window: claude-control's whole CI history (7 PRs to main, 3 red); q2-launcher
-only from 2026-10-27 (the API's last 100 runs) plus what its script's header records.
+only from 2026-10-27 (the API's last 100 runs) plus what its script's header records;
+wow-market-guide's first five release runs, all on 2026-11-19.
 
 ## 3. Mechanisms
 
@@ -135,6 +142,35 @@ without naming the cause, and commissioning only timings. So the afternoon's two
 repaired the tests that were red in that run (§4's pattern, inside one day). *Status: closed in
 tech-rules (C13, unreleased); not yet run on a real review.*
 
+**M12 — The release job's first run is the release.** `package` existed only in the workflow a
+push to main triggers, behind `if: github.ref == 'refs/heads/main'`, with no dry run: no runner
+had executed it before the merge. Every local check ran its *commands*, never the *job*:
+`/release-check` installs once for all lanes before anything else, removes every token and classed
+the job's steps as `not local`; `/release-prep` splits wrapper commands and orders them fastest
+first. So four differences surfaced one per merge (I11): the order inside the job (a clean runner
+has no `node_modules`), the token (`CI` plus `GH_TOKEN`), the runner's desktop (no icon cache), the
+machine's history (a binary only a used machine has). M2 and M3 one level up — not a missing step
+and not a slower CPU, the job as a unit. The verdicts were honest about it (`UNVERIFIED`; "not
+run: `deploy.yml`") and had no consequence: asked that evening whether anything still stood in the
+way, the session answered that nothing was left in the code.
+*Status: open by decision — running the release job on a runner before the merge was rejected on
+2026-11-19 (C19, §6). The verdict now says it on its first line (C18); the cause is M13.*
+
+**M13 — A release job that works exists next door, and nobody opens it.** M11's shape for
+pipelines, and §4's "fixes travel in neither direction" across repositories. Three sibling
+projects build and release an Electron app on GitHub. All three already carried the answer to
+I11's second failure (`--publish never` in q2-launcher and scrum-control, each with a comment
+naming the trap; `publish: null` in claude-control), and q2-launcher's `setup-node-electron`
+action the answers to the first and the fourth (`npm ci` as the first step of every job;
+"electron has no postinstall" in its comment). None of the three repositories was opened in any
+session from the story (11-16) to the fifth merge — not even after the user said, in round three,
+that this was not the first Electron app released on GitHub. The same sprint holds the control:
+the server deployment's story named tnt_dnd as its reference ("like Turteltales" in its title) and
+its job was green on the first run; the installer story named none. tech-rules itself knew the
+publish trap — as a condition of `/release-prep`'s own run (tokens removed, `--publish never`
+added), which hides it, instead of as a rule for the project's build.
+*Status: closed by C16 and C17 (unreleased); not yet proven on a real release.*
+
 ## 4. Why the fixes so far did not stick
 
 Each fix closed the mechanism of the latest incident, in the project where it happened.
@@ -151,6 +187,8 @@ Each fix closed the mechanism of the latest incident, in the project where it ha
 | 11-14 | T-T-Agent-Kingdom `4b9e8aa`, `3afb763`: a green note so the deploy skips a proven commit; fewer processes in three safety tests; three more tests repaired | one instance of M8 each - the tests red in that run | that project; red on another test 8 min later (I10) |
 | 11-14 | T-T-Agent-Kingdom `0cc93eb`: a 10 s wait budget in a Vitest setup file with a counted guard test; a machine-wide heartbeat lock around every full run; the deploy waits for a running full run, then reads the green note | M9, M10; M8 only for the doubled load | that project |
 | 11-14 | tech-rules (unreleased): `test-gates` "Load" section, the runner's wait defaults in rule 2, the enforcement list; one-time file `vitest-waits.ts`; `test-review` load sweeps, margins and "causes, not casualties"; `solution-architect` gate health → test engineer → commission | M9 (the first enforcement setup offers), M11; M8 and M10 as rules | projects with tech-rules, from their next `/tech-rules:setup` |
+| 11-19 | wow-market-guide `9f5242ea`, `29e627a6`, `1e627436`, `e3846818`: the install moved above the script, `publish: null`, the icon read from the exe's resources, `electron.exe` resolved through `require('electron')`; guard tests for the first two | one instance of M12 each - the difference that run showed | that project; a fifth Electron app would start from zero again |
+| 11-19 | tech-rules (unreleased): skill `electron-release` (reference first, the setup action as a one-time file, one publisher, the trap table from all four apps); `/release-prep`: a never-run release job is `NO-GO`, step order and a missing publish flag are findings. ai-scrum (unreleased): `/refine` writes `Reference:` and the differences for pipeline deliverables, `/build` hands it on and reviews it; `/release-check` F3c | M13; M12 as far as the verdict goes | Electron projects with tech-rules and every ai-scrum project, from their next setup |
 
 The pattern (before the last row of 10-30): the answer to M1–M3 exists three times — q2-launcher's script, tech-rules'
 `/release-prep`, ai-scrum's phase-4 hook — none wired to the others, and the one that runs by
@@ -158,16 +196,18 @@ default (phase 4 with `none`) is the weakest and the only one that says "yes". M
 never named, so each recurrence looked new. Fixes also travel in neither direction (the
 placeholder strip in M4). Hence this record: classify a new incident against M1–M11 first, fix
 second. I10 repeated the pattern in one afternoon: the rule existed (M9), the specialist existed
-(M11), and each fix repaired the tests of the last red run.
+(M11), and each fix repaired the tests of the last red run. I11 is the pattern across
+repositories: the answer existed three times, in three sibling projects, and the fourth pipeline
+was written without reading one of them.
 
 ## 5. Countermeasures
 
 | # | Countermeasure | Closes | Where | Status |
 | --- | --- | --- | --- | --- |
-| C1 | With `release-verify: none`, phase 4 reports `releasable: UNVERIFIED — ran <steps> on HEAD; the PR runs <steps> on the merge with <branch>` instead of `yes` | M2 (the false yes) | ai-scrum `sprint.md` | done (unreleased) — `release-verify: none` yields `UNVERIFIED`; the new default is `auto` |
+| C1 | With `release-verify: none`, phase 4 reports `releasable: UNVERIFIED — ran <steps> on HEAD; the PR runs <steps> on the merge with <branch>` instead of `yes` | M2 (the false yes) | ai-scrum `sprint.md` | done (unreleased) — `release-verify: none` yields `UNVERIFIED`; the new default is `auto`. I11: the verdict was `UNVERIFIED` and nobody acted on it (M12, C18) |
 | C2 | Sprint start and phase 4 refuse when `origin/<release branch>` has non-merge commits the work branch lacks: `NO — main has the release commit <sha> · merge origin/main into <branch-base>`. At sprint start this runs before any story writes notes. Needs the release branch as a fact (new profile key, or the release workflow's `on.push.branches`) | M1, M4 (stale "current") | ai-scrum `sprint.md` phases 1 + 4, profile, setup | done (unreleased), as automation: phase 0 and phase 4 run `/release-check` part B and **merge** `origin/<release-branch>` into the work branch when conflict-free (a conflict stops the sprint); `/release-check` alone reports `NO — missing release-branch commits`. New key `release-branch` |
 | C3 | Changelog shape as a profile fact (`changelog-style: unreleased \| version-section`; setup detects a `## Unreleased` heading). `/build` 9b and the `/sprint` sweep follow it, and the sweep fails when the sprint's changelog diff touches anything but the Unreleased block | M4 | ai-scrum `build.md`, `sprint.md`, profile template, setup | done (unreleased) — the reference for "published" is a section's text **at its tag** (on the release branch without one): a branch that *restores* a damaged section is fine, damage already on the release branch is a warning, damage by the branch is NO |
-| C4 | A real release check by default: the merge tree, every blocking PR and release step, CI conditions (the method of `/release-prep` and q2-launcher's script), so `none` stops being the default | M1, M2, M3 | ai-scrum, without tech-rules (decided 2026-10-30) | done (unreleased): `/release-check` — merge in a `clone --shared` (not a worktree: shared refs), clean install, step list derived from the merged tree's workflows on every run, publish steps replaced by `release-plan` + `release-dry-run`, `not local` named, one background run. `release-verify: auto` is the default |
+| C4 | A real release check by default: the merge tree, every blocking PR and release step, CI conditions (the method of `/release-prep` and q2-launcher's script), so `none` stops being the default | M1, M2, M3 | ai-scrum, without tech-rules (decided 2026-10-30) | done (unreleased): `/release-check` — merge in a `clone --shared` (not a worktree: shared refs), clean install, step list derived from the merged tree's workflows on every run, publish steps replaced by `release-plan` + `release-dry-run`, `not local` named, one background run. `release-verify: auto` is the default. **Did not prevent I11:** one install for all lanes, no tokens, and the release job's steps classed `not local` — its commands ran, the job never did (M12) |
 | C5 | Commit subjects carry the bump, opt-in (`commit-style: conventional`): story commits typed from the story (`feat(022): …`, `fix(…)`, `test(023): …`), bookkeeping `docs(S07): …` | M5 | ai-scrum `sprint.md`, `build.md`, profile | done (unreleased) — `Change type:` in every story's Done section drives the bump check; `commit-style: conventional` types the subjects; setup recommends it where the release reads commit types |
 | C6 | Setup recommends a required status check on the release branch (the PR lane's job) — a proposal, the plugin never changes repository settings | M6 | ai-scrum or tech-rules setup | done (unreleased) — ai-scrum setup checks protection via `gh api` and recommends a required status check; never changes it |
 | C7 | This repo's `release.ps1` replaces heading *and* body on promotion (as claude-control's does), and the 18 stray placeholders go | M4 (here) | `scripts/release.ps1` | proposed — not part of this change (`scripts/`, this repo only) |
@@ -179,6 +219,10 @@ second. I10 repeated the pattern in one afternoon: the rule existed (M9), the sp
 | C13 | The architect checks gate health and sends the test engineer; the first story repairs the cause with a guard, tighter gates wait behind it, `/test-review all` is commissioned in the report | M11, and §4's "each fix closed the latest incident" | tech-rules `solution-architect`, `test-review` short form | done (unreleased); untested on a real review |
 | C14 | An agent's gate run and the user's release share one machine: `/sprint`, `/build` and `/release-check` say when a full run is going in the background and never start a second | M10 | ai-scrum `sprint.md`, `build.md`, `release-check.md` | proposed - not part of this change |
 | C15 | The test command refuses another runtime major than the version file instead of warning | M3 (runtime) | the project's launcher; `test-gates` "Load", last bullet | proposed - T-T-Agent-Kingdom story 247 (its open question) |
+| C16 | Electron release rules ship as a skill and a file: `electron-release` — start from a release job that works and write down every difference; every job starts with the checkout and the setup action (one-time file `setup-node-electron.yml`); publishing has one owner; a trap table collected from q2-launcher, claude-control, scrum-control and wow-market-guide; a new red run becomes a new row in the plugin, not only a fix in the project | M13; the four causes of I11 | tech-rules `templates/skills/electron/electron-release`, `templates/oneshot/setup-node-electron.yml`, setup | done (unreleased) - with its defaults the action is q2-launcher's; its `directory` and `node-version-file` inputs are new and have not run on a runner |
+| C17 | A pipeline deliverable names its reference: `/refine` writes `Reference: <path>` and every difference for a CI, release, packaging or deployment deliverable (this repository, a named project, the projects next to it, the release rules' skeleton); none found → an open question to the user; `/build` hands it to the implementing agent, and the review reports unexplained differences | M13 | ai-scrum `refine.md`, `build.md` | done (unreleased) |
+| C18 | The verdict says what a local run cannot show, with no extra run: `/release-check` F3c reads from the workflow files a release job that is not on the release branch yet (`NO`, first line - its first run is the release), a step above its job's install (`NO`), a changed release workflow (W6), a token on a building step (W7); `/release-prep` the same as `NO-GO` and findings | M12 - the verdict, and two of I11's four causes (order, token) before the run; not the first run itself | ai-scrum `release-check.md`, `sprint.md`; tech-rules `release-prep` | done (unreleased) |
+| C19 | Run the release job on a runner before the merge: as a job without publishing on every PR into the release branch, or dispatched and read by the agent through `gh` | M12 | - | **rejected by the user, 2026-11-19** (§6) |
 
 ## 6. Open
 
@@ -213,6 +257,16 @@ second. I10 repeated the pattern in one afternoon: the rule existed (M9), the sp
    first run there.
 6. Not explained: the same server start takes 70–120 ms under plain Node and 270–1,780 ms inside a
    Vitest worker on the idle PC.
+
+**I11 — wow-market-guide**
+1. Done: v0.1.0 released on the fifth merge (PR #5); the four fixes are on `main`.
+2. Open: release tech-rules and ai-scrum (C16–C18), then `/tech-rules:setup` in q2-launcher,
+   claude-control, scrum-control and wow-market-guide, and `/ai-scrum:setup` in the ai-scrum
+   projects.
+3. Open: the next new or changed release job is the test of C16 and C17 - did its story carry a
+   `Reference:`, and was its first run on the runner green.
+4. Not done, on purpose: wow-market-guide's `deploy.yml` keeps its own setup steps. Moving a
+   release job that has just gone green onto the new action would be an unproven change of its own.
 
 **Acceptance of `/release-check` (2026-10-30)** — throwaway clones of claude-control, an origin
 mirror with `main = 0f1bdb8` (the base of both PRs), the profile as setup would write it
@@ -253,6 +307,14 @@ release.yml (plan, dry run); perf.yml in neither lane; nothing `not local`.
   changes future subjects, not history.
 - Flaky in a blocking step, **decided 2026-10-30:** NO, not a warning (unlike `/release-prep`'s
   "GO with warnings"). Revisit if it produces chronic NOs that nobody fixes.
+- C19, **decided 2026-11-19:** the release job is not run before the merge - not on the PR ("the
+  same thing runs twice", the reasoning that took the PR lane out of `deploy.yml` the same
+  morning) and not by an agent through `gh` (nothing is started on GitHub automatically). The
+  cause is fought instead (C16, C17), and the verdict stops implying a proof it does not have
+  (C18). No overhead is added to the release.
+- C18, **decided 2026-11-19:** a release job that has never run on a runner is `NO`, not
+  `UNVERIFIED`. Revisit if `/release-check`'s record counts it as `not confirmed` release after
+  release.
 - **Proposal, not done — tech-rules `/release-prep`:** keep it as the "everything" run (perf,
   advisory platforms, all flows, a report file), but let its phase 0 steps 5–6 (merge + CI
   conditions) defer to `.claude/commands/release-check.md` when a project has it, and align the
