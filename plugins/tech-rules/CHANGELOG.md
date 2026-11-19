@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 2.8.0 — 2026-11-19
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - New skill `electron-release` in the group `electron`: an Electron app's release, package or
   deploy workflow is built from a release job that already works, not designed fresh. Rule 1 is
   the reference (this repository, a sibling project, the skill's skeleton), copied, with every
