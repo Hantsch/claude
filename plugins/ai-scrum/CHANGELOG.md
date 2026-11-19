@@ -12,6 +12,10 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+## 4.14.0 — 2026-11-19
+
+<!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
+
 - **`/refine`: a pipeline deliverable starts from a pipeline that works.** A deliverable that
   creates or changes a CI, release, packaging or deployment pipeline names its reference — the
   same kind of pipeline that already runs green, in this repository, a project the user names, a
