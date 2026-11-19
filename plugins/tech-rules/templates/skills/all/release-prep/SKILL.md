@@ -59,7 +59,9 @@ push or publish.
    - publish credentials removed (`env -u GH_TOKEN -u GITHUB_TOKEN -u CSC_LINK -u NPM_TOKEN ...`)
      and packaging told never to publish (electron-builder `--publish never`): with `CI` set,
      electron-builder otherwise uploads into a draft release whenever a token is present. A
-     packaging command that cannot be told is skipped and named;
+     packaging command that cannot be told is skipped and named. That protects this run and proves
+     nothing: a project whose own packaging command lacks the flag is a finding for the report,
+     because on the runner the token is there;
    - on Windows, `TEMP=<short> TMP=<short>`, `<short>` being the 8.3 name of a fresh directory
      whose name is longer than eight characters, the form hosted runners hand out
      (`C:\Users\RUNNER~1\...`):
@@ -111,6 +113,17 @@ Also check, without running anything long: the user-facing changelog (`changelog
 wrote landed in the original working tree (`git status --short` there); the release dry run runs
 only if the project documents it as writing nothing.
 
+And read what this run cannot show, because it splits each job's commands, reorders them and
+installs once before everything:
+
+- **Each CI job once, in its own step order.** A step that runs project code (`node <script>`,
+  `npm run`, `npx`, `dotnet run`) above the job's own dependency install fails on a clean runner
+  and never here - a red finding, with `<workflow>:<line>`.
+- **Each job of the release workflow against `origin/<release branch>`**
+  (`git show origin/<release branch>:<workflow file>`): a job that is not there yet - or whose
+  whole file is not - has never run on a runner. A file that is there and differs has changed
+  since it last ran; name what changed.
+
 Finally remove the worktree (`git worktree remove --force <dir>`) and the work directory - after
 copying what the report quotes.
 
@@ -121,18 +134,33 @@ copying what the report quotes.
 1. **Verdict** - `GO`, `GO with warnings` or `NO-GO`, then the commit (or the merge it tested),
    the release branch, clean checkout or working tree, the conditions emulated, total minutes.
    - `NO-GO`: any **blocking** step that is red, and any test in a blocking step that stays red on
-     its isolated re-run; a merge conflict; a red build, package or release dry run.
+     its isolated re-run; a merge conflict; a red build, package or release dry run; a job of the
+     release workflow that has never run on a CI runner; a step that runs project code above its
+     job's install.
    - `GO with warnings`: flaky tests, perf overruns, an advisory step red, a lane over its budget,
      a runtime version mismatch, an expired quarantine entry, a condition that could not be
-     emulated, a run on the working tree instead of a clean checkout.
+     emulated, a run on the working tree instead of a clean checkout, a release workflow changed
+     since it last ran on the release branch.
    - `GO`: none of that.
+
+   **A release job that has never run on a runner is `NO-GO`, whatever ran green here.** Its first
+   run will be the release itself, and this run does not stand in for it: other step order, one
+   install up front, no token, and a machine with every cached binary and a logged-in desktop.
+   Measured: 16 of 16 steps green and `GO with warnings`, then four red release runs in a row, one
+   cause each - a script above the job's install, a builder that published by itself once it saw a
+   token, a test that asked the desktop for an icon, a binary only a used machine has. The verdict
+   line names the job and what stands behind it instead: the release job it was copied from with
+   the differences (in an Electron project the `electron-release` skill and its trap table), and a
+   dry run of the workflow if the user started one. Whether to release on that is the user's
+   decision; this skill starts nothing on the CI system.
 2. **Steps** - `| Step | Command | Lanes | Blocking | Result | Minutes | Budget |`, in run order.
 3. **Failures** - per red step its failing tests with `file:line`, the first error line, the
    verdict (`red` / `flaky`), and the class from `test-gates` (clock, zone, path, speed, order,
    artefact, runtime version) when the error shows one.
 4. **Warnings** - perf overruns (`| Budget | Measured | Limit |`), lanes over budget, flaky tests,
    quarantine entries with their age, tests skipped for a missing dependency, the runtime version.
-5. **Release checks** - merge, changelog, the original tree untouched, dry run.
+5. **Release checks** - merge, changelog, the original tree untouched, dry run, and per job of
+   the release workflow: ran on the release branch before, changed since, or never.
 6. **Next steps** - what to fix first, in order. A lane over its budget points to
    `/common:architecture-review tests`; flaky, brittle or pointless tests to `/test-review` - and
    so does a newest `*-test-review.md` older than the previous release, or none at all.

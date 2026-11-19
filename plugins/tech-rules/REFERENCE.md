@@ -41,7 +41,7 @@ every session.
 | `all` | `karpathy`, `test-gates`, `test-review`, `release-prep`, `solution-architect` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` (not with `react-native`/`expo` in the same file — setup asks instead) |
-| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
+| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify`, `electron-release` | a `package.json` has `electron`, or an electron-vite/-builder config exists |
 | `ui` | `design-system` | the project has a user-facing surface (a UI library or browser bundler in a `package.json`, an `index.html` in a source tree, a .NET UI project) |
 
 **Auto** = Claude loads the skill by itself when the task matches its description. **You type it** =
@@ -81,6 +81,7 @@ the skill is a command (`disable-model-invocation: true`) and runs only when you
 | `typed-ipc` | auto | One channel map in the shared layer that main handlers, the preload allowlist and renderer types all derive from, with boot-time and compile-time completeness checks. |
 | `renderer-guidelines` | auto | Shell + modules layout, data and state rules and reuse for an Electron renderer; replaces `frontend-guidelines` there (setup skips it, `design-tokens` stays). |
 | `ui-verify` | auto | A Playwright `_electron` harness: screenshot every screen, run axe-core in the same session, gate on `serious`/`critical`; acceptance flows run one per story and all per sprint, in a window that stays offscreen and out of the focus. |
+| `electron-release` | auto | Build, package and release on a CI runner from a release job that already works: find the reference, copy it and write down every difference; every job starts with checkout and the setup action; publishing has one owner (`--publish never`); a workflow skeleton; the trap table of what was green locally and red on the runner (a script above the install, implicit publishing, the lazily downloaded Electron binary, a test that asks the desktop, artifact names, a version derived twice); what stands behind a release job before its first run, and what to do when one is red. |
 
 ### Group `ui`
 
@@ -90,10 +91,12 @@ the skill is a command (`disable-model-invocation: true`) and runs only when you
 
 ### One-time files
 
-Three **one-time files** ship as well, each offered only when its target is missing. For an
+Four **one-time files** ship as well, each offered only when its target is missing. For an
 Electron project: `templates/oneshot/launch.js` (env-scrubbing dev launcher, so `npm run dev`
-works inside VS Code) and `templates/oneshot/json-store.ts` (atomic, self-healing JSON store with
-`.bak` and quarantine). For a project that tests with Vitest: `templates/oneshot/vitest-waits.ts`
+works inside VS Code), `templates/oneshot/json-store.ts` (atomic, self-healing JSON store with
+`.bak` and quarantine) and `templates/oneshot/setup-node-electron.yml` (a composite action,
+written as `.github/actions/setup-node-electron/action.yml`: Node from the version file, `npm ci`
+and the Electron binary as the first step of every CI job). For a project that tests with Vitest: `templates/oneshot/vitest-waits.ts`
 (a setup file that puts `vi.waitFor` and `vi.waitUntil` on a central 10 s budget instead of the
 runner's 1 s; its header names the two config lines and the guard test that go with it). They are code: copied once, then yours forever, with no marker and no lock
 entry.

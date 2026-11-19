@@ -12,6 +12,34 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- New skill `electron-release` in the group `electron`: an Electron app's release, package or
+  deploy workflow is built from a release job that already works, not designed fresh. Rule 1 is
+  the reference (this repository, a sibling project, the skill's skeleton), copied, with every
+  difference written down. Rule 2: every job starts with the checkout and the setup action, and no
+  step runs project code before it. Rule 3: publishing has one owner (`--publish never` on every
+  electron-builder call, the token on the publishing step only). A trap table of what was green
+  locally and red on the runner in four apps: a script above the job's install, implicit
+  publishing under CI, the lazily downloaded Electron binary, a test that asks the desktop for an
+  icon, an artifact name with a space, a version derived twice, the release commit that never
+  reaches the work branch, the 8.3 temp path, a push from a detached checkout, two release lanes
+  in one repository. From a first release that took five merges: three of its four causes were
+  already solved in sibling projects nobody had opened.
+- New one-time file `setup-node-electron.yml`, offered by `setup` to an Electron project in which
+  no composite action installs the dependencies, written as
+  `.github/actions/setup-node-electron/action.yml`: Node from the version file with the npm cache,
+  `npm ci`, and the Electron binary from a version-keyed cache (`electron: 'false'` skips it;
+  `directory` and `node-version-file` for an app in a subfolder). Setup prints the two lines every
+  job starts with; it does not edit a workflow.
+- `release-prep`: a job of the release workflow that is not on the release branch yet has never
+  run on a runner and makes the verdict `NO-GO`, whatever ran green - this run reorders a job's
+  commands, installs once up front and removes the tokens, so it cannot stand in for that first
+  run. A step that runs project code above its job's install is `NO-GO` too, and a release workflow
+  changed since it last ran is a warning. A packaging command that lacks `--publish never` is now
+  a finding instead of something the run's own conditions hide. The report's release checks list
+  each release job as ran before, changed or never. It still starts nothing on the CI system.
+- `setup`: the `CLAUDE.md` block gets a row for `electron-release` (a release, package or deploy
+  workflow, the electron-builder config, a packaged-app test).
+
 ## 2.7.0 — 2026-11-14
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

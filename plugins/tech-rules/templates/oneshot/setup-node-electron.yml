@@ -1,0 +1,72 @@
+# Target: .github/actions/setup-node-electron/action.yml
+#
+# The first step after the checkout in every CI job of an Electron app:
+#   - uses: actions/checkout@v4
+#   - uses: ./.github/actions/setup-node-electron
+#     with:
+#       electron: 'false'   # a job that never starts or packages the app
+#
+# It exists so that two things cannot be forgotten or reordered per job: the dependency install
+# comes before any step that runs project code, and the Electron binary is there before anything
+# asks for it. With the default inputs it behaves exactly like the action it was taken from, which
+# has run green in a pull request lane and a release lane; `directory` and `node-version-file` were
+# added for apps that live in a subfolder or pin Node in another file.
+name: Set up Node and Electron
+description: Node with the npm cache, `npm ci`, and (optionally) the Electron binary from a version-keyed cache.
+
+inputs:
+  directory:
+    description: Folder that holds the app's package.json and package-lock.json
+    required: false
+    default: '.'
+  node-version-file:
+    description: The file that pins the Node version (.node-version, .nvmrc)
+    required: false
+    default: '.node-version'
+  electron:
+    description: "'true' downloads the Electron binary (cached per Electron version), 'false' skips it"
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: npm
+        # Empty for an app at the repository root: setup-node then finds the lock file itself.
+        cache-dependency-path: ${{ inputs.directory != '.' && format('{0}/package-lock.json', inputs.directory) || '' }}
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: npm ci
+
+    - name: Resolve the Electron version
+      id: electron-version
+      if: inputs.electron == 'true'
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: echo "version=$(node -p "require('electron/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    # Both runner OS cache locations are listed; the one that does not exist on a runner is ignored.
+    - name: Cache the Electron download
+      if: inputs.electron == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/electron
+          ~\AppData\Local\electron\Cache
+        key: electron-${{ runner.os }}-${{ steps.electron-version.outputs.version }}
+
+    # electron has no postinstall: the binary is downloaded lazily, the first time something
+    # requires `electron`. On a developer machine it has been there for months; on a runner it is
+    # missing until then. A test that reads node_modules/electron/dist/ directly finds nothing, and
+    # test files that require it at the same time race for one download ("Electron failed to
+    # install correctly"). Downloading it once, serially, up front removes both.
+    - name: Install Electron binary
+      if: inputs.electron == 'true'
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: node node_modules/electron/install.js

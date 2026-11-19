@@ -42,7 +42,7 @@ touch `.gitignore`, and does not commit.
 | `all` | `karpathy`, `test-gates`, `test-review`, `release-prep`, `solution-architect` | always |
 | `dotnet` | `backend-guidelines`, `composition-root`, `csharp-unittest`, `dotnet-review` | a `*.sln` or any `*.csproj` exists |
 | `react` | `frontend-guidelines`, `design-tokens` | a `package.json` has `react` in `dependencies` or `devDependencies` — unless `react-native` or `expo` sits in the same file: the rules assume a DOM and Tailwind, so that is a *looks wrong* case for Phase 2, not a detection |
-| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
+| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify`, `electron-release` | a `package.json` has `electron`, or an `electron-vite`/`electron-builder` config exists |
 | `ui` | `design-system` | the project has a user-facing surface: a `package.json` with a UI library or a browser bundler (`react`, `vue`, `svelte`, `@angular/core`, `solid-js`, `preact`, `lit`, `three`, `vite`, `electron`), an `index.html` in a source tree, or a .NET UI project (`UseWPF`, `UseWindowsForms`, `UseMaui`, an Avalonia package, `*.razor` files). A library, CLI or service without a screen gets no `ui` group |
 
 Read the groups from disk, never from this table alone: every folder under
@@ -95,7 +95,9 @@ Establish the current state cheaply — Glob/Grep and targeted reads, do not rea
    `<!-- tech-rules:managed:end -->`? Note the version in the start marker and whether the block
    content still matches what you would write now.
 7. **One-time files:** for `electron`, do `scripts/launch.js`-style launcher and a JSON store
-   already exist anywhere in the project? For a project with `vitest` in a `package.json`: does a
+   already exist anywhere in the project, and does a composite action under `.github/actions/`
+   already install the dependencies (an `action.yml` that runs `npm ci`)? For a project with
+   `vitest` in a `package.json`: does a
    setup file already give waits a central budget (search the test sources and configs for
    `vi.waitFor =`, `asyncUtilTimeout` or a `setupFiles` entry that wraps waits)? Only a missing
    file is ever offered.
@@ -135,6 +137,10 @@ could not determine or that are genuine decisions. On an update, ask only about 
    Default no.
    - `electron`: the env-scrubbing launcher `templates/oneshot/launch.js` and/or the self-healing
      store `templates/oneshot/json-store.ts`.
+   - `electron`, when no composite action installs the dependencies:
+     `templates/oneshot/setup-node-electron.yml`, written as
+     `.github/actions/setup-node-electron/action.yml` - Node from the version file, `npm ci` and the
+     Electron binary as the first step of every CI job, which is rule 2 of `electron-release`.
    - `vitest`, when no setup file gives waits a central budget: `templates/oneshot/vitest-waits.ts`,
      which puts `vi.waitFor` and `vi.waitUntil` on 10 s instead of the runner's 1 s — the first
      enforcement `test-gates` names. Propose the folder the project's test helpers live in.
@@ -219,6 +225,7 @@ no plugin needed. Installed and updated with `/tech-rules:setup` (plugin `tech-r
 | touching `<frontend path>` | `/frontend-guidelines`, `/design-tokens` |
 | touching `<backend path>` | `/backend-guidelines`, `/composition-root`, `/csharp-unittest` |
 | main / preload / renderer, IPC, `webPreferences` | `/electron-arch`, `/typed-ipc` |
+| a release, package or deploy workflow, the electron-builder config, a packaged-app test | `/electron-release` |
 
 `/test-review` reviews the test suite and writes a report; `/release-prep` runs every test lane
 before a release; `/solution-architect` decides the project's stage, gates and release strategy.
@@ -243,7 +250,11 @@ no lock entry. Say in the report which target you wrote and, for the launcher, t
 script line the user may want (`"dev": "node scripts/launch.js electron-vite dev"`) — you do not
 edit `package.json`. For `vitest-waits.ts`, print the two config lines from the file's header
 (`setupFiles`, `expect.poll.timeout`) and the guard test it names — you do not edit the Vitest
-config either; until the file is listed in `setupFiles` it does nothing, so say that.
+config either; until the file is listed in `setupFiles` it does nothing, so say that. For
+`setup-node-electron.yml`, the target is `.github/actions/setup-node-electron/action.yml` (the file's
+first comment line names it); print the two lines every job starts with from its header and the
+inputs a subfolder app needs (`directory`, `node-version-file`) - you do not edit a workflow, and
+until a workflow uses the action it does nothing, so say that too.
 
 ## Phase 6 — Report
 

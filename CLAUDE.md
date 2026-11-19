@@ -97,8 +97,9 @@ consequence for editing is unchanged, though — there is exactly **one** copy o
 editing its installed copy, and a rule must never be shipped in both shapes at once: a plugin skill
 and a project skill of the same name both load, which doubles the context cost and the drift.
 
-`tech-rules` additionally ships two **one-time files** (`templates/oneshot/launch.js`,
-`templates/oneshot/json-store.ts`): code copied into a project once and user-owned forever. They
+`tech-rules` additionally ships four **one-time files** (`templates/oneshot/launch.js`,
+`templates/oneshot/json-store.ts`, `templates/oneshot/vitest-waits.ts`,
+`templates/oneshot/setup-node-electron.yml`): code copied into a project once and user-owned forever. They
 carry no managed marker and no lock entry — that is what separates them from the managed payload
 directories.
 

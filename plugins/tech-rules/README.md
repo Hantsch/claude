@@ -33,6 +33,7 @@ flowchart LR
 | write or change code | `karpathy` + your stack's rules | 🤖 |
 | write, move or fix a test — or a test is red on CI but green locally | `test-gates` | 🤖 |
 | build or change a screen | `design-system` | 🤖 |
+| build or change the release or package workflow of an Electron app | `electron-release` - start from a release job that works | 🤖 |
 | review a C# diff | `/dotnet-review [staged \| branch \| <path>]` | ⌨️ |
 | clean up a slow or flaky test suite, or one that is red only when the PC is busy | `/test-review` → report: delete / merge / move / fix | ⌨️ |
 | know whether you can release | `/release-prep` → report with GO / NO-GO | ⌨️ |
@@ -48,7 +49,7 @@ Setup installs only what your project has. Everything here is a project skill in
 | anything (always) | `karpathy`, `test-gates`, ⌨️ `test-review`, ⌨️ `release-prep`, ⌨️ `solution-architect` |
 | a `*.sln` / `*.csproj` | `backend-guidelines`, `composition-root`, `csharp-unittest`, ⌨️ `dotnet-review` |
 | `react` in a `package.json` | `frontend-guidelines`, `design-tokens` |
-| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify` |
+| `electron` | `electron-arch`, `typed-ipc`, `renderer-guidelines`, `ui-verify`, `electron-release` |
 | a user interface (web, desktop, .NET UI) | `design-system` |
 
 One line per skill: [REFERENCE.md → What ships](REFERENCE.md#what-ships).
