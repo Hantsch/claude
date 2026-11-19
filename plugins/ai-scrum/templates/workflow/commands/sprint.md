@@ -588,9 +588,10 @@ roadmap check of step 1 says so in the roadmap's `## Stage`; you do not change t
    summary when it returns; its F6 writes the `done` line with the verdict. `release-verify` in the profile picks the method
    (`auto`, the project's own command, or `none` — which can never be `yes`).
    A NO for a reason outside the code — a prerequisite that is not running, a step that needs
-   the user (a secret, a tag that already exists), the bump with `commit-style: plain` — is not
-   fixed by you. It is the verdict of step 5, with the action that unblocks it; after that
-   action, `/sprint $1` runs this phase again.
+   the user (a secret, a tag that already exists), the bump with `commit-style: plain`, a release
+   job that has never run on a runner (the check's F3c) — is not fixed by you. It is the
+   verdict of step 5, with the action that unblocks it; after that action, `/sprint $1` runs this
+   phase again.
 4. **Red → fix, at most twice.** For a red step in the code — a test, a format check, the
    package, notes the sprint filed in the wrong place, subjects whose type contradicts the
    stories — ONE fresh `Agent` (`model: "sonnet"`, `run_in_background: false`) per failing step,

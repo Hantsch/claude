@@ -96,6 +96,11 @@ concept ──► roadmap plan ──► story (draft) ──► refine ──�
   exists twice is extracted before it is used a third time. Deliverable agents stop on a copied
   shape, tests are named after behaviour rather than stories and use the profile's
   `test-support` first, and the review flags copied blocks and comments that narrate history.
+- **A pipeline starts from one that works.** A deliverable that creates or changes a CI, release,
+  packaging or deployment pipeline names its `Reference:` — a pipeline of the same kind that
+  already runs green, in this repository or a neighbouring project — and lists every difference
+  with its reason. Build copies it and the review checks the differences. No reference found is a
+  question to the user, never a fresh design.
 - **Findings leave the review.** A finding left unfixed becomes a tech-debt line in the roadmap
   or a story draft, never a list that stays in `review.md`. Tech debt is counted, not aged out:
   at the profile's `tech-debt-limit`, `/roadmap plan debt` cuts a cleanup sprint. `/roadmap
@@ -332,6 +337,9 @@ exactly that:
 4. **CI conditions:** `CI=true`, `TZ=UTC`, no publish credentials, a short `TEMP` on Windows.
 5. **Notes and bump:** the open block is not empty when a release is due, no published section
    changed, and the planned bump matches the stories' change types.
+6. **What a local run cannot show**, read from the workflow files: a release job that is not on
+   the release branch yet has never run on a runner (`NO` — its first run is the release), a step
+   that runs project code above its job's install (`NO`), a token on a step that builds (warning).
 
 The verdict is one of three, and never `yes` from a subset:
 
@@ -339,6 +347,7 @@ The verdict is one of three, and never `yes` from a subset:
 releasable: yes · merge of 612487d into origin/main@0f1bdb8 · next release 1.2.0 (minor) · 6/6 blocking steps green
 releasable: NO — missing release-branch commits: b492451 chore(release): 1.1.1 · merge origin/main into dev
 releasable: UNVERIFIED — release step (needs GH_TOKEN; no release-dry-run) · add a dry-run mode to the release script
+releasable: NO — release job package (deploy.yml) has never run on a runner · its first run is the release itself: name the release job it was copied from and what differs
 ```
 
 `/sprint` uses it twice: part 1 at the start, merging the release branch into the work branch when

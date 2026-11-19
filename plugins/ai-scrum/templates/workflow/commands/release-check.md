@@ -80,8 +80,8 @@ The verdict is the first line of the report, in exactly one of three forms:
 - `releasable: NO — <step>: <reason> · <what unblocks it>`
 - `releasable: UNVERIFIED — <steps that did not run> · <why>`
 
-**`yes` only when every blocking step ran on the merge and was green, and every check of B and
-F5 passed.** NO beats UNVERIFIED, UNVERIFIED beats yes. Several NO reasons: the first in the
+**`yes` only when every blocking step ran on the merge and was green, and every check of B, F3c
+and F5 passed.** NO beats UNVERIFIED, UNVERIFIED beats yes. Several NO reasons: the first in the
 line, each further one on its own line below it (`also NO — …`), so one run names everything that
 is red. A subset that was green is never `yes` — that is the exact failure this command exists to
 end: build, test and typecheck green on the branch, `releasable: yes`, and the PR red on a step
@@ -216,8 +216,9 @@ B7's record line, and stop.
   Then F5 and F6.
 - `release-verify: <command>` → F2 for the clone, then the command in it as F4 would run one step
   (the condition prefix included); its exit code is the step result, its summary lines the
-  evidence. Then F5 and F6, with `via <command>` in the verdict line.
-- `auto` → F2 to F6 (F3b included).
+  evidence. Then F3c's first part (yourself — it compares files, nothing runs), F5 and F6, with
+  `via <command>` in the verdict line.
+- `auto` → F2 to F6 (F3b and F3c included).
 
 **F2 — The merge, in a throwaway clone.** A work directory outside the repository:
 `<work>` = `<system temp>/ai-scrum-release-check/<repo folder name>` — remove a leftover from an
@@ -249,7 +250,7 @@ not the branch's — are what GitHub runs. Delegate to ONE fresh `Agent` (`model
 `run_in_background: false`) with this section, the profile's `## Release` and `## Verify` keys,
 the paths `<work>` and `<work>/tree`, and the host OS. It reads, writes `<work>/plan.md` and
 `<work>/run.sh`, runs nothing, and returns at most 25 lines: the plan table and the list of steps
-it could not map.
+it could not map — plus F3c's `== static` lines, which it reads in the same pass.
 
 - **The lanes.** GitHub Actions (`.github/workflows/*.yml`): the **PR lane** is every workflow
   with a `pull_request` (or `pull_request_target`) trigger whose `branches` filter is absent or
@@ -368,6 +369,45 @@ echo "== coverage · checked $(ls .github/workflows/*.y*ml 2>/dev/null | wc -l) 
 - CI that is not GitHub Actions has no mechanical check yet: say so as warning W5
   (`coverage: <ci system> not checked mechanically`).
 
+**F3c — What the run cannot show, read from the workflow files.** The run installs once, first,
+for all lanes; it runs each distinct command once, in its own order; and it removes every token.
+So three things about the release never show in it, however green it is — measured: a check with
+every local step green, then four red release runs in a row, each on one of these. The F3 agent
+reads them from the merged tree in the same pass and returns one `== static · …` line per finding.
+Seconds; nothing runs.
+
+1. **A release job that has never run on a runner.** For every job of the release lane, compare
+   its workflow file with the release branch's copy
+   (`git show origin/<release-branch>:.github/workflows/<file>`), and the same for every local
+   action or reusable workflow it uses (`uses: ./…`):
+   - the file is not on the release branch, or the job is not in it → the job has never run on a
+     runner, and its first run will be the release:
+     `NO — release job <job> (<file>) has never run on a runner · its first run is the release itself: name the release job it was copied from and what differs, and expect to fix it there — or start the workflow's dry run by hand, if it has one`.
+     A NO, not an UNVERIFIED, on purpose: steps that did not run in a job that has released
+     before are a remainder; in a job that has never run they are the whole question. Its cause is
+     not in the code, so `/sprint` reports it and does not try to fix it.
+   - the job is there and its file, or a file it uses, differs → warning W6:
+     `release workflow changed since it last ran on origin/<release-branch>: <file> (<changed steps>) — those steps first run in the release`.
+   - identical → nothing to say: it ran when that commit was pushed, and B7 reports how it went.
+
+   Where B7 can read the runs, a green run of that workflow on `HEAD` for any event — a dry run
+   somebody started by hand — clears the NO; name the run. Where it cannot, such a run is
+   invisible from here, and the line ends with `(a dry run started by hand cannot be seen from
+   here)`. This command starts nothing on the CI system, ever.
+2. **Order inside a job.** Per job of both lanes, in the workflow's own order: a `run` step that
+   executes project code (`node <script>`, `npm run`, `npx`, `dotnet run`, `python <file>`, a
+   script of the repository) above that job's dependency install — or in a job that has none —
+   and that loads something the install provides (read the script's imports; one with only
+   built-in imports gets no line):
+   `NO — <file>:<line>: <command> runs before the job installs its dependencies (<file>:<line>) · move the install above it`.
+   On a clean runner it fails on the first import; here the install has always run already.
+3. **A token on a step that builds.** A step that builds, packages or tests — anything but the
+   publishing itself — with a token in its own or its job's `env` (`GH_TOKEN`, `GITHUB_TOKEN`,
+   `NPM_TOKEN`, any `secrets.*`) runs on the runner with the token and here without it → warning
+   W7: `<file>:<line> <step> builds with <TOKEN> in its environment; here it ran without — a
+   builder that publishes by itself when it sees one (electron-builder without --publish never)
+   will do that in the release · give the token to the publishing step only`.
+
 **F4 — Run it, once, in the background.** It installs dependencies and runs whole pipelines; it is
 long. From the top-level session, never from a subagent (a subagent cannot outlive a ten-minute
 tool call and never hears when a background task ends):
@@ -398,7 +438,8 @@ place.
   could not be emulated (TEMP, an OS), a dirty working tree (`git status --porcelain` not empty:
   the check ran on `HEAD`; commit exactly that, or the PR runs on a different tree), a `pwsh`
   substitution, W4 a published section already damaged on the release branch (B4), W5 a CI system F3b cannot
-  check mechanically.
+  check mechanically, W6 a release workflow changed since it last ran on the release branch (F3c),
+  W7 a token on a step that builds (F3c).
 - The step table, in run order, every step of the plan.
 - **Not run**, one line per `publish`-without-dry-run and `not local` step with its reason.
 - B7's record line.
@@ -427,5 +468,9 @@ the check.
   flaky. After a fix, the whole command runs again — on the new `HEAD`, a new merge.
 - **The verdict follows the rules above, not a judgment.** A red blocking step is NO however small
   it looks; a blocking step that did not run is UNVERIFIED however unlikely it is to fail.
+- **A green run is not the release.** What the run cannot show by construction — a release job's
+  first run, the order inside a job, a token on a building step — is read from the workflow files
+  (F3c) and reported even when every step was green. Never sum a report up as "nothing in the
+  way" while one of those lines stands.
 - No polling loops, no watchdogs, no second background task: the one background run and its exit
   notification are the whole mechanism.

@@ -186,6 +186,11 @@ finishes or quietly stops with nothing in the working tree to show for it.
        (a missing component goes into the kit, never into the screen's own styles), and — if the
        screen can be rendered in its session — to compare it with the reference before
        returning, saying so in its result if it could not,
+     - **for a D that carries a `Reference:` line** (a CI, release, packaging or deployment
+       pipeline): the instruction to open that reference first, with the files it calls and
+       their comments, to copy it and change only the differences the D lists, and to return
+       every further difference it had to make with its reason — a pipeline is not designed
+       fresh,
      - for `deliverable-hard`, the risk justification from `## Model Hints`,
      - the instruction to read and honour `CLAUDE.md` plus every file listed under
        `## Context to read before coding` in `.claude/ai-scrum.md` **before writing code**,
@@ -359,6 +364,10 @@ finishes or quietly stops with nothing in the working tree to show for it.
            map names for each need, tokens instead of literal values, no own styling for a kit
            control, no browser dialog, text a user or an agent wrote through the rich-text
            component. Each break is a finding with the document's rule id,
+       (g) **the reference**, if a deliverable carries a `Reference:` line (give the reviewer
+           that path): the new or changed pipeline differs from its reference only where the
+           deliverable lists a difference with a reason. Each unexplained difference is a
+           finding; so is a pipeline deliverable without the line,
      - the agent proposes no fixes and changes no files — it returns a verdict
        (PASS/FAIL/UNCLEAR) + a findings list (`file:line` + one line of reasoning).
    - **Handle findings:** fix confirmed ones (a fix is a delegated D like any other, with the

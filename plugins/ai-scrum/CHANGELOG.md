@@ -12,6 +12,26 @@ is empty, so no version ever ships without notes.
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->
 
+- **`/refine`: a pipeline deliverable starts from a pipeline that works.** A deliverable that
+  creates or changes a CI, release, packaging or deployment pipeline names its reference — the
+  same kind of pipeline that already runs green, in this repository, a project the user names, a
+  project next to this one, or the skeleton of the project's release rules — as a line
+  `Reference: <path>`, with every difference from it and its reason. None found is
+  `Reference: none — first of its kind` plus an open question to the user, never a silent fresh
+  design. `/build` tells the implementing agent to open the reference first and copy it, and its
+  review reports every unexplained difference. From one sprint in one project: the deployment that
+  named a sibling's deployment was green on its first run, the installer release beside it named
+  none and needed four fix-and-merge rounds for traps three sibling projects had already solved.
+- **`/release-check` reads what a local run cannot show (F3c).** The run installs once for all
+  lanes, runs each command once and removes every token, so it is green on three things that are
+  red on the runner. Read from the workflow files, in seconds: a release job that is not on the
+  release branch yet has never run on a runner — `releasable: NO`, on the first line, because its
+  first run is the release itself (a green dry run somebody started by hand clears it where the
+  run history can be read); a step that runs project code above its job's dependency install —
+  `NO`; a release workflow changed since it last ran — warning W6; a token on a step that builds
+  — warning W7. `/sprint` reports the first as a NO outside the code and does not try to fix it.
+  The check still starts nothing on the CI system.
+
 ## 4.13.0 — 2026-11-13
 
 <!-- Add your changes here as '- ...' items. A release is blocked while this section is empty. -->

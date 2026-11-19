@@ -98,6 +98,23 @@ into memory. Everything has to be reviewable in the repository.
      silent choice. Measured in one project: with a component kit in place but unnamed in the
      plans, four sprints of UI stories produced 17 font sizes, 60 literal colours and 11 browser
      popups, because every D mirrored the nearest screen and each of those had drifted already.
+
+     **Pipeline deliverables start from a pipeline that works:** a D that creates or changes a
+     CI, release, packaging or deployment pipeline — a workflow file, a deploy or release script,
+     an installer or packaging config, a container build — is never designed fresh. It names its
+     **reference**: the same kind of pipeline that already runs green. Look for it in this order
+     and open it in step 3: this repository; a project the story or the user names; the projects
+     next to this repository (`../*/.github/workflows/`, their deploy and release scripts); the
+     skeleton of the project's release rules (a `*-release` skill under `.claude/skills/`). The D
+     carries the line `Reference: <path, or project/path>` and under it **every difference from
+     the reference with its reason**; `/build` copies the reference and changes only those. None
+     found: write `Reference: none — first of its kind` and ask in `## Open Questions` which
+     project already does this — the user usually knows one. Never a silent fresh design.
+     Measured in one project, in one sprint: the server deployment named a sibling project's
+     deployment as its reference and was green on its first run; the installer release beside it
+     named none, was designed fresh, and needed four fix-and-merge rounds on the release branch
+     for traps that three sibling projects had already solved, two of them with a comment naming
+     the trap.
    - **`## Model Hints`** — here you fix the **agent tier** per deliverable that
      `/build` will use. There are exactly two tiers:
      - **Default (leave unmarked):** the session/Sonnet tier with `/build`'s effort (`medium`).
@@ -239,6 +256,9 @@ into memory. Everything has to be reviewable in the repository.
 - **UI follows the design system:** a D that changes what the user sees names its archetype,
   its reference and need → component; a missing component is a kit D before it. No design system
   in a project with a UI = an open question, not an improvisation (step 4).
+- **Pipelines start from one that works:** a D that creates or changes a CI, release, packaging
+  or deployment pipeline carries `Reference:` and the differences from it. No reference found =
+  an open question to the user, not a fresh design (step 4).
 - Keep the plan skimmable — the user wants to iterate, not read every detail.
 - Do not commit, do not push. Refine only writes the story file.
 - **Older story files** may use the previous German headings (`## Anforderung`,
